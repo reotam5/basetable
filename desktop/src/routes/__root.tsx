@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { Header } from '@/components/header';
+import { ProtectedRoute } from '@/components/protected-route';
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
@@ -31,13 +32,15 @@ function MainContent() {
 function Root() {
   return (
     <>
-      <div className="min-h-screen w-full" style={{ backgroundColor: "#fbf8f1" }}>
-        <SidebarProvider defaultOpen={false}>
-          <div className="relative flex min-h-screen w-full">
-            <MainContent />
-          </div>
-        </SidebarProvider>
-      </div>
+      <ProtectedRoute>
+        <div className="min-h-screen w-full" style={{ backgroundColor: "#fbf8f1" }}>
+          <SidebarProvider defaultOpen={false}>
+            <div className="relative flex min-h-screen w-full">
+              <MainContent />
+            </div>
+          </SidebarProvider>
+        </div>
+      </ProtectedRoute>
       <TanStackRouterDevtools />
     </>
   )

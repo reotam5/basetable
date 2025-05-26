@@ -7,7 +7,7 @@
   "scripts": {
     "lint": "eslint .",
     "preview": "vite preview",
-    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:3000 && npm run build:electron && electron .\"",
+    "dev": "concurrently -k \"vite --port 3001\" \"wait-on http://localhost:3001 && npm run build:electron && electron .\"",
     "build": "npm run build:react && npm run build:electron && npm run package",
     "package": "electron-builder",
     "build:react": "tsc -b && vite build",
@@ -16,6 +16,7 @@
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
