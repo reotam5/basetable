@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Basetable Desktop
 
-## Getting Started
+A modern Electron-based desktop application built with React, TypeScript, and Vite.
 
-First, run the development server:
+## 🚀 Development & Build Setup
 
+### Prerequisites
+
+- **Node.js** (v18 or higher) - [Download here](https://nodejs.org/)
+- **npm** (comes with Node.js)
+- **Git** - [Download here](https://git-scm.com/)
+
+### Initial Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd basetable
+   ```
+
+2. **Navigate to desktop directory**
+   ```bash
+   cd desktop
+   ```
+
+3. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+### Development Commands
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+This command will:
+- Start the Vite development server on `http://localhost:3000`
+- Build the Electron main process
+- Launch the Electron application
+- Enable hot reloading
+
+
+### Build Commands
+```bash
+npm run build
+```
+This will:
+1. Build the React application (`npm run build:react`)
+2. Build the Electron main process (`npm run build:electron`)
+3. Package the application (`npm run package`)
+
+The packaged app will be created at `/dist/electron`
+
+---
+
+## 📁 Project Structure
+
+```
+desktop/
+├── 📁 electron/                    # Electron stuff
+│   └── main.ts                     # Main entry point for electron
+│
+├── 📁 src/                         # React application source
+│   ├── routeTree.gen.ts            # Auto-generated route tree (Tanstack router)
+│   │
+│   ├── 📁 components/              # React components
+│   │   └── 📁 ui/                  # Auto-generated components (Shadcn)
+│   │
+│   ├── 📁 hooks/                   # Custom React hooks
+│   │
+│   ├── 📁 lib/                     # Utility libraries
+│   │
+│   └── 📁 routes/                  # Tanstack file routes (tanstack will automatically update routeTree.gen.ts)
+│
+└── 📁 dist/                        # Build output (generated)
+    ├── 📁 react/                   # React build output
+    ├── 📁 main/                    # Electron main process build
+    └── 📁 electron/                # Packaged application
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Key Directories Explained
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+#### `/src/routes/`
+File-based routing using TanStack Router:
+- Each folder represents a route segment
+- `index.tsx` files are the default route for that segment
+- Nested folders create nested routes
+- Make sure that you are running `npm run dev` while making changes to this folder 
+so that tanstack will automatically update routeTree.gen.ts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+### Technology Stack
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Frontend**: React 18 + TypeScript
+- **Desktop**: Electron 36
+- **Build Tool**: Vite 6
+- **Router**: TanStack Router
+- **Styling**: Tailwind CSS 4
+- **UI Components**: Shadcn UI
