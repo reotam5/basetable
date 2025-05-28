@@ -26,7 +26,7 @@ export function Header() {
   };
 
   return (
-    <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm px-6 py-4">
+    <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm px-6 py-4" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -37,7 +37,7 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           <CommandMenu />
           <Button variant="ghost" size="icon">
             <Bell className="w-4 h-4" />

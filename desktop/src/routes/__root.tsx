@@ -1,6 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { Header } from '@/components/header';
-import { ProtectedRoute } from '@/components/protected-route';
+import { ProtectedRoute } from "@/components/protected-route";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';

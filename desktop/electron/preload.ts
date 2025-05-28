@@ -1,16 +1,16 @@
+
 const { contextBridge, ipcRenderer } = require("electron");
 const Store = require("electron-store");
 
 console.log("Preload script loading...");
-console.log("Preload script loading...");
 
 const handler = {
-  send(channel: string, value: unknown): void {
+  send(channel: string, value?: unknown): void {
     ipcRenderer.send(channel, value);
   },
 
-  on(channel: string, callback: (...args: unknown[]) => void): () => void {
-    const subscription = (_event: any, ...args: unknown[]): void => {
+  on(channel: string, callback: (...args: any[]) => void): () => void {
+    const subscription = (_event: any, ...args: any[]): void => {
       callback(args);
     };
     ipcRenderer.on(channel, subscription);
@@ -20,8 +20,8 @@ const handler = {
     };
   },
 
-  once(channel: string, callback: (...args: unknown[]) => void): () => void {
-    const subscription = (_event: any, ...args: unknown[]): void => {
+  once(channel: string, callback: (...args: any[]) => void): () => void {
+    const subscription = (_event: any, ...args: any[]): void => {
       callback(args);
     };
     ipcRenderer.once(channel, subscription);
@@ -31,42 +31,19 @@ const handler = {
     };
   },
 
+  invoke(channel: string, ...args: any[]): Promise<any> {
+    return ipcRenderer.invoke(channel, ...args);
+  },
+
   removeEventListener(
     channel: string,
-    callback: (...args: unknown[]) => void,
+    callback: (...args: any[]) => void,
   ): void {
     ipcRenderer.removeListener(channel, callback);
   },
 
   removeAllListeners(channel: string): void {
     ipcRenderer.removeAllListeners(channel);
-  },
-};
-
-const auth = {
-  openAuthUrl(): void {
-    console.log("Preload: openAuthUrl called");
-    ipcRenderer.send("open-auth-url");
-  },
-
-  onAuthCallback(
-    callback: (data: {
-      token?: string;
-      error?: string;
-      state?: string;
-    }) => void,
-  ): () => void {
-    const subscription = (
-      _event: any,
-      data: { token?: string; error?: string; state?: string },
-    ): void => {
-      callback(data);
-    };
-    ipcRenderer.on("auth-callback", subscription);
-
-    return (): void => {
-      ipcRenderer.removeListener("auth-callback", subscription);
-    };
   },
 };
 
@@ -90,10 +67,30 @@ const store = {
   },
 };
 
+const electronAPI = {
+  auth: {
+    login: (silent: boolean = false) => handler.invoke("auth.login", silent),
+    logout: () => handler.send("auth.logout"),
+    profile: () => handler.invoke("auth.profile"),
+    accessToken: () => handler.invoke("auth.accessToken"),
+    onLoginComplete: (callback: (...args: any[]) => void) => {
+      handler.on("auth.login.complete", callback);
+      return () => {
+        handler.removeEventListener("auth.login.complete", callback);
+      }
+    }
+  },
+  window: {
+    resize: {
+      onboarding: () => handler.send("window.resize.onboarding"),
+    }
+  }
+}
+
 contextBridge.exposeInMainWorld("store", store);
-contextBridge.exposeInMainWorld("ipc", handler);
-contextBridge.exposeInMainWorld("auth", auth);
+contextBridge.exposeInMainWorld("electronAPI", electronAPI);
 
-console.log("Preload script loaded successfully, auth exposed:", !!auth);
+console.log("Preload script loaded successfully");
 
-// Types are only needed for TypeScript compilation, not runtime
+export type electronAPI = typeof electronAPI
+export type BackendStore = typeof store

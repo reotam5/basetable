@@ -1,14 +1,14 @@
-import { useAuth } from "@/contexts/auth-context";
 import { SignIn } from "@/components/signin";
+import { useAuth } from "@/contexts/auth-context";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated } = useAuth();
+  const { hasCompletedOnboarding } = useAuth();
 
-  if (!isAuthenticated) {
+  if (!hasCompletedOnboarding) {
     return <SignIn />;
   }
 

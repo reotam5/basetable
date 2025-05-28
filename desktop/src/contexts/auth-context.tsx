@@ -1,147 +1,119 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-
-declare global {
-  interface Window {
-    auth: {
-      openAuthUrl(): void;
-      onAuthCallback(
-        callback: (data: {
-          token?: string;
-          id_token?: string;
-          state?: string;
-          error?: string;
-        }) => void,
-      ): () => void;
-    };
-    store: {
-      createStore(options: any): {
-        get: (key: string) => unknown;
-        set: (key: string, value: unknown) => void;
-        delete: (key: string) => void;
-        clear: () => void;
-      };
-    };
-  }
-}
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
 interface User {
   id: string;
   email: string;
   name: string;
   picture?: string;
+  exp?: number;
 }
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
-  isLoading: boolean;
+  isSigningIn?: boolean;
   isAuthenticated: boolean;
+  hasCompletedOnboarding?: boolean;
   login: () => void;
   logout: () => void;
   cancelAuth: () => void;
+  getToken: () => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const authStore =
-  typeof window !== "undefined" && window.store
-    ? window.store.createStore({ name: "auth-store" })
-    : null;
+const store = window.store.createStore({ name: "app-state" });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const isSilentlySigningIn = useRef<boolean>(false);
+  const [hasCompletedOnboarding, setHasCompletedOnboardingState] = useState<boolean>(!!store.get("onboarding-complete"));
+  const setHasCompletedOnboarding = (value: boolean) => {
+    setHasCompletedOnboardingState(value);
+    store.set("onboarding-complete", value);
+  };
 
-  // Load stored auth data on mount
+
   useEffect(() => {
-    if (!authStore) return;
-
-    const storedToken = authStore.get("token") as string | null;
-    const storedUser = authStore.get("user") as User | null;
-
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(storedUser);
+    const onLoginComplete = ([{ accessToken, profile }]) => {
+      setIsSigningIn(false);
+      setUser({
+        id: profile.sub,
+        email: profile.email,
+        name: profile.name,
+        picture: profile.picture,
+        exp: profile.exp,
+      });
+      setToken(accessToken);
+      setHasCompletedOnboarding(true);
     }
-    setIsLoading(false);
+    const cleanup = window.electronAPI.auth.onLoginComplete(onLoginComplete);
+    return () => {
+      cleanup();
+    };
   }, []);
 
-  // Listen for auth callbacks from Electron
   useEffect(() => {
-    if (!window.auth) return;
-
-    const cleanup = window.auth.onAuthCallback((data) => {
-      console.log(data);
-      if (data.token) {
-        setToken(data.token);
-
-        // Decode JWT to get user info (simplified - in production, validate the token)
-        let userData: User | null = null;
-        try {
-          if (data.id_token) {
-            const payload = JSON.parse(atob(data.id_token.split(".")[1]));
-            userData = {
-              id: payload.sub,
-              email: payload.email,
-              name: payload.name,
-              picture: payload.picture,
-            };
-
-            setUser(userData);
-          }
-
-          // Store auth data
-          if (authStore) {
-            authStore.set("token", data.token);
-            authStore.set("user", userData);
-          }
-
-          console.log("Authentication successful:", userData);
-        } catch (error) {
-          console.error("Failed to decode token:", error);
-        }
-      }
-      setIsLoading(false);
-    });
-
-    return cleanup;
-  }, []);
+    if (hasCompletedOnboarding && !user && !isSilentlySigningIn.current) {
+      isSilentlySigningIn.current = true;
+      window.electronAPI.auth.login(true).then(({ accessToken, profile }) => {
+        isSilentlySigningIn.current = false;
+        setUser({
+          id: profile.sub,
+          email: profile.email,
+          name: profile.name,
+          picture: profile.picture,
+          exp: profile.exp,
+        });
+        setToken(accessToken);
+      });
+    }
+  }, [hasCompletedOnboarding, user]);
 
   const login = () => {
-    console.log("Login button clicked");
-    console.log("window.auth available:", !!window.auth);
-    setIsLoading(true);
-
-    window.auth.openAuthUrl();
-    // Keep loading state active while waiting for auth callback
+    setIsSigningIn(true);
+    // login will first try to use refresh token. 
+    // If that fails, it will open the login window.
+    // The onLoginComplete event will be triggered when the login is complete.
+    window.electronAPI.auth.login();
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
-    if (authStore) {
-      authStore.delete("token");
-      authStore.delete("user");
-    }
+    setHasCompletedOnboarding(false);
+    window.electronAPI.auth.logout();
   };
 
   const cancelAuth = () => {
     console.log("Auth cancelled by user");
-    setIsLoading(false);
+    setIsSigningIn(false);
   };
 
-  const value: AuthContextType = {
-    user,
-    token,
-    isLoading,
-    isAuthenticated: !!user && !!token,
-    login,
-    logout,
-    cancelAuth,
-  };
+  const getToken = async () => {
+    if (token && user && user.exp && user.exp > Date.now() / 1000) {
+      return token; // Return cached token if it's still valid
+    }
+    // If token is not valid or not available, get it from the API
+    // this will also refresh the token if needed
+    return await window.electronAPI.auth.accessToken();
+  }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{
+      user,
+      isSigningIn,
+      isAuthenticated: !!user && !!token,
+      hasCompletedOnboarding: hasCompletedOnboarding,
+      login,
+      logout,
+      cancelAuth,
+      getToken
+    }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
