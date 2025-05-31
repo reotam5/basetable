@@ -38,7 +38,8 @@ export function NewChat() {
           </h1>
         </div>
         <p className="text-muted-foreground text-xl max-w-2xl leading-relaxed">
-          Your intelligent AI control center. Ask questions, manage workflows, or start a conversation.
+          Your intelligent AI control center. Ask questions, manage workflows,
+          or start a conversation.
         </p>
       </div>
 
@@ -70,5 +71,5 @@ export function NewChat() {
         </div>
       </div>
     </div>
-  )
+  );
 }
