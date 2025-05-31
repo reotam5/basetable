@@ -1,4 +1,4 @@
-import { shell } from "electron";
+import { app, shell } from "electron";
 import Store from "electron-store";
 import { jwtDecode } from "jwt-decode";
 import keytar from "keytar";
@@ -32,7 +32,7 @@ export class AuthHandler {
   private static readonly CLIENT_ID = "4MXFvuUpCRkBEcxsdZ5VRIG93lstLtzs";
   private static readonly AUTH_CALLBACK_EVENT = "auth.login.complete";
   private static readonly TOKEN_EXCHANGE_URL = "https://dev-mctp8faju5qr8drf.us.auth0.com/oauth/token";
-  public static readonly KEYCHAIN_SERVICE = "basetable-auth";
+  public static readonly KEYCHAIN_SERVICE = `basetable-auth${app.isPackaged ? "" : "-dev"}`;
   public static readonly KEYCHAIN_ACCOUNT = os.userInfo().username;
   public static accessToken: string | null = null;
   public static profile: UserProfile | null = null;

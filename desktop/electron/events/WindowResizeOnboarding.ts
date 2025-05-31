@@ -29,6 +29,7 @@ export class WindowResizeOnboarding extends BaseEvent {
       height: Math.min(WindowResizeOnboarding.WINDOW_HEIGHT, screenHeight),
     };
 
+    mainWindow.windowInstance.setMinimumSize(WindowResizeOnboarding.WINDOW_WIDTH, WindowResizeOnboarding.WINDOW_HEIGHT);
     mainWindow.setBounds(targetBounds);
     mainWindow.setResizable(false);
   }

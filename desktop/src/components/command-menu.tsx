@@ -1,19 +1,41 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/auth-context";
+import { useFont } from "@/contexts/font-context";
+import { useTheme } from "@/contexts/theme-context";
 import { cn } from "@/lib/utils";
 import type { DialogProps } from "@radix-ui/react-dialog";
 import { useNavigate } from "@tanstack/react-router";
 import { Command as CommandPrimitive } from "cmdk";
 import {
-    CreditCard,
-    Network,
-    Search, Settings
+    Bot,
+    Cable,
+    CodeXml,
+    Database,
+    DollarSign,
+    FileText,
+    LayoutDashboard,
+    LogOut,
+    MessagesSquare,
+    Monitor,
+    Moon,
+    Palette,
+    Plus,
+    Search,
+    Shield,
+    Sun,
+    SunMoon,
+    Type,
+    User
 } from "lucide-react";
 import * as React from "react";
 
 export function CommandMenu({ ...props }: DialogProps) {
     const navigate = useNavigate();
     const [open, setOpen] = React.useState(false);
+    const { setTheme } = useTheme();
+    const { setFont } = useFont();
+    const { logout } = useAuth();
 
     React.useEffect(() => {
         const down = (e: KeyboardEvent) => {
@@ -51,32 +73,148 @@ export function CommandMenu({ ...props }: DialogProps) {
                 <CommandInput placeholder="Type a command or search..." />
                 <CommandList>
                     <CommandEmpty>No results found.</CommandEmpty>
-                    <CommandGroup heading="Suggestions">
+                    <CommandGroup heading="Theme">
                         <CommandItem
                             onSelect={() =>
-                                runCommand(() => navigate({ to: "/dashboard", params: { tenantId: "arx" } }))
+                                runCommand(() => setTheme("light"))
                             }
                         >
-                            <Network className="mr-2 h-4 w-4" />
-                            <span>Go to Dashboard</span>
+                            <Sun className="mr-2 h-4 w-4" />
+                            <span>Light Mode</span>
+                        </CommandItem>
+                        <CommandItem
+                            onSelect={() =>
+                                runCommand(() => setTheme("dark"))
+                            }
+                        >
+                            <Moon className="mr-2 h-4 w-4" />
+                            <span>Dark Mode</span>
+                        </CommandItem>
+                        <CommandItem
+                            onSelect={() =>
+                                runCommand(() => setTheme("system"))
+                            }
+                        >
+                            <SunMoon className="mr-2 h-4 w-4" />
+                            <span>System Theme</span>
                         </CommandItem>
                     </CommandGroup>
-                    <CommandGroup heading="Settings">
+                    <CommandGroup heading="Font">
                         <CommandItem
                             onSelect={() =>
-                                runCommand(() => navigate({ to: "/settings" }))
+                                runCommand(() => setFont("default"))
                             }
                         >
-                            <Settings className="mr-2 h-4 w-4" />
-                            <span>Settings</span>
+                            <Type className="mr-2 h-4 w-4" />
+                            <span>Default Font</span>
                         </CommandItem>
                         <CommandItem
                             onSelect={() =>
-                                runCommand(() => navigate({ to: "/settings/billing" }))
+                                runCommand(() => setFont("system"))
                             }
                         >
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            <span>Billing</span>
+                            <Monitor className="mr-2 h-4 w-4" />
+                            <span>System Font</span>
+                        </CommandItem>
+                        <CommandItem
+                            onSelect={() =>
+                                runCommand(() => setFont("mono"))
+                            }
+                        >
+                            <CodeXml className="mr-2 h-4 w-4" />
+                            <span>Mono Font</span>
+                        </CommandItem>
+                    </CommandGroup>
+                    <CommandGroup heading="Navigation">
+                        <CommandGroup heading="Chat">
+                            <CommandItem
+                                onSelect={() => runCommand(() => navigate({ to: "/" }))}
+                            >
+                                <Plus className="mr-2 h-4 w-4" />
+                                <span>New Chat</span>
+                            </CommandItem>
+                            <CommandItem
+                                onSelect={() => runCommand(() => navigate({ to: "/chats" }))}
+                            >
+                                <MessagesSquare className="mr-2 h-4 w-4" />
+                                <span>Chat History</span>
+                            </CommandItem>
+                        </CommandGroup>
+                        <CommandGroup heading="Agents">
+                            <CommandItem
+                                onSelect={() => runCommand(() => navigate({ to: "/agent" }))}
+                            >
+                                <Bot className="mr-2 h-4 w-4" />
+                                <span>Main Agent</span>
+                            </CommandItem>
+                            <CommandItem
+                                onSelect={() => runCommand(() => navigate({ to: "/agents" }))}
+                            >
+                                <Plus className="mr-2 h-4 w-4" />
+                                <span>New Agent</span>
+                            </CommandItem>
+                        </CommandGroup>
+                        <CommandGroup heading="Admin">
+                            <CommandItem
+                                onSelect={() => runCommand(() => navigate({ to: "/dashboard" }))}
+                            >
+                                <LayoutDashboard className="mr-2 h-4 w-4" />
+                                <span>Dashboard</span>
+                            </CommandItem>
+                            <CommandItem
+                                onSelect={() => runCommand(() => navigate({ to: "/mcp-servers" }))}
+                            >
+                                <Cable className="mr-2 h-4 w-4" />
+                                <span>MCP Servers</span>
+                            </CommandItem>
+                            <CommandGroup heading="Settings">
+                                <CommandItem
+                                    onSelect={() => runCommand(() => navigate({ to: "/settings/appearance" }))}
+                                >
+                                    <Palette className="mr-2 h-4 w-4" />
+                                    <span>Appearance Settings</span>
+                                </CommandItem>
+                                <CommandItem
+                                    onSelect={() => runCommand(() => navigate({ to: "/settings/account" }))}
+                                >
+                                    <User className="mr-2 h-4 w-4" />
+                                    <span>Account Settings</span>
+                                </CommandItem>
+                                <CommandItem
+                                    onSelect={() => runCommand(() => navigate({ to: "/settings/security" }))}
+                                >
+                                    <Shield className="mr-2 h-4 w-4" />
+                                    <span>Security Settings</span>
+                                </CommandItem>
+                                <CommandItem
+                                    onSelect={() => runCommand(() => navigate({ to: "/settings/billing" }))}
+                                >
+                                    <DollarSign className="mr-2 h-4 w-4" />
+                                    <span>Billing Settings</span>
+                                </CommandItem>
+                                <CommandItem
+                                    onSelect={() => runCommand(() => navigate({ to: "/settings/data" }))}
+                                >
+                                    <Database className="mr-2 h-4 w-4" />
+                                    <span>Data Settings</span>
+                                </CommandItem>
+                                <CommandItem
+                                    onSelect={() => runCommand(() => navigate({ to: "/settings/privacy" }))}
+                                >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    <span>Privacy Settings</span>
+                                </CommandItem>
+                            </CommandGroup>
+                        </CommandGroup>
+                    </CommandGroup>
+                    <CommandGroup heading="Account">
+                        <CommandItem
+                            onSelect={() =>
+                                runCommand(() => logout())
+                            }
+                        >
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Logout</span>
                         </CommandItem>
                     </CommandGroup>
                 </CommandList>
@@ -182,7 +320,7 @@ function CommandItem({
     return (
         <CommandPrimitive.Item
             className={cn(
-                "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+                "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground",
                 className,
             )}
             {...props}

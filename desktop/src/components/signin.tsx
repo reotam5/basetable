@@ -1,11 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
+import { useTheme } from "@/contexts/theme-context";
 import { Loader2, LogIn, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 
+
 export function SignIn({ ...props }: React.ComponentPropsWithoutRef<"div">) {
+  const { logo } = useTheme();
   const { login, isSigningIn, cancelAuth } = useAuth();
   const mounted = useRef(false);
 
@@ -19,9 +22,7 @@ export function SignIn({ ...props }: React.ComponentPropsWithoutRef<"div">) {
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
       <div className="flex w-full max-w-sm flex-col gap-6" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         <a href="#" className="flex items-center gap-2 self-center font-medium">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <img src="/logo.jpeg" className="h-8 w-8 rounded-2xl" />
-          </div>
+          <img src={logo} className="h-12 w-12 mt-[-5px] mr-[-6px]" />
           Basetable
         </a>
         <div className={"flex flex-col gap-6"} {...props}>

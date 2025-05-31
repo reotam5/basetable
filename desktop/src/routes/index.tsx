@@ -1,6 +1,6 @@
-import { ChatInterface } from '@/components/chat-interface'
+import { NewChat } from '@/components/new-chat'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
-  component: ChatInterface,
+  component: NewChat,
 })

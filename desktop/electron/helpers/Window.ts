@@ -112,7 +112,7 @@ export class Window {
 
     public resetToDefaults(): void {
         const isOnboardingComplete = Window.appStateStore.get("onboarding-complete", false);
-        console.log("isOnboardingComplete", isOnboardingComplete);
+        this.window?.setMinimumSize(600, 245)
 
         const width = isOnboardingComplete ? Window.DEAFAULT_WIDTH : WindowResizeOnboarding.WINDOW_WIDTH;
         const height = isOnboardingComplete ? Window.DEFAULT_HEIGHT : WindowResizeOnboarding.WINDOW_HEIGHT;

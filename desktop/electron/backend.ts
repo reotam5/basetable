@@ -54,6 +54,10 @@ export class Backend {
   private async start(): Promise<void> {
     this.mainWindow = new Window(this, "controller", {
       titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 17, y: 20 },
+      minHeight: 245,
+      minWidth: 600,
+      autoHideMenuBar: true,
     });
 
     if (this.isProd) {
@@ -68,9 +72,7 @@ export class Backend {
   private handleDeepLink(callback: (url: string) => void): void {
     const baseUrl = "basetable";
     // Register custom protocol handler for auth redirects
-    if (!app.isDefaultProtocolClient(baseUrl)) {
-      app.setAsDefaultProtocolClient(baseUrl);
-    }
+    app.setAsDefaultProtocolClient(baseUrl);
 
     // Handle deep links (macOS)
     app.on("open-url", (event, url) => {
@@ -96,7 +98,7 @@ export class Backend {
     })
 
     app.on("ready", () => {
-      const url = process.argv.find(arg => arg.startsWith('myapp://'));
+      const url = process.argv.find(arg => arg.startsWith(`${baseUrl}://`));
       if (url) {
         callback(url);
       }

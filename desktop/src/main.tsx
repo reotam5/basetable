@@ -1,14 +1,15 @@
 import { RouterProvider, createHashHistory, createRouter } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
-import "./globals.css";
 import { AuthProvider } from './contexts/auth-context';
+import "./globals.css";
 
 // Import the generated route tree
+import { ThemeProvider } from './contexts/theme-context';
 import { routeTree } from './routeTree.gen';
 
 // Create a new router instance
-const router = createRouter({ 
+const router = createRouter({
   routeTree,
   history: createHashHistory()
 })
@@ -28,7 +29,9 @@ if (!rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <ThemeProvider storageKey='ui-theme' defaultTheme='system'>
+          <RouterProvider router={router} />
+        </ThemeProvider>
       </AuthProvider>
     </StrictMode>,
   )

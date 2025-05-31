@@ -49,18 +49,18 @@ const handler = {
 
 const store = {
   createStore(options: any): {
-    get: (key: string) => unknown;
-    set: (key: string, value: unknown) => void;
+    get: (key: string) => any;
+    set: (key: string, value: any) => void;
     delete: (key: string) => void;
     clear: () => void;
   } {
     const createdStore = new Store(options);
 
     return {
-      get: (key: string): unknown => {
+      get: (key: string): any => {
         return createdStore.get(key);
       },
-      set: (key: string, value: unknown) => createdStore.set(key, value),
+      set: (key: string, value: any) => createdStore.set(key, value),
       delete: (key: string) => createdStore.delete(key),
       clear: () => createdStore.clear(),
     };

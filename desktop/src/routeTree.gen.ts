@@ -8,55 +8,42 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
+import { createFileRoute } from '@tanstack/react-router'
+
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
-import { Route as SystemPromptsIndexImport } from './routes/system-prompts/index'
-import { Route as SettingsIndexImport } from './routes/settings/index'
-import { Route as RoutingRulesIndexImport } from './routes/routing-rules/index'
-import { Route as PromptManagementIndexImport } from './routes/prompt-management/index'
 import { Route as McpServersIndexImport } from './routes/mcp-servers/index'
 import { Route as DashboardIndexImport } from './routes/dashboard/index'
-import { Route as ChatIndexImport } from './routes/chat/index'
-import { Route as SettingsBillingImport } from './routes/settings/billing'
+import { Route as ChatsIndexImport } from './routes/chats/index'
+import { Route as AgentsIndexImport } from './routes/agents/index'
+import { Route as AgentIndexImport } from './routes/agent/index'
+import { Route as SettingsLayoutImport } from './routes/settings/_layout'
+import { Route as ChatChatIdImport } from './routes/chat/$chatId'
+import { Route as AgentAgentIdImport } from './routes/agent/$agentId'
+import { Route as SettingsLayoutSecurityImport } from './routes/settings/_layout.security'
+import { Route as SettingsLayoutPrivacyImport } from './routes/settings/_layout.privacy'
+import { Route as SettingsLayoutDataImport } from './routes/settings/_layout.data'
+import { Route as SettingsLayoutBillingImport } from './routes/settings/_layout.billing'
+import { Route as SettingsLayoutAppearanceImport } from './routes/settings/_layout.appearance'
+import { Route as SettingsLayoutAccountImport } from './routes/settings/_layout.account'
+
+// Create Virtual Routes
+
+const SettingsImport = createFileRoute('/settings')()
 
 // Create/Update Routes
 
-const AboutRoute = AboutImport.update({
-  id: '/about',
-  path: '/about',
+const SettingsRoute = SettingsImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRoute,
 } as any)
 
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const SystemPromptsIndexRoute = SystemPromptsIndexImport.update({
-  id: '/system-prompts/',
-  path: '/system-prompts/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const SettingsIndexRoute = SettingsIndexImport.update({
-  id: '/settings/',
-  path: '/settings/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const RoutingRulesIndexRoute = RoutingRulesIndexImport.update({
-  id: '/routing-rules/',
-  path: '/routing-rules/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const PromptManagementIndexRoute = PromptManagementIndexImport.update({
-  id: '/prompt-management/',
-  path: '/prompt-management/',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -72,16 +59,75 @@ const DashboardIndexRoute = DashboardIndexImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const ChatIndexRoute = ChatIndexImport.update({
-  id: '/chat/',
-  path: '/chat/',
+const ChatsIndexRoute = ChatsIndexImport.update({
+  id: '/chats/',
+  path: '/chats/',
   getParentRoute: () => rootRoute,
 } as any)
 
-const SettingsBillingRoute = SettingsBillingImport.update({
-  id: '/settings/billing',
-  path: '/settings/billing',
+const AgentsIndexRoute = AgentsIndexImport.update({
+  id: '/agents/',
+  path: '/agents/',
   getParentRoute: () => rootRoute,
+} as any)
+
+const AgentIndexRoute = AgentIndexImport.update({
+  id: '/agent/',
+  path: '/agent/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const SettingsLayoutRoute = SettingsLayoutImport.update({
+  id: '/_layout',
+  getParentRoute: () => SettingsRoute,
+} as any)
+
+const ChatChatIdRoute = ChatChatIdImport.update({
+  id: '/chat/$chatId',
+  path: '/chat/$chatId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const AgentAgentIdRoute = AgentAgentIdImport.update({
+  id: '/agent/$agentId',
+  path: '/agent/$agentId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const SettingsLayoutSecurityRoute = SettingsLayoutSecurityImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => SettingsLayoutRoute,
+} as any)
+
+const SettingsLayoutPrivacyRoute = SettingsLayoutPrivacyImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => SettingsLayoutRoute,
+} as any)
+
+const SettingsLayoutDataRoute = SettingsLayoutDataImport.update({
+  id: '/data',
+  path: '/data',
+  getParentRoute: () => SettingsLayoutRoute,
+} as any)
+
+const SettingsLayoutBillingRoute = SettingsLayoutBillingImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => SettingsLayoutRoute,
+} as any)
+
+const SettingsLayoutAppearanceRoute = SettingsLayoutAppearanceImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => SettingsLayoutRoute,
+} as any)
+
+const SettingsLayoutAccountRoute = SettingsLayoutAccountImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => SettingsLayoutRoute,
 } as any)
 
 // Populate the FileRoutesByPath interface
@@ -95,25 +141,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutImport
+    '/agent/$agentId': {
+      id: '/agent/$agentId'
+      path: '/agent/$agentId'
+      fullPath: '/agent/$agentId'
+      preLoaderRoute: typeof AgentAgentIdImport
       parentRoute: typeof rootRoute
     }
-    '/settings/billing': {
-      id: '/settings/billing'
-      path: '/settings/billing'
-      fullPath: '/settings/billing'
-      preLoaderRoute: typeof SettingsBillingImport
+    '/chat/$chatId': {
+      id: '/chat/$chatId'
+      path: '/chat/$chatId'
+      fullPath: '/chat/$chatId'
+      preLoaderRoute: typeof ChatChatIdImport
       parentRoute: typeof rootRoute
     }
-    '/chat/': {
-      id: '/chat/'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatIndexImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsImport
+      parentRoute: typeof rootRoute
+    }
+    '/settings/_layout': {
+      id: '/settings/_layout'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsLayoutImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/agent/': {
+      id: '/agent/'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AgentIndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/agents/': {
+      id: '/agents/'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsIndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/chats/': {
+      id: '/chats/'
+      path: '/chats'
+      fullPath: '/chats'
+      preLoaderRoute: typeof ChatsIndexImport
       parentRoute: typeof rootRoute
     }
     '/dashboard/': {
@@ -130,143 +204,221 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpServersIndexImport
       parentRoute: typeof rootRoute
     }
-    '/prompt-management/': {
-      id: '/prompt-management/'
-      path: '/prompt-management'
-      fullPath: '/prompt-management'
-      preLoaderRoute: typeof PromptManagementIndexImport
-      parentRoute: typeof rootRoute
+    '/settings/_layout/account': {
+      id: '/settings/_layout/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof SettingsLayoutAccountImport
+      parentRoute: typeof SettingsLayoutImport
     }
-    '/routing-rules/': {
-      id: '/routing-rules/'
-      path: '/routing-rules'
-      fullPath: '/routing-rules'
-      preLoaderRoute: typeof RoutingRulesIndexImport
-      parentRoute: typeof rootRoute
+    '/settings/_layout/appearance': {
+      id: '/settings/_layout/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof SettingsLayoutAppearanceImport
+      parentRoute: typeof SettingsLayoutImport
     }
-    '/settings/': {
-      id: '/settings/'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsIndexImport
-      parentRoute: typeof rootRoute
+    '/settings/_layout/billing': {
+      id: '/settings/_layout/billing'
+      path: '/billing'
+      fullPath: '/settings/billing'
+      preLoaderRoute: typeof SettingsLayoutBillingImport
+      parentRoute: typeof SettingsLayoutImport
     }
-    '/system-prompts/': {
-      id: '/system-prompts/'
-      path: '/system-prompts'
-      fullPath: '/system-prompts'
-      preLoaderRoute: typeof SystemPromptsIndexImport
-      parentRoute: typeof rootRoute
+    '/settings/_layout/data': {
+      id: '/settings/_layout/data'
+      path: '/data'
+      fullPath: '/settings/data'
+      preLoaderRoute: typeof SettingsLayoutDataImport
+      parentRoute: typeof SettingsLayoutImport
+    }
+    '/settings/_layout/privacy': {
+      id: '/settings/_layout/privacy'
+      path: '/privacy'
+      fullPath: '/settings/privacy'
+      preLoaderRoute: typeof SettingsLayoutPrivacyImport
+      parentRoute: typeof SettingsLayoutImport
+    }
+    '/settings/_layout/security': {
+      id: '/settings/_layout/security'
+      path: '/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof SettingsLayoutSecurityImport
+      parentRoute: typeof SettingsLayoutImport
     }
   }
 }
 
 // Create and export the route tree
 
+interface SettingsLayoutRouteChildren {
+  SettingsLayoutAccountRoute: typeof SettingsLayoutAccountRoute
+  SettingsLayoutAppearanceRoute: typeof SettingsLayoutAppearanceRoute
+  SettingsLayoutBillingRoute: typeof SettingsLayoutBillingRoute
+  SettingsLayoutDataRoute: typeof SettingsLayoutDataRoute
+  SettingsLayoutPrivacyRoute: typeof SettingsLayoutPrivacyRoute
+  SettingsLayoutSecurityRoute: typeof SettingsLayoutSecurityRoute
+}
+
+const SettingsLayoutRouteChildren: SettingsLayoutRouteChildren = {
+  SettingsLayoutAccountRoute: SettingsLayoutAccountRoute,
+  SettingsLayoutAppearanceRoute: SettingsLayoutAppearanceRoute,
+  SettingsLayoutBillingRoute: SettingsLayoutBillingRoute,
+  SettingsLayoutDataRoute: SettingsLayoutDataRoute,
+  SettingsLayoutPrivacyRoute: SettingsLayoutPrivacyRoute,
+  SettingsLayoutSecurityRoute: SettingsLayoutSecurityRoute,
+}
+
+const SettingsLayoutRouteWithChildren = SettingsLayoutRoute._addFileChildren(
+  SettingsLayoutRouteChildren,
+)
+
+interface SettingsRouteChildren {
+  SettingsLayoutRoute: typeof SettingsLayoutRouteWithChildren
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsLayoutRoute: SettingsLayoutRouteWithChildren,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/settings/billing': typeof SettingsBillingRoute
-  '/chat': typeof ChatIndexRoute
+  '/agent/$agentId': typeof AgentAgentIdRoute
+  '/chat/$chatId': typeof ChatChatIdRoute
+  '/settings': typeof SettingsLayoutRouteWithChildren
+  '/agent': typeof AgentIndexRoute
+  '/agents': typeof AgentsIndexRoute
+  '/chats': typeof ChatsIndexRoute
   '/dashboard': typeof DashboardIndexRoute
   '/mcp-servers': typeof McpServersIndexRoute
-  '/prompt-management': typeof PromptManagementIndexRoute
-  '/routing-rules': typeof RoutingRulesIndexRoute
-  '/settings': typeof SettingsIndexRoute
-  '/system-prompts': typeof SystemPromptsIndexRoute
+  '/settings/account': typeof SettingsLayoutAccountRoute
+  '/settings/appearance': typeof SettingsLayoutAppearanceRoute
+  '/settings/billing': typeof SettingsLayoutBillingRoute
+  '/settings/data': typeof SettingsLayoutDataRoute
+  '/settings/privacy': typeof SettingsLayoutPrivacyRoute
+  '/settings/security': typeof SettingsLayoutSecurityRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/settings/billing': typeof SettingsBillingRoute
-  '/chat': typeof ChatIndexRoute
+  '/agent/$agentId': typeof AgentAgentIdRoute
+  '/chat/$chatId': typeof ChatChatIdRoute
+  '/settings': typeof SettingsLayoutRouteWithChildren
+  '/agent': typeof AgentIndexRoute
+  '/agents': typeof AgentsIndexRoute
+  '/chats': typeof ChatsIndexRoute
   '/dashboard': typeof DashboardIndexRoute
   '/mcp-servers': typeof McpServersIndexRoute
-  '/prompt-management': typeof PromptManagementIndexRoute
-  '/routing-rules': typeof RoutingRulesIndexRoute
-  '/settings': typeof SettingsIndexRoute
-  '/system-prompts': typeof SystemPromptsIndexRoute
+  '/settings/account': typeof SettingsLayoutAccountRoute
+  '/settings/appearance': typeof SettingsLayoutAppearanceRoute
+  '/settings/billing': typeof SettingsLayoutBillingRoute
+  '/settings/data': typeof SettingsLayoutDataRoute
+  '/settings/privacy': typeof SettingsLayoutPrivacyRoute
+  '/settings/security': typeof SettingsLayoutSecurityRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/settings/billing': typeof SettingsBillingRoute
-  '/chat/': typeof ChatIndexRoute
+  '/agent/$agentId': typeof AgentAgentIdRoute
+  '/chat/$chatId': typeof ChatChatIdRoute
+  '/settings': typeof SettingsRouteWithChildren
+  '/settings/_layout': typeof SettingsLayoutRouteWithChildren
+  '/agent/': typeof AgentIndexRoute
+  '/agents/': typeof AgentsIndexRoute
+  '/chats/': typeof ChatsIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/mcp-servers/': typeof McpServersIndexRoute
-  '/prompt-management/': typeof PromptManagementIndexRoute
-  '/routing-rules/': typeof RoutingRulesIndexRoute
-  '/settings/': typeof SettingsIndexRoute
-  '/system-prompts/': typeof SystemPromptsIndexRoute
+  '/settings/_layout/account': typeof SettingsLayoutAccountRoute
+  '/settings/_layout/appearance': typeof SettingsLayoutAppearanceRoute
+  '/settings/_layout/billing': typeof SettingsLayoutBillingRoute
+  '/settings/_layout/data': typeof SettingsLayoutDataRoute
+  '/settings/_layout/privacy': typeof SettingsLayoutPrivacyRoute
+  '/settings/_layout/security': typeof SettingsLayoutSecurityRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/about'
-    | '/settings/billing'
-    | '/chat'
+    | '/agent/$agentId'
+    | '/chat/$chatId'
+    | '/settings'
+    | '/agent'
+    | '/agents'
+    | '/chats'
     | '/dashboard'
     | '/mcp-servers'
-    | '/prompt-management'
-    | '/routing-rules'
-    | '/settings'
-    | '/system-prompts'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/billing'
+    | '/settings/data'
+    | '/settings/privacy'
+    | '/settings/security'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/about'
-    | '/settings/billing'
-    | '/chat'
+    | '/agent/$agentId'
+    | '/chat/$chatId'
+    | '/settings'
+    | '/agent'
+    | '/agents'
+    | '/chats'
     | '/dashboard'
     | '/mcp-servers'
-    | '/prompt-management'
-    | '/routing-rules'
-    | '/settings'
-    | '/system-prompts'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/billing'
+    | '/settings/data'
+    | '/settings/privacy'
+    | '/settings/security'
   id:
     | '__root__'
     | '/'
-    | '/about'
-    | '/settings/billing'
-    | '/chat/'
+    | '/agent/$agentId'
+    | '/chat/$chatId'
+    | '/settings'
+    | '/settings/_layout'
+    | '/agent/'
+    | '/agents/'
+    | '/chats/'
     | '/dashboard/'
     | '/mcp-servers/'
-    | '/prompt-management/'
-    | '/routing-rules/'
-    | '/settings/'
-    | '/system-prompts/'
+    | '/settings/_layout/account'
+    | '/settings/_layout/appearance'
+    | '/settings/_layout/billing'
+    | '/settings/_layout/data'
+    | '/settings/_layout/privacy'
+    | '/settings/_layout/security'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
-  SettingsBillingRoute: typeof SettingsBillingRoute
-  ChatIndexRoute: typeof ChatIndexRoute
+  AgentAgentIdRoute: typeof AgentAgentIdRoute
+  ChatChatIdRoute: typeof ChatChatIdRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
+  AgentIndexRoute: typeof AgentIndexRoute
+  AgentsIndexRoute: typeof AgentsIndexRoute
+  ChatsIndexRoute: typeof ChatsIndexRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   McpServersIndexRoute: typeof McpServersIndexRoute
-  PromptManagementIndexRoute: typeof PromptManagementIndexRoute
-  RoutingRulesIndexRoute: typeof RoutingRulesIndexRoute
-  SettingsIndexRoute: typeof SettingsIndexRoute
-  SystemPromptsIndexRoute: typeof SystemPromptsIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
-  SettingsBillingRoute: SettingsBillingRoute,
-  ChatIndexRoute: ChatIndexRoute,
+  AgentAgentIdRoute: AgentAgentIdRoute,
+  ChatChatIdRoute: ChatChatIdRoute,
+  SettingsRoute: SettingsRouteWithChildren,
+  AgentIndexRoute: AgentIndexRoute,
+  AgentsIndexRoute: AgentsIndexRoute,
+  ChatsIndexRoute: ChatsIndexRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   McpServersIndexRoute: McpServersIndexRoute,
-  PromptManagementIndexRoute: PromptManagementIndexRoute,
-  RoutingRulesIndexRoute: RoutingRulesIndexRoute,
-  SettingsIndexRoute: SettingsIndexRoute,
-  SystemPromptsIndexRoute: SystemPromptsIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -280,28 +432,51 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/about",
-        "/settings/billing",
-        "/chat/",
+        "/agent/$agentId",
+        "/chat/$chatId",
+        "/settings",
+        "/agent/",
+        "/agents/",
+        "/chats/",
         "/dashboard/",
-        "/mcp-servers/",
-        "/prompt-management/",
-        "/routing-rules/",
-        "/settings/",
-        "/system-prompts/"
+        "/mcp-servers/"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
-    "/about": {
-      "filePath": "about.tsx"
+    "/agent/$agentId": {
+      "filePath": "agent/$agentId.tsx"
     },
-    "/settings/billing": {
-      "filePath": "settings/billing.tsx"
+    "/chat/$chatId": {
+      "filePath": "chat/$chatId.tsx"
     },
-    "/chat/": {
-      "filePath": "chat/index.tsx"
+    "/settings": {
+      "filePath": "settings",
+      "children": [
+        "/settings/_layout"
+      ]
+    },
+    "/settings/_layout": {
+      "filePath": "settings/_layout.tsx",
+      "parent": "/settings",
+      "children": [
+        "/settings/_layout/account",
+        "/settings/_layout/appearance",
+        "/settings/_layout/billing",
+        "/settings/_layout/data",
+        "/settings/_layout/privacy",
+        "/settings/_layout/security"
+      ]
+    },
+    "/agent/": {
+      "filePath": "agent/index.tsx"
+    },
+    "/agents/": {
+      "filePath": "agents/index.tsx"
+    },
+    "/chats/": {
+      "filePath": "chats/index.tsx"
     },
     "/dashboard/": {
       "filePath": "dashboard/index.tsx"
@@ -309,17 +484,29 @@ export const routeTree = rootRoute
     "/mcp-servers/": {
       "filePath": "mcp-servers/index.tsx"
     },
-    "/prompt-management/": {
-      "filePath": "prompt-management/index.tsx"
+    "/settings/_layout/account": {
+      "filePath": "settings/_layout.account.tsx",
+      "parent": "/settings/_layout"
     },
-    "/routing-rules/": {
-      "filePath": "routing-rules/index.tsx"
+    "/settings/_layout/appearance": {
+      "filePath": "settings/_layout.appearance.tsx",
+      "parent": "/settings/_layout"
     },
-    "/settings/": {
-      "filePath": "settings/index.tsx"
+    "/settings/_layout/billing": {
+      "filePath": "settings/_layout.billing.tsx",
+      "parent": "/settings/_layout"
     },
-    "/system-prompts/": {
-      "filePath": "system-prompts/index.tsx"
+    "/settings/_layout/data": {
+      "filePath": "settings/_layout.data.tsx",
+      "parent": "/settings/_layout"
+    },
+    "/settings/_layout/privacy": {
+      "filePath": "settings/_layout.privacy.tsx",
+      "parent": "/settings/_layout"
+    },
+    "/settings/_layout/security": {
+      "filePath": "settings/_layout.security.tsx",
+      "parent": "/settings/_layout"
     }
   }
 }
