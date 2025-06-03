@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Send } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -5,11 +6,17 @@ import { Textarea } from "./ui/textarea";
 
 export function NewChat() {
   const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = () => {
     if (message.trim()) {
       // Handle sending the message
-      console.log("Sending message:", message);
+      window.electronAPI.chat.create({
+        initialMessage: { content: message },
+      }).then((chat) => {
+        window.dispatchEvent(new CustomEvent("sidebar.refresh"));
+        navigate({ to: `/chat/${chat.id}` });
+      })
       setMessage("");
     }
   };

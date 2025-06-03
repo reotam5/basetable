@@ -3,86 +3,10 @@ import { useSearchHistory } from "./use-search-history";
 // import { chatApi } from '../services/chat-api';
 
 export interface ChatItem {
-  id: string;
+  id: number;
   title: string;
-  updatedAt: Date;
-  description: string;
-  tags: string[];
+  lastMessageAt: Date;
 }
-
-// Dummy data that will be replaced with async call in the future
-const dummyData: ChatItem[] = [
-  {
-    title: "Email Summary & Code",
-    updatedAt: new Date("2023-10-01T12:00:00Z"),
-    description: "Summarize the email and extract code snippets.",
-    tags: ["email", "code", "summary"],
-    id: "1",
-  },
-  {
-    title: "Project Management",
-    updatedAt: new Date("2023-10-02T14:30:00Z"),
-    description: "Discuss project timelines and deliverables.",
-    tags: ["project", "management", "timeline"],
-    id: "2",
-  },
-  {
-    title: "AI Research Discussion",
-    updatedAt: new Date("2023-10-03T09:15:00Z"),
-    description: "Explore the latest trends in AI research.",
-    tags: ["AI", "research", "trends"],
-    id: "3",
-  },
-  {
-    title: "Customer Feedback Analysis",
-    updatedAt: new Date("2023-10-04T11:45:00Z"),
-    description: "Analyze customer feedback for product improvements.",
-    tags: ["customer", "feedback", "analysis"],
-    id: "4",
-  },
-  {
-    title: "Marketing Strategy Planning",
-    updatedAt: new Date("2023-10-05T16:20:00Z"),
-    description: "Plan the next marketing campaign strategies.",
-    tags: ["marketing", "strategy", "planning"],
-    id: "5",
-  },
-  {
-    title: "Sales Data Insights",
-    updatedAt: new Date("2023-10-06T08:00:00Z"),
-    description: "Review sales data and identify key insights.",
-    tags: ["sales", "data", "insights"],
-    id: "6",
-  },
-  {
-    title: "Team Collaboration Tools",
-    updatedAt: new Date("2023-10-07T10:30:00Z"),
-    description: "Discuss tools for better team collaboration.",
-    tags: ["team", "collaboration", "tools"],
-    id: "7",
-  },
-  {
-    title: "Financial Report Review",
-    updatedAt: new Date("2023-10-08T13:00:00Z"),
-    description: "Review the latest financial reports and forecasts.",
-    tags: ["financial", "report", "review"],
-    id: "8",
-  },
-  {
-    title: "Product Launch Planning",
-    updatedAt: new Date("2023-10-09T15:45:00Z"),
-    description: "Plan the upcoming product launch event.",
-    tags: ["product", "launch", "planning"],
-    id: "9",
-  },
-  {
-    title: "User Experience Research",
-    updatedAt: new Date("2023-10-10T17:30:00Z"),
-    description: "Conduct research on user experience improvements.",
-    tags: ["user", "experience", "research"],
-    id: "10",
-  },
-];
 
 export function useChatSearch() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,28 +21,22 @@ export function useChatSearch() {
 
   // Async function to fetch chats
   const fetchChats = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
     try {
-      // REAL API INTEGRATION - Uncomment the lines below and remove dummy data
-      // const data = await chatApi.getChats();
-      // setChats(data);
-
-      // DUMMY DATA - Remove this when integrating with real API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setChats(dummyData);
+      const { rows } = await window.electronAPI.chat.getAll();
+      setChats(rows);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch chats';
       setError(errorMessage);
-      console.error('Error fetching chats:', err);
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
   // Fetch chats on component mount
   useEffect(() => {
-    fetchChats();
+    setIsLoading(true);
+    fetchChats().finally(() => {
+      setIsLoading(false);
+    });
   }, [fetchChats]);
 
   // Async search function with debouncing
@@ -129,41 +47,13 @@ export function useChatSearch() {
     }
 
     setIsSearching(true);
-    try {
-      // REAL API INTEGRATION - Server-side search
-      // const searchResults = await chatApi.searchChats(query);
-      // setFilteredChats(searchResults);
+    const data = await window.electronAPI.chat.search(query, { limit: 100 });
 
-      // DUMMY IMPLEMENTATION - Client-side filtering with delay to simulate async
-      await new Promise(resolve => setTimeout(resolve, 300));
-      const lowercaseQuery = query.toLowerCase();
-      const filtered = chats.filter((chat) => {
-        return (
-          chat.title.toLowerCase().includes(lowercaseQuery) ||
-          chat.description.toLowerCase().includes(lowercaseQuery) ||
-          chat.tags.some((tag) => tag.toLowerCase().includes(lowercaseQuery))
-        );
-      });
-      setFilteredChats(filtered);
+    setFilteredChats(data ?? []);
 
-      // Add to search history when search is complete
-      addToHistory(query, filtered.length);
-    } catch (err) {
-      console.error('Error searching chats:', err);
-      // Fallback to local filtering on search error
-      const lowercaseQuery = query.toLowerCase();
-      const filtered = chats.filter((chat) => {
-        return (
-          chat.title.toLowerCase().includes(lowercaseQuery) ||
-          chat.description.toLowerCase().includes(lowercaseQuery) ||
-          chat.tags.some((tag) => tag.toLowerCase().includes(lowercaseQuery))
-        );
-      });
-      setFilteredChats(filtered);
-      addToHistory(query, filtered.length);
-    } finally {
-      setIsSearching(false);
-    }
+    // Add to search history when search is complete
+    addToHistory(query, data?.length);
+    setIsSearching(false);
   }, [chats, addToHistory]);
 
   // Generate search suggestions based on chat content and history
@@ -185,13 +75,6 @@ export function useChatSearch() {
           suggestions.add(word);
         }
       });
-
-      // Add matching tags
-      chat.tags.forEach(tag => {
-        if (tag.toLowerCase().includes(query) && tag.toLowerCase() !== query) {
-          suggestions.add(tag);
-        }
-      });
     });
 
     // Add from search history (only queries that had results and are long enough)
@@ -210,7 +93,7 @@ export function useChatSearch() {
   useEffect(() => {
     const delayedSearch = setTimeout(() => {
       searchChats(searchQuery);
-    }, 300); // 300ms debounce
+    }, 100); // Reduced to 100ms debounce for faster response
 
     return () => clearTimeout(delayedSearch);
   }, [searchQuery, searchChats]);
@@ -233,25 +116,21 @@ export function useChatSearch() {
 
   const formatDate = (date: Date) => {
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffMs = now?.getTime() - date?.getTime();
+    const diffDays = Math?.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
+    return date?.toLocaleDateString();
   };
 
-  const deleteChat = useCallback(async (chatId: string) => {
+  const deleteChat = useCallback(async (chatId: number) => {
     try {
-      // REAL API INTEGRATION - Uncomment the line below
-      // await chatApi.deleteChat(chatId);
+      await window.electronAPI.chat.delete(chatId);
 
       // Remove chat from local state optimistically
       setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
-
-      // DUMMY IMPLEMENTATION - Remove this when integrating with real API
-      console.log('Delete chat:', chatId);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete chat';
       setError(errorMessage);
@@ -269,14 +148,14 @@ export function useChatSearch() {
   return {
     searchQuery,
     setSearchQuery,
-    filteredChats,
+    filteredChats: filteredChats ?? [],
     isLoading,
     isSearching,
     error,
     formatDate,
     deleteChat,
     refetch,
-    searchSuggestions,
-    searchHistory,
+    searchSuggestions: searchSuggestions ?? [],
+    searchHistory: searchHistory ?? [],
   };
 }

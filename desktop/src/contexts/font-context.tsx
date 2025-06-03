@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { useSettings } from "@/hooks/use-settings"
+import { createContext, useContext, useEffect } from "react"
 
 export type Font = "default" | "system" | "mono"
 
@@ -26,9 +27,12 @@ export function FontProvider({
   storageKey = "basetable-font",
   ...props
 }: FontProviderProps) {
-  const [font, setFont] = useState<Font>(
-    () => (localStorage.getItem(storageKey) as Font) || defaultFont
-  )
+  const { settings: [font], setSetting, refetch } = useSettings({ keys: ["appearance.font"], defaults: { "appearance.font": localStorage.getItem(storageKey) || defaultFont } })
+  const setFont = (font) => {
+    setSetting("appearance.font", font)
+    localStorage.setItem(storageKey, font)
+  }
+
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -48,12 +52,18 @@ export function FontProvider({
     }
   }, [font])
 
+  useEffect(() => {
+    const cleanup = window.electronAPI.db.onSettingsImported(() => {
+      refetch()
+    })
+    return () => {
+      cleanup()
+    }
+  })
+
   const value = {
     font,
-    setFont: (font: Font) => {
-      localStorage.setItem(storageKey, font)
-      setFont(font)
-    },
+    setFont
   }
 
   return (

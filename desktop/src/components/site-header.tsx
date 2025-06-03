@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useAuth } from "@/contexts/auth-context"
 import { useMatches, useNavigate } from "@tanstack/react-router"
 import { Bell, LogOut, User } from "lucide-react"
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { CommandMenu } from "./command-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet"
@@ -81,7 +81,7 @@ export function SiteHeader() {
               const isLast = i === breadcrumbNames.length - 1
               const to = breadcrumbPaths[i]
               return (
-                <>
+                <Fragment key={to + label}>
                   <BreadcrumbItem key={to + label}>
                     {isLast ? (
                       <BreadcrumbPage>{label}</BreadcrumbPage>
@@ -92,7 +92,7 @@ export function SiteHeader() {
                     )}
                   </BreadcrumbItem>
                   {!isLast && <BreadcrumbSeparator />}
-                </>
+                </Fragment>
               )
             })}
           </BreadcrumbList>

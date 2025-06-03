@@ -1,0 +1,177 @@
+import { useNavigate } from '@tanstack/react-router';
+import debounce from 'lodash.debounce';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+type IAgent = {
+  id?: number;
+  is_main?: boolean;
+  name?: string;
+  llmId?: number;
+  instruction?: string;
+  mcpIds?: number[];
+  styles?: number[];
+}
+
+type IUseAgent = {
+  agent: IAgent | null;
+  loading: boolean;
+  error: string | null;
+  updateAgent: (agent?: Partial<IAgent>) => Promise<void>;
+  refetch: () => Promise<void>;
+  createAgent: () => Promise<void>;
+  deleteAgent: () => Promise<void>;
+}
+
+const useAgent = (id?: number): IUseAgent => {
+  const [agent, setAgent] = useState<IAgent | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const pendingUpdatesRef = useRef<Partial<IAgent>>({});
+  const navigate = useNavigate();
+
+  const fetchAgent = useCallback(async () => {
+    try {
+      if (!id) return;
+      setLoading(true);
+      setError(null);
+      const agentData = await window.electronAPI.agent.get(id);
+      agentData.mcpIds = agentData?.Users_MCPs?.map((mcp: { id: number }) => mcp.id);
+      agentData.styles = agentData?.Styles?.map((style: { id: number }) => style.id) ?? [];
+      delete agentData.Users_MCPs;
+      delete agentData.Styles;
+      setAgent(agentData);
+    } catch (err) {
+      console.error('Error fetching agent:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch agent');
+      setAgent(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  // Create debounced API call function
+  const debouncedApiCall = useMemo(
+    () => debounce(async () => {
+      try {
+        const updatePayload: {
+          name?: string;
+          instruction?: string;
+          llmId?: string;
+          mcpIds?: number[];
+          styles?: number[];
+        } = {};
+
+        const pendingUpdate = pendingUpdatesRef.current;
+
+        if (pendingUpdate.name !== undefined) {
+          updatePayload.name = pendingUpdate.name;
+        }
+        if (pendingUpdate.instruction !== undefined) {
+          updatePayload.instruction = pendingUpdate.instruction;
+        }
+        if (pendingUpdate.llmId !== undefined) {
+          updatePayload.llmId = pendingUpdate.llmId.toString();
+        }
+        if (pendingUpdate.mcpIds !== undefined) {
+          updatePayload.mcpIds = pendingUpdate.mcpIds;
+        }
+        if (pendingUpdate.styles !== undefined) {
+          updatePayload.styles = pendingUpdate.styles ?? [];
+        }
+
+        // Send update to server
+        await window.electronAPI.agent.update(id!, updatePayload);
+
+        // Clear pending updates after successful API call
+        pendingUpdatesRef.current = {};
+
+      } catch (err) {
+        console.error('Error updating agent:', err);
+        setError(err instanceof Error ? err.message : 'Failed to update agent');
+
+        // Refetch to get the correct state from server on error
+        await fetchAgent();
+      }
+    }, 500), // 500ms debounce delay
+    [id, fetchAgent]
+  );
+
+  const updateAgent = useCallback(async (agentUpdate?: Partial<IAgent>) => {
+    try {
+      setError(null);
+
+      // Optimistically update local state first
+      setAgent(prevAgent => {
+        return {
+          ...(prevAgent ?? {}),
+          ...agentUpdate
+        };
+      });
+
+      // Accumulate pending updates
+      pendingUpdatesRef.current = {
+        ...pendingUpdatesRef.current,
+        ...agentUpdate
+      };
+
+      // Trigger debounced API call
+      if (id) debouncedApiCall();
+
+    } catch (err) {
+      console.error('Error in updateAgent:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update agent');
+      throw err;
+    }
+  }, [debouncedApiCall, id]);
+
+  const refetch = useCallback(async () => {
+    await fetchAgent();
+  }, [fetchAgent]);
+
+  useEffect(() => {
+    fetchAgent();
+  }, [fetchAgent]);
+
+  // Cleanup debounced function on unmount
+  useEffect(() => {
+    return () => {
+      debouncedApiCall.cancel();
+    };
+  }, [debouncedApiCall]);
+
+  return {
+    agent,
+    loading,
+    error,
+    updateAgent,
+    refetch,
+    createAgent: async () => {
+      const newAgent = await window.electronAPI.agent.create({
+        instruction: pendingUpdatesRef.current.instruction!,
+        llmId: pendingUpdatesRef.current.llmId!,
+        mcpIds: pendingUpdatesRef.current.mcpIds,
+        styles: pendingUpdatesRef.current.styles
+      })
+      window.dispatchEvent(new CustomEvent('sidebar.refresh'));
+      navigate({ to: `/agent/${newAgent.id}`, replace: true });
+    },
+    deleteAgent: async () => {
+      if (!id) return;
+      const agents = await window.electronAPI.agent.getAll();
+      const deletedAgentIndex = agents.findIndex((a) => a.id == id);
+      const nextAgentIndex = deletedAgentIndex === 1 ? (agents.length > 2 ? deletedAgentIndex + 1 : 0) : deletedAgentIndex - 1;
+      await window.electronAPI.agent.delete(id);
+      window.dispatchEvent(new CustomEvent('sidebar.refresh'));
+      if (nextAgentIndex === 0) {
+        navigate({ to: `/agent` })
+      } else {
+        navigate({ to: `/agent/${agents[nextAgentIndex].id}` })
+      }
+    }
+  };
+}
+
+export default useAgent;
+export { useAgent };
+export type { IAgent, IUseAgent };
+

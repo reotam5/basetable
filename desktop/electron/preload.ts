@@ -78,11 +78,78 @@ const electronAPI = {
       return () => {
         handler.removeEventListener("auth.login.complete", callback);
       }
-    }
+    },
+    onLogoutComplete: (callback: () => void) => {
+      handler.on("auth.logout.complete", callback);
+      return () => {
+        handler.removeEventListener("auth.logout.complete", callback);
+      }
+    },
   },
   window: {
     resize: {
       onboarding: () => handler.send("window.resize.onboarding"),
+    }
+  },
+  settings: {
+    get: (key: string) => handler.invoke("settings.get", key),
+    set: (key: string, value: any) => handler.invoke("settings.set", key, value),
+  },
+  chat: {
+    create: (chat: { title?: string; initialMessage?: { content: string }, metadata?: any }) => handler.invoke("chat.create", chat),
+    getAll: (options?: { limit?: number; offset?: number; search?: string }) => handler.invoke("chat.getAll", options),
+    getById: (id: number) => handler.invoke("chat.getById", id),
+    update: (id: number, chat: { title?: string; metadata?: any }) => handler.invoke("chat.update", id, chat),
+    delete: (id: number) => handler.invoke("chat.delete", id),
+    search: (query: string, options?: { limit?: number; offset?: number }) => handler.invoke("chat.search", query, options),
+    message: {
+      create: (message: { chatId: number; type: string; content: string; status?: string }) => handler.invoke("message.create", message),
+      getByChat: (chatId: number, options?: { limit?: number; offset?: number }) => handler.invoke("message.getByChat", chatId, options),
+      attachment: {
+        create: (attachment: { messageId: number; filePath: string; fileName: string, type: string }) => handler.invoke("attachment.create", attachment),
+        getByMessage: (messageId: number) => handler.invoke("attachment.getByMessage", messageId),
+      }
+    },
+  },
+  mcp: {
+    getAll: (filter?: { is_active?: boolean }) => handler.invoke("mcp.getAll", filter),
+    uninstall: (name: string) => handler.invoke("mcp.uninstall", name),
+    install: (name: string) => handler.invoke("mcp.install", name),
+    setActiveState: (name: string, is_active: boolean) => handler.invoke("mcp.active", name, is_active),
+  },
+  key: {
+    set: (name: string, value: string) => handler.invoke("apikey.set", name, value),
+    delete: (name: string) => handler.invoke("apikey.delete", name),
+  },
+  agent: {
+    getMain: () => handler.invoke("agent.getMain"),
+    getAll: () => handler.invoke("agent.getAll"),
+    delete: (id: number) => handler.invoke("agent.delete", id),
+    create: (agent: { instruction: string; llmId: number; mcpIds?: number[]; styles?: number[] }) => handler.invoke("agent.create", agent),
+    get: (id: number) => handler.invoke("agent.get", id),
+    update: (id: number, agent?: { name?: string; instruction?: string; llmId?: number; mcpIds?: number[]; styles?: number[] }) => handler.invoke("agent.update", id, agent),
+    getTones: () => handler.invoke("agent.get.tones"),
+    getStyles: () => handler.invoke("agent.get.styles"),
+  },
+  llm: {
+    getAll: () => handler.invoke("llm.getAll"),
+  },
+  db: {
+    encryption: {
+      get: () => handler.invoke("db.encryption.get"),
+    },
+    export: {
+      applicationSettings: () => handler.invoke("db.export.applicationSettings"),
+    },
+    import: (data: any) => handler.invoke("db.import", data),
+    reset: {
+      applicationSettings: () => handler.invoke("db.reset.applicationSettings"),
+    },
+    onSettingsImported: (callback: () => void) => {
+      handler.on("db.imported", callback);
+      return () => {
+        handler.removeEventListener("db.imported", callback);
+      }
     }
   }
 }

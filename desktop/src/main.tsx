@@ -5,7 +5,6 @@ import { AuthProvider } from './contexts/auth-context';
 import "./globals.css";
 
 // Import the generated route tree
-import { ThemeProvider } from './contexts/theme-context';
 import { routeTree } from './routeTree.gen';
 
 // Create a new router instance
@@ -29,9 +28,7 @@ if (!rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <AuthProvider>
-        <ThemeProvider storageKey='ui-theme' defaultTheme='system'>
-          <RouterProvider router={router} />
-        </ThemeProvider>
+        <RouterProvider router={router} />
       </AuthProvider>
     </StrictMode>,
   )

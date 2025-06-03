@@ -1,0 +1,208 @@
+import crypto from "crypto";
+import { app } from "electron";
+import { join } from "path";
+import { Sequelize } from "sequelize";
+import { AuthHandler, KeyManager, Window } from "../helpers/index.js";
+import { Logger } from "../helpers/Logger.js";
+import { models } from "./models/index.js";
+import { Settings } from "./models/Settings.js";
+import { services } from "./services/index.js";
+
+class Database {
+  public static readonly DB_IMPORTED_EVENT = "db.imported";
+  static #instance: Database;
+  public sequelize: Sequelize | null = null;
+  private window: Window | null = null;
+
+  private constructor() { }
+
+  public static get instance(): Database {
+    if (!Database.#instance) {
+      Database.#instance = new Database();
+    }
+
+    return Database.#instance;
+  }
+
+  public async initialize(window: Window): Promise<void> {
+    this.window = window;
+    const existingPassword = await KeyManager.getKey(KeyManager.KEYS.DB_PASSWORD);
+    const strongPassword = crypto.randomBytes(16).toString('base64').slice(0, 16);
+    if (!existingPassword) {
+      KeyManager.setKey(KeyManager.KEYS.DB_PASSWORD, strongPassword);
+    }
+    const password = existingPassword || strongPassword;
+    if (!password) {
+      throw new Error("Password creation failed before initializing the database.");
+    }
+
+    this.sequelize = new Sequelize('db', 'username', password, {
+      dialect: 'sqlite',
+      dialectModulePath: '@journeyapps/sqlcipher',
+      storage: join(app.getPath("userData"), "db.sqlite"),
+      logging: (msg: string) => Logger.debug(msg),
+    });
+  }
+
+  public async getEncryption(): Promise<string | null> {
+    return await KeyManager.getKey(KeyManager.KEYS.DB_PASSWORD);
+  }
+
+  public async registerModel() {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+    for (const model of models) {
+      this.sequelize.define(model.name, model.attributes, model.options);
+    }
+
+    for (const model of models) {
+      await model?.customize?.(this.sequelize);
+    }
+
+    await this.sequelize.sync();
+  }
+
+  public async registerService() {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+    for (const service of services) {
+      service.initialize()
+    }
+  }
+
+  public async loadDefaultEntries(userId: string): Promise<void> {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+    // some default entries might fail because it requires other entries to exist first.
+    const tryModel = models;
+    while (tryModel.length > 0) {
+      const model = tryModel.shift();
+      try {
+        await model?.addDefaultEntries?.(this.sequelize.model(model.name), userId);
+      } catch (e) {
+        Logger.warn("Failed to load default entries for model:", model?.name, e);
+        tryModel.push(model!);
+      }
+    }
+  }
+
+  public async close(): Promise<void> {
+    await this.sequelize?.close();
+    this.sequelize = null;
+  }
+
+  public async exportApplicationSettings(): Promise<any> {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+
+    try {
+      const settingsModel = this.sequelize.model("Settings");
+      const userSettings = await settingsModel.findAll({
+        where: { userId: AuthHandler.profile?.sub },
+        attributes: {
+          exclude: ['id', 'userId', 'createdAt', 'updatedAt']
+        }
+      });
+
+      return {
+        version: "1.0",
+        exportDate: new Date().toISOString(),
+        type: "application_settings",
+        data: {
+          settings: JSON.parse(JSON.stringify(userSettings))
+        }
+      };
+    } catch (error) {
+      Logger.error("Failed to export application settings:", error);
+      throw error;
+    }
+  }
+
+  public async importSettings(settingsData: any): Promise<void> {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+
+    if (!settingsData || !settingsData.data || !settingsData.version || !settingsData.type) {
+      throw new Error("Invalid data format. Expected structure with data object.");
+    }
+
+    if (settingsData.type === "application_settings") {
+      await this.loadApplicationSettings(settingsData);
+    }
+
+    this.window?.windowInstance.webContents.send(Database.DB_IMPORTED_EVENT)
+  }
+
+  public async loadApplicationSettings(settingsData: any): Promise<void> {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+
+    try {
+      // Validate the settings data structure
+      if (!settingsData || !settingsData.data || !settingsData.data.settings) {
+        throw new Error("Invalid settings data format. Expected structure with data.settings array.");
+      }
+
+      if (settingsData.type !== "application_settings") {
+        throw new Error("Invalid settings data type. Expected 'application_settings'.");
+      }
+
+      const settingsModel = this.sequelize.model("Settings");
+
+      // Process each setting from the import
+      const settingsToImport = settingsData.data.settings;
+
+      for (const setting of settingsToImport) {
+        // Validate required fields
+        if (!setting.key || !setting.type) {
+          Logger.warn(`Skipping invalid setting entry: missing key, or type`);
+          continue;
+        }
+
+        try {
+          // Use upsert to update existing settings or create new ones
+          await settingsModel.upsert({
+            key: setting.key,
+            value: setting.value,
+            type: setting.type,
+            userId: AuthHandler.profile?.sub,
+          });
+
+        } catch (error) {
+          Logger.warn(`Failed to import setting ${setting.key}:`, error);
+        }
+      }
+
+    } catch (error) {
+      Logger.error("Failed to load application settings:", error);
+      throw error;
+    }
+  }
+
+  public async resetApplicationSettings(): Promise<void> {
+    if (!this.sequelize) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+
+    try {
+      const settingsModel = this.sequelize.model("Settings");
+      await settingsModel.destroy({
+        where: { userId: AuthHandler.profile?.sub }
+      });
+      await Settings.addDefaultEntries?.(this.sequelize.model(Settings.name), AuthHandler.profile!.sub);
+      this.window?.windowInstance.webContents.send(Database.DB_IMPORTED_EVENT)
+    } catch (error) {
+      Logger.error("Failed to reset application settings:", error);
+      throw error;
+    }
+  }
+}
+
+const database = Database.instance;
+export { database as Database };

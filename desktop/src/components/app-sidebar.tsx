@@ -25,7 +25,7 @@ import {
     ShieldUser
 } from "lucide-react";
 import * as React from "react";
-import { AgentMenuItems } from "./AgentMenuItems";
+import { AgentMenuItems } from "./agent-menu-items";
 import { ChatMenuItems } from "./chat-menu-items";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
@@ -57,13 +57,6 @@ const data: {
                     icon: MessagesSquare,
                 },
                 {
-                    onRender: () => (
-                        <div key="divider" className="ml-2 text-xs text-muted-foreground mt-2">
-                            Recents
-                        </div>
-                    )
-                },
-                {
                     onRender: ({ ChatMenuItems }) => ChatMenuItems,
                 }
             ]
@@ -73,23 +66,6 @@ const data: {
             url: ["/agent", "/agents", "/agent/$agentId"],
             icon: Bot,
             items: [
-                {
-                    title: "Main agent",
-                    url: ["/agent"],
-                    icon: Bot
-                },
-                {
-                    title: "New Agent",
-                    url: ["/agents"],
-                    icon: Plus,
-                },
-                {
-                    onRender: () => (
-                        <div key="divider2" className="ml-2 text-xs text-muted-foreground mt-2">
-                            Your agents
-                        </div>
-                    )
-                },
                 {
                     onRender: ({ AgentMenuItems }) => AgentMenuItems
                 }
@@ -240,7 +216,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <SidebarGroup>
                             <SidebarMenu>
                                 {subMenues.map((item) => (
-                                    item.onRender ? (item.onRender({ ChatMenuItems: <ChatMenuItems />, AgentMenuItems: <AgentMenuItems /> })) : (
+                                    item.onRender ? (item.onRender({ ChatMenuItems: <ChatMenuItems key={"chat-menu-items"} />, AgentMenuItems: <AgentMenuItems key={"agent-menu-items"} /> })) : (
                                         <SidebarMenuButton key={item.title} isActive={item.url?.includes(routePattern as any)} onClick={() => { navigate({ to: item.url?.[0] as any }) }}>
                                             {item.icon && <item.icon />}
                                             <span>{item.title}</span>

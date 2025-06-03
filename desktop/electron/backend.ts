@@ -1,8 +1,12 @@
 import { app, ipcMain, IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { join } from "path";
+import { Database } from "./db/Database.js";
 import { BaseEvent } from "./events/BaseEvent.js";
 import { events } from "./events/index.js";
-import { AuthHandler, Window } from "./helpers/index.js";
+import { AuthHandler, KeyManager, Window } from "./helpers/index.js";
+import { Logger } from "./helpers/Logger.js";
+
+let once = false;
 
 export class Backend {
   private readonly isProd: boolean = app.isPackaged;
@@ -16,31 +20,68 @@ export class Backend {
     if (!this.isProd) {
       app.setPath("userData", `${app.getPath("userData")} (non-production)`);
     }
+    Logger.initialize();
 
     // Request single instance lock for protocol handling
     const gotTheLock = app.requestSingleInstanceLock();
     if (!gotTheLock) {
-      console.log("Another instance is running, quitting...");
+      Logger.warn("Another instance is running, quitting...");
       app.quit();
       return;
     }
 
     // Handle deep links (macOS and Windows/Linux)
     this.handleDeepLink((url: string) => {
-      console.log("Received deep link:", url);
+      Logger.debug("Received deep link:", url);
       AuthHandler.getInstance().handleAuthCallback(url);
     });
 
     app.on("window-all-closed", () => {
-      console.log("All windows closed, quitting app");
       app.quit();
     });
 
     app.once("ready", async () => {
-      console.log("App ready, starting backend");
       await this.registerEvents();
-      await this.start();
+
+      this.mainWindow = new Window(this, "controller", {
+        titleBarStyle: "hiddenInset",
+        trafficLightPosition: { x: 17, y: 20 },
+        minHeight: 245,
+        minWidth: 600,
+        autoHideMenuBar: true,
+        show: false,
+      });
+      await Database.initialize(this.mainWindow);
+      await Database.registerModel();
+      await Database.registerService();
+      AuthHandler.getInstance().setWindow(this.mainWindow);
+
+      if (this.isProd) {
+        this.mainWindow?.windowInstance.loadFile(join(app.getAppPath(), "dist/react/index.html"));
+      } else {
+        this.mainWindow?.windowInstance.loadURL("http://localhost:3001");
+      }
+
+      this.mainWindow?.windowInstance.webContents.on('did-finish-load', async () => {
+        // if there is a stored refresh token, login before starting the main window
+        const storedRefreshToken = await KeyManager.getKey(KeyManager.KEYS.REFRESH_TOKEN)
+        if (storedRefreshToken) {
+          await AuthHandler.getInstance().requestTokens({ refresh_token: storedRefreshToken, loginOnError: false, logoutOnError: true });
+        } else {
+          await AuthHandler.getInstance().logout();
+        }
+
+        // added here to prevent electron getting focused on every code save
+        if (!once) {
+          once = true;
+          this.mainWindow?.windowInstance.show();
+        }
+      })
     });
+
+    app.on('before-quit', async () => {
+      await Database.close();
+    })
   }
 
   public isProduction(): boolean {
@@ -49,24 +90,6 @@ export class Backend {
 
   public getMainWindow(): Window | null {
     return this.mainWindow;
-  }
-
-  private async start(): Promise<void> {
-    this.mainWindow = new Window(this, "controller", {
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 17, y: 20 },
-      minHeight: 245,
-      minWidth: 600,
-      autoHideMenuBar: true,
-    });
-
-    if (this.isProd) {
-      this.mainWindow.windowInstance.loadFile(join(app.getAppPath(), "dist/react/index.html"));
-    } else {
-      this.mainWindow.windowInstance.loadURL("http://localhost:3001");
-    }
-
-    AuthHandler.getInstance().setWindow(this.mainWindow);
   }
 
   private handleDeepLink(callback: (url: string) => void): void {
@@ -109,24 +132,24 @@ export class Backend {
     for await (const eventClass of events) {
       try {
         const event: BaseEvent = new eventClass(this);
-        console.log('Registering event:', event.getName());
+        Logger.debug('Registering event:', event.getName());
         if (event.useInvoke()) {
           ipcMain.handle(event.getName(), (receivedEvent: IpcMainInvokeEvent, ...args: any[]) => event.preExecute(receivedEvent, ...args).catch((error: any) => {
-            console.error('An error occurred while executing invoke event ' + event.getName(), error);
+            Logger.error('An error occurred while executing invoke event ' + event.getName(), error);
           }));
         } else {
           if (event.runOnce()) {
             ipcMain.once(event.getName(), (receivedEvent: IpcMainEvent, ...args: any[]) => event.preExecute(receivedEvent, ...args).catch((error: any) => {
-              console.error('An error occurred while executing single-run event ' + event.getName(), error);
+              Logger.error('An error occurred while executing single-run event ' + event.getName(), error);
             }));
           } else {
             ipcMain.on(event.getName(), (receivedEvent: IpcMainEvent, ...args: any[]) => event.preExecute(receivedEvent, ...args).catch((error: any) => {
-              console.error('An error occurred while executing event ' + event.getName(), error);
+              Logger.error('An error occurred while executing event ' + event.getName(), error);
             }));
           }
         }
       } catch (error) {
-        console.error('An error occurred while registering event ' + eventClass.name, error);
+        Logger.error('An error occurred while registering event ' + eventClass.name, error);
       }
     }
   }

@@ -2,41 +2,44 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { useSettings } from "@/hooks/use-settings"
 import { createFileRoute } from '@tanstack/react-router'
 import { Download } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 export const Route = createFileRoute('/settings/_layout/billing')({
   component: RouteComponent,
 })
 
 export function RouteComponent() {
-  const [monthlyBudget, setMonthlyBudget] = useState("100")
-  const [originalBudget, setOriginalBudget] = useState("100")
-  const [currentUsage] = useState({
-    total: 23.47,
-    breakdown: [
-      { service: "OpenAI GPT-4", amount: 15.32, usage: "1,234 tokens" },
-      { service: "Claude 3", amount: 6.89, usage: "892 tokens" },
-      { service: "Gemini Pro", amount: 1.26, usage: "456 tokens" }
-    ]
-  })
+  const { settings: [savedBudget], setSetting } = useSettings({ keys: ["billing.budget"] });
+  const [currentUsage] = useState({ total: 23.47 })
+  const [newBudget, setNewBudget] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNewBudget(savedBudget)
+  }, [savedBudget]);
 
   const handleSaveBudget = () => {
-    setOriginalBudget(monthlyBudget)
+    setSetting("billing.budget", newBudget)
   }
 
   const handleCancelBudget = () => {
-    setMonthlyBudget(originalBudget)
+    setNewBudget(savedBudget)
   }
 
   const isBudgetValid = () => {
-    const budgetValue = parseFloat(monthlyBudget)
-    return !isNaN(budgetValue) && budgetValue > 0
+    if (newBudget === null || newBudget === undefined) return false;
+    const budgetValue = parseFloat(String(newBudget));
+    return !isNaN(budgetValue) && budgetValue > 0;
+  }
+
+  const getBudgetValue = () => {
+    return newBudget || 0;
   }
 
   const hasBudgetChanged = () => {
-    return monthlyBudget !== originalBudget
+    return newBudget !== savedBudget
   }
 
   return (
@@ -55,7 +58,7 @@ export function RouteComponent() {
                 <div className="text-2xl font-bold">${currentUsage.total.toFixed(2)}</div>
                 <div className="text-sm text-muted-foreground">
                   {isBudgetValid() ? (
-                    `of $${monthlyBudget} budget`
+                    `of $${getBudgetValue()} budget`
                   ) : (
                     'Set budget limit'
                   )}
@@ -68,15 +71,15 @@ export function RouteComponent() {
               <div
                 className={`h-2 rounded-full transition-all ${!isBudgetValid()
                   ? 'bg-muted'
-                  : (currentUsage.total / parseFloat(monthlyBudget)) * 100 > 80
+                  : (currentUsage.total / getBudgetValue()) * 100 > 80
                     ? 'bg-destructive'
-                    : (currentUsage.total / parseFloat(monthlyBudget)) * 100 > 60
+                    : (currentUsage.total / getBudgetValue()) * 100 > 60
                       ? 'bg-yellow-500'
                       : 'bg-primary'
                   }`}
                 style={{
                   width: isBudgetValid()
-                    ? `${Math.min((currentUsage.total / parseFloat(monthlyBudget)) * 100, 100)}%`
+                    ? `${Math.min((currentUsage.total / getBudgetValue()) * 100, 100)}%`
                     : '0%'
                 }}
               ></div>
@@ -88,9 +91,13 @@ export function RouteComponent() {
                 <span className="text-2xl">$</span>
                 <Input
                   type="number"
-                  value={monthlyBudget}
-                  onChange={(e) => setMonthlyBudget(e.target.value)}
+                  value={newBudget || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewBudget(value === '' ? null : parseFloat(value));
+                  }}
                   className="w-32"
+                  placeholder="0.00"
                 />
                 <span className="text-sm text-muted-foreground">per month</span>
                 {hasBudgetChanged() && (

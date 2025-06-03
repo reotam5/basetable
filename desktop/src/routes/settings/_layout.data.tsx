@@ -14,6 +14,7 @@ export function RouteComponent() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [importStatus, setImportStatus] = useState<string>('')
   const [showDeleteConversationsDialog, setShowDeleteConversationsDialog] = useState(false)
   const [showDeleteAgentsDialog, setShowDeleteAgentsDialog] = useState(false)
   const [showDeleteSettingsDialog, setShowDeleteSettingsDialog] = useState(false)
@@ -21,21 +22,20 @@ export function RouteComponent() {
   // Danger zone handlers
   const handleDeleteConversations = () => {
     // Implement conversation deletion logic here
-    console.log("Deleting all conversations...")
+    alert('will be implemented after chat db design')
     setShowDeleteConversationsDialog(false)
     // Show success message or refresh data
   }
 
   const handleDeleteAgents = () => {
     // Implement agent deletion logic here
-    console.log("Deleting all agent configurations...")
+    alert('will be implemented after agent db design')
     setShowDeleteAgentsDialog(false)
     // Show success message or refresh data
   }
 
   const handleDeleteSettings = () => {
-    // Implement settings reset logic here
-    console.log("Resetting all settings to default...")
+    window.electronAPI.db.reset.applicationSettings()
     setShowDeleteSettingsDialog(false)
     // Reset all settings to default values
   }
@@ -45,6 +45,7 @@ export function RouteComponent() {
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(true)
+    setImportStatus('')
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -66,45 +67,78 @@ export function RouteComponent() {
     const files = e.dataTransfer.files
     if (files && files.length > 0) {
       const file = files[0]
+      if (files.length > 1) {
+        setImportStatus('Please drop only one file at a time.')
+        return
+      }
       handleFileSelection(file)
     }
   }
 
   const handleFileSelection = (file: File) => {
-    // Validate file type (optional - you can add specific file type validation)
+    // Validate file type
     const validTypes = ['.json']
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
 
     if (!validTypes.some(type => fileExtension.endsWith(type.replace('.', '')))) {
+      setImportStatus('Please select a valid backup file (.json)')
       alert('Please select a valid backup file (.json)')
       return
     }
 
+    // Validate file size (limit to 10MB)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      setImportStatus('File is too large. Maximum file size is 10MB.')
+      alert('File is too large. Maximum file size is 10MB.')
+      return
+    }
+
     setSelectedFile(file)
+    setImportStatus('')
     handleFileUpload(file)
   }
 
   const handleFileUpload = async (file: File) => {
     setIsUploading(true)
+    setImportStatus('Reading file...')
+
     try {
-      // Implement file upload logic here
-      console.log('Uploading file:', file.name)
+      // Read the file content
+      setImportStatus('Parsing file content...')
+      const fileContent = await file.text()
+      let importData
 
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      try {
+        importData = JSON.parse(fileContent)
+      } catch {
+        throw new Error('Invalid JSON file. Please select a valid backup file.')
+      }
 
-      console.log('File uploaded successfully')
-      alert(`File "${file.name}" uploaded successfully!`)
+      // Validate the data structure
+      setImportStatus('Validating data format...')
+      if (!importData || !importData.data || !importData.version || !importData.type) {
+        throw new Error('Invalid backup file format. Expected structure with data, version, and type.')
+      }
+
+      // Import the data using Electron API
+      setImportStatus('Importing data...')
+      await window.electronAPI.db.import(importData)
+      setImportStatus('Import completed successfully!')
     } catch (error) {
-      console.error('Error uploading file:', error)
-      alert('Error uploading file. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Error importing file. Please try again.'
+      setImportStatus(`Import failed: ${errorMessage}`)
+      alert(errorMessage)
     } finally {
       setIsUploading(false)
       setSelectedFile(null)
+      // Clear status after a delay
+      setTimeout(() => setImportStatus(''), 3000)
     }
   }
 
   const handleChooseFile = () => {
+    setImportStatus('')
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.json'
@@ -115,6 +149,28 @@ export function RouteComponent() {
       }
     }
     input.click()
+  }
+
+  const handleExportApplicationSettings = async () => {
+    try {
+      const data = await window.electronAPI.db.export.applicationSettings()
+      downloadJSON(data, 'application-settings-export.json')
+    } catch {
+      alert('Failed to export application settings. Please try again.')
+    }
+  }
+
+
+  const downloadJSON = (data: any, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -128,7 +184,7 @@ export function RouteComponent() {
               <Label className="text-base">Conversations</Label>
               <p className="text-sm text-muted-foreground">Download all your chat history</p>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => alert('will be implemented after chat db design')}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -139,7 +195,7 @@ export function RouteComponent() {
               <Label className="text-base">Agent Settings</Label>
               <p className="text-sm text-muted-foreground">Download your agent configurations</p>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => alert('will be implemented after agent db design')}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -150,7 +206,7 @@ export function RouteComponent() {
               <Label className="text-base">Application Settings</Label>
               <p className="text-sm text-muted-foreground">Download your preferences and settings</p>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExportApplicationSettings}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
@@ -161,7 +217,7 @@ export function RouteComponent() {
               <Label className="text-base">All Data</Label>
               <p className="text-sm text-muted-foreground">Download a complete backup of all your data</p>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => alert('will be implemented after db design')}>
               <Download className="w-4 h-4 mr-2" />
               Export All
             </Button>
@@ -189,7 +245,7 @@ export function RouteComponent() {
             <Upload className="w-8 h-8 mx-auto mb-4 text-muted-foreground" />
             <div className="space-y-2">
               <p className="text-sm font-medium">
-                {isUploading ? 'Uploading...' : 'Import Backup File'}
+                {isUploading ? importStatus || 'Processing...' : 'Import Backup File'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {isUploading
@@ -202,7 +258,24 @@ export function RouteComponent() {
                   Selected: {selectedFile.name}
                 </p>
               )}
+              {importStatus && !isUploading && (
+                <p className={`text-xs ${importStatus.includes('failed') || importStatus.includes('error')
+                  ? 'text-destructive'
+                  : importStatus.includes('success')
+                    ? 'text-green-600'
+                    : 'text-muted-foreground'}`}>
+                  {importStatus}
+                </p>
+              )}
             </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            <p className="mb-1">Supported formats:</p>
+            <ul className="list-disc list-inside space-y-1 ml-2">
+              <li>Application Settings (.json) - Your preferences and configurations</li>
+              <li>Maximum file size: 10MB</li>
+            </ul>
           </div>
         </div>
       </div>

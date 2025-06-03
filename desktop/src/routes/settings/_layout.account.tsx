@@ -1,11 +1,11 @@
+import { AsyncSwitch } from "@/components/async-switch"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/contexts/auth-context"
+import { useSettings } from "@/hooks/use-settings"
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from "react"
 
 export const Route = createFileRoute('/settings/_layout/account')({
   component: RouteComponent,
@@ -13,12 +13,24 @@ export const Route = createFileRoute('/settings/_layout/account')({
 
 export function RouteComponent() {
   const { logout } = useAuth()
-  const [notifications, setNotifications] = useState({
-    mcpServerStatus: true,
-    costAlert: true,
-    weeklyReports: false,
-    emailDelivery: true,
-    inAppDelivery: true
+  const {
+    settings: [
+      mcpServerStatus,
+      costAlert,
+      weeklyReports,
+      emailDelivery,
+      inAppDelivery
+    ],
+    setSetting,
+    isLoading
+  } = useSettings({
+    keys: [
+      "account.notifications.category.mcpServerStatus",
+      "account.notifications.category.costAlert",
+      "account.notifications.category.weeklyReports",
+      "account.notifications.delivery.email",
+      "account.notifications.delivery.inApp"
+    ]
   })
 
   return (
@@ -32,9 +44,10 @@ export function RouteComponent() {
               <Label className="text-base">MCP Server Status Changes</Label>
               <p className="text-sm text-muted-foreground">Get notified when MCP servers go online or offline</p>
             </div>
-            <Switch
-              checked={notifications.mcpServerStatus}
-              onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, mcpServerStatus: checked }))}
+            <AsyncSwitch
+              isLoading={isLoading}
+              checked={mcpServerStatus}
+              onCheckedChange={(checked) => setSetting("account.notifications.category.mcpServerStatus", checked)}
             />
           </div>
 
@@ -43,9 +56,10 @@ export function RouteComponent() {
               <Label className="text-base">Cost Alerts</Label>
               <p className="text-sm text-muted-foreground">Receive alerts when approaching budget limits</p>
             </div>
-            <Switch
-              checked={notifications.costAlert}
-              onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, costAlert: checked }))}
+            <AsyncSwitch
+              isLoading={isLoading}
+              checked={costAlert}
+              onCheckedChange={(checked) => setSetting("account.notifications.category.costAlert", checked)}
             />
           </div>
 
@@ -54,9 +68,10 @@ export function RouteComponent() {
               <Label className="text-base">Weekly Reports</Label>
               <p className="text-sm text-muted-foreground">Weekly summary of usage and costs</p>
             </div>
-            <Switch
-              checked={notifications.weeklyReports}
-              onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, weeklyReports: checked }))}
+            <AsyncSwitch
+              isLoading={isLoading}
+              checked={weeklyReports}
+              onCheckedChange={(checked) => setSetting("account.notifications.category.weeklyReports", checked)}
             />
           </div>
 
@@ -67,16 +82,18 @@ export function RouteComponent() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Email</Label>
-                <Switch
-                  checked={notifications.emailDelivery}
-                  onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, emailDelivery: checked }))}
+                <AsyncSwitch
+                  isLoading={isLoading}
+                  checked={emailDelivery}
+                  onCheckedChange={(checked) => setSetting("account.notifications.delivery.email", checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
                 <Label>In-App</Label>
-                <Switch
-                  checked={notifications.inAppDelivery}
-                  onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, inAppDelivery: checked }))}
+                <AsyncSwitch
+                  isLoading={isLoading}
+                  checked={inAppDelivery}
+                  onCheckedChange={(checked) => setSetting("account.notifications.delivery.inApp", checked)}
                 />
               </div>
             </div>

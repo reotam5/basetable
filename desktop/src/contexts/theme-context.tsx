@@ -1,3 +1,4 @@
+import { useSettings } from "@/hooks/use-settings";
 import { createContext, useContext, useEffect, useState } from "react";
 import DarkLogo from "/dark_logo.png";
 import LightLogo from "/light_logo.png";
@@ -30,10 +31,12 @@ export function ThemeProvider({
   storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  )
   const [logo, setLogo] = useState<string>()
+  const { settings: [theme], setSetting, refetch } = useSettings({ keys: ["appearance.theme"], defaults: { "appearance.theme": localStorage.getItem(storageKey) || defaultTheme } })
+  const setTheme = (theme: Theme) => {
+    localStorage.setItem(storageKey, theme)
+    setSetting("appearance.theme", theme)
+  }
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -55,12 +58,19 @@ export function ThemeProvider({
     root.classList.add(theme)
   }, [theme])
 
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.db.onSettingsImported(() => {
+      refetch()
+    })
+    return () => {
+      cleanup()
+    }
+  })
+
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
-    },
+    setTheme,
     logo,
   }
 

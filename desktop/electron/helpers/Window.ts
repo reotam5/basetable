@@ -9,6 +9,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { Backend } from "../backend.js";
 import { WindowResizeOnboarding } from "../events/WindowResizeOnboarding.js";
+import { Logger } from "./Logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,7 +50,7 @@ export class Window {
                 ...options.webPreferences,
             },
         };
-        console.log(path.resolve(__dirname, "..", "preload.js"));
+        Logger.debug("Loading preload script from:", path.resolve(__dirname, "..", "preload.js"));
         this.window = new BrowserWindow(browserOptions);
 
         this.window.on("close", () => {

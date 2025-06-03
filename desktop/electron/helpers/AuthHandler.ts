@@ -1,9 +1,11 @@
-import { app, shell } from "electron";
+import { shell } from "electron";
 import Store from "electron-store";
 import { jwtDecode } from "jwt-decode";
-import keytar from "keytar";
-import os from "os";
-import { Window } from "./Window";
+import { Database } from "../db/Database.js";
+import { UserService } from "../db/services/User.js";
+import { KeyManager } from "./KeyManager.js";
+import { Logger } from "./Logger.js";
+import { Window } from "./Window.js";
 
 export interface UserProfile {
   given_name: string;
@@ -30,10 +32,9 @@ export class AuthHandler {
   private static readonly AUTH_SCOPES = "openid profile email offline_access";
   private static readonly AUTH_CALLBACK_URL = "basetable://auth/callback";
   private static readonly CLIENT_ID = "4MXFvuUpCRkBEcxsdZ5VRIG93lstLtzs";
-  private static readonly AUTH_CALLBACK_EVENT = "auth.login.complete";
+  private static readonly LOGIN_CALLBACK_EVENT = "auth.login.complete";
+  private static readonly LOGOUT_CALLBACK_EVENT = "auth.logout.complete";
   private static readonly TOKEN_EXCHANGE_URL = "https://dev-mctp8faju5qr8drf.us.auth0.com/oauth/token";
-  public static readonly KEYCHAIN_SERVICE = `basetable-auth${app.isPackaged ? "" : "-dev"}`;
-  public static readonly KEYCHAIN_ACCOUNT = os.userInfo().username;
   public static accessToken: string | null = null;
   public static profile: UserProfile | null = null;
   public static appStateStore = new Store({ name: "app-state" });
@@ -54,14 +55,16 @@ export class AuthHandler {
   }
 
   public async logout() {
-    await keytar.deletePassword(AuthHandler.KEYCHAIN_SERVICE, AuthHandler.KEYCHAIN_ACCOUNT);
+    await KeyManager.deleteKey(KeyManager.KEYS.REFRESH_TOKEN)
+    AuthHandler.appStateStore.set("onboarding-complete", false);
     AuthHandler.accessToken = null;
     AuthHandler.profile = null;
+    AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGOUT_CALLBACK_EVENT)
   }
 
   public async login(): Promise<void> {
     const isOnboardingComplete = AuthHandler.appStateStore.get("onboarding-complete", false);
-    const storedRefreshToken = await keytar.getPassword(AuthHandler.KEYCHAIN_SERVICE, AuthHandler.KEYCHAIN_ACCOUNT);
+    const storedRefreshToken = await KeyManager.getKey(KeyManager.KEYS.REFRESH_TOKEN)
 
     // If we have a refresh token, use it to get new tokens. Otherwise, open the auth window.
     if (storedRefreshToken && isOnboardingComplete) {
@@ -71,7 +74,7 @@ export class AuthHandler {
     }
   }
 
-  public async requestTokens({ code, refresh_token, loginOnError = true }: { code?: string; refresh_token?: string, loginOnError?: boolean }): Promise<void> {
+  public async requestTokens({ code, refresh_token, loginOnError = true, logoutOnError = false }: { code?: string; refresh_token?: string, loginOnError?: boolean, logoutOnError?: boolean }): Promise<void> {
     const body = {
       client_id: AuthHandler.CLIENT_ID,
       ...(refresh_token ? {
@@ -92,19 +95,36 @@ export class AuthHandler {
         },
         body: new URLSearchParams(body).toString(),
       });
-
       const { access_token, id_token, refresh_token: newRefreshToken } = await response.json();
       AuthHandler.accessToken = access_token;
       AuthHandler.profile = jwtDecode<UserProfile>(id_token);
-      await keytar.setPassword(AuthHandler.KEYCHAIN_SERVICE, AuthHandler.KEYCHAIN_ACCOUNT, newRefreshToken);
+      await KeyManager.setKey(KeyManager.KEYS.REFRESH_TOKEN, newRefreshToken);
 
+      const db_user = await UserService.getUserById(AuthHandler.profile?.sub);
+
+      // this user is first time logging in. create a new user and load up default entries
+      if (!db_user) {
+        await UserService.createUser({
+          id: AuthHandler.profile?.sub,
+          name: AuthHandler.profile?.name,
+          email: AuthHandler.profile?.email,
+          picture: AuthHandler.profile?.picture,
+        })
+      }
+      await Database.loadDefaultEntries(AuthHandler.profile!.sub!);
+
+      AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGIN_CALLBACK_EVENT, {
+        accessToken: AuthHandler.accessToken,
+        profile: AuthHandler.profile,
+      })
     } catch (error) {
-      console.error("Failed to get tokens:", error);
+      Logger.error("Error requesting tokens:", error);
       AuthHandler.accessToken = null;
       AuthHandler.profile = null;
-      await keytar.deletePassword(AuthHandler.KEYCHAIN_SERVICE, AuthHandler.KEYCHAIN_ACCOUNT);
+      await KeyManager.deleteKey(KeyManager.KEYS.REFRESH_TOKEN);
 
       if (loginOnError) this.openAuthWindow();
+      if (logoutOnError) await this.logout()
     }
   }
 
@@ -129,7 +149,7 @@ export class AuthHandler {
     const error = params.get("error");
 
     if (error || !code) {
-      console.error("Auth error:", error);
+      Logger.error("Authentication error from deeplink", error);
       return;
     }
 
@@ -137,11 +157,6 @@ export class AuthHandler {
 
     AuthHandler.appStateStore.set("onboarding-complete", true);
     AuthHandler.window?.moveToDefaults();
-
-    AuthHandler.window?.windowInstance.webContents.send(AuthHandler.AUTH_CALLBACK_EVENT, {
-      accessToken: AuthHandler.accessToken,
-      profile: AuthHandler.profile,
-    })
   }
 
   public async getAccessToken(): Promise<string | null> {

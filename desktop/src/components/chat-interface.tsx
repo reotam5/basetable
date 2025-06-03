@@ -6,93 +6,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bot, Clock, Paperclip, Send, Server, X } from "lucide-react";
+import { use } from "@/hooks/use";
+import { Message as BackendMessage, useChat } from "@/hooks/use-chat";
+import { useParams } from "@tanstack/react-router";
+import { AlertCircle, Bot, Clock, Paperclip, RotateCcw, Send, Server, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageContent } from "./message-content";
 import { Textarea } from "./ui/textarea";
 
-interface Message {
+// UI message interface for display
+interface UIMessage {
   id: string;
-  type: "user" | "assistant";
+  type: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  status: "success" | "pending" | "error";
   agents?: string[];
   mcpServers?: string[];
   systemPrompt?: string;
-  attachedFiles?: File[]; // Add attachedFiles to Message
+  attachedFiles?: File[];
 }
 
-const demoMessages: Message[] = [
-  {
-    id: "1",
-    type: "user",
-    content: "Can you summarize my latest emails from today?",
-    timestamp: new Date(Date.now() - 300000),
-  },
-  {
-    id: "2",
-    type: "assistant",
-    content:
-      "I'll access your Gmail to get your latest emails and provide a summary.",
-    timestamp: new Date(Date.now() - 290000),
-    agents: ["Coding Assistant", "Email Assistant"],
-    mcpServers: ["Gmail"],
-    systemPrompt: "Professional Email Assistant",
-  },
-  {
-    id: "3",
-    type: "assistant",
-    content:
-      "Here's a summary of your 5 latest emails from today:\n\n1. **Project Update from Sarah** - Weekly status report on the Q4 launch, everything on track\n2. **Meeting Reminder** - Tomorrow's board meeting at 2 PM, agenda attached\n3. **Invoice from Acme Corp** - Monthly subscription renewal, $299\n4. **Team Lunch** - Friday team lunch at the new Italian place downtown\n5. **Security Alert** - Successful login from new device (your laptop)\n\nAll emails appear routine with no urgent action items.",
-    timestamp: new Date(Date.now() - 280000),
-    agents: ["Email Assistant"],
-    mcpServers: ["Gmail"],
-  },
-  {
-    id: "4",
-    type: "user",
-    content:
-      "Write a Python function to calculate fibonacci numbers efficiently",
-    timestamp: new Date(Date.now() - 120000),
-  },
-  {
-    id: "5",
-    type: "assistant",
-    content:
-      "I'll route this coding question to our local Codestral model for optimal performance.",
-    timestamp: new Date(Date.now() - 110000),
-    agents: ["Coding Assistant"],
-  },
-  {
-    id: "6",
-    type: "assistant",
-    content:
-      'Here are two efficient approaches for calculating Fibonacci numbers:\n\n## Memoized Approach\n\n```python\ndef fibonacci(n, memo={}):\n    """Calculate fibonacci number efficiently using memoization"""\n    if n in memo:\n        return memo[n]\n    \n    if n <= 1:\n        return n\n    \n    memo[n] = fibonacci(n-1, memo) + fibonacci(n-2, memo)\n    return memo[n]\n```\n\n## Iterative Approach\n\n```python\ndef fibonacci_iterative(n):\n    """Calculate fibonacci number using iterative approach"""\n    if n <= 1:\n        return n\n    \n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    \n    return b\n```\n\n### Usage Examples\n\n```python\n# Example usage\nprint(fibonacci(10))  # Output: 55\nprint(fibonacci_iterative(10))  # Output: 55\n\n# Performance comparison\nimport time\n\nstart = time.time()\nresult1 = fibonacci(40)\ntime1 = time.time() - start\n\nstart = time.time()\nresult2 = fibonacci_iterative(40)\ntime2 = time.time() - start\n\nprint(f"Memoized: {result1} in {time1:.4f}s")\nprint(f"Iterative: {result2} in {time2:.4f}s")\n```\n\n**Performance Notes:**\n- The memoized version has **O(n)** time complexity and **O(n)** space complexity\n- The iterative version has **O(n)** time complexity and **O(1)** space complexity\n- For large values of n, the iterative approach is generally faster and more memory-efficient',
-    timestamp: new Date(Date.now() - 100000),
-    agents: ["Coding Assistant"],
-  },
-  {
-    id: "7",
-    type: "user",
-    content: "Can you explain what React hooks are and show me some examples?",
-    timestamp: new Date(Date.now() - 60000),
-  },
-  {
-    id: "8",
-    type: "assistant",
-    content:
-      "# React Hooks Overview\n\nReact Hooks are functions that let you **use state and other React features** without writing a class component. They were introduced in React 16.8.\n\n## Core Hooks\n\n### 1. useState Hook\nManages local component state:\n\n```jsx\nimport React, { useState } from 'react';\n\nfunction Counter() {\n  const [count, setCount] = useState(0);\n  \n  return (\n    <div>\n      <p>You clicked {count} times</p>\n      <button onClick={() => setCount(count + 1)}>\n        Click me\n      </button>\n    </div>\n  );\n}\n```\n\n### 2. useEffect Hook\nHandles side effects like API calls, subscriptions, and DOM manipulation:\n\n```jsx\nimport React, { useState, useEffect } from 'react';\n\nfunction UserProfile({ userId }) {\n  const [user, setUser] = useState(null);\n  const [loading, setLoading] = useState(true);\n  \n  useEffect(() => {\n    async function fetchUser() {\n      setLoading(true);\n      try {\n        const response = await fetch(`/api/users/${userId}`);\n        const userData = await response.json();\n        setUser(userData);\n      } catch (error) {\n        console.error('Failed to fetch user:', error);\n      } finally {\n        setLoading(false);\n      }\n    }\n    \n    fetchUser();\n  }, [userId]); // Dependency array\n  \n  if (loading) return <div>Loading...</div>;\n  if (!user) return <div>User not found</div>;\n  \n  return (\n    <div>\n      <h2>{user.name}</h2>\n      <p>{user.email}</p>\n    </div>\n  );\n}\n```\n\n## Key Benefits\n\n- ✅ **Simpler code**: No need for class components\n- ✅ **Reusable logic**: Custom hooks can be shared between components\n- ✅ **Better performance**: Easier to optimize with React.memo and useMemo\n- ✅ **Easier testing**: Functional components are easier to test\n\n## Rules of Hooks\n\n> ⚠️ **Important**: Always follow these rules:\n\n1. **Only call hooks at the top level** - Don't call hooks inside loops, conditions, or nested functions\n2. **Only call hooks from React functions** - Don't call hooks from regular JavaScript functions\n\n### Custom Hook Example\n\n```jsx\n// Custom hook for handling form input\nfunction useInput(initialValue) {\n  const [value, setValue] = useState(initialValue);\n  \n  const handleChange = (e) => {\n    setValue(e.target.value);\n  };\n  \n  const reset = () => {\n    setValue(initialValue);\n  };\n  \n  return {\n    value,\n    onChange: handleChange,\n    reset\n  };\n}\n\n// Using the custom hook\nfunction LoginForm() {\n  const username = useInput('');\n  const password = useInput('');\n  \n  const handleSubmit = (e) => {\n    e.preventDefault();\n    console.log(username.value, password.value);\n    username.reset();\n    password.reset();\n  };\n  \n  return (\n    <form onSubmit={handleSubmit}>\n      <input\n        type=\"text\"\n        placeholder=\"Username\"\n        {...username}\n      />\n      <input\n        type=\"password\"\n        placeholder=\"Password\"\n        {...password}\n      />\n      <button type=\"submit\">Login</button>\n    </form>\n  );\n}\n```\n\nHooks make React development much more intuitive and powerful! 🚀",
-    timestamp: new Date(Date.now() - 50000),
-    agents: ["Coding Assistant"],
-    attachedFiles: [
-      new File([""], "react-hooks-overview.pdf", { type: "application/pdf" }),
-      new File([""], "hooks-examples.js", { type: "text/javascript" }),
-    ]
-  },
-];
+// Helper function to convert backend messages to UI messages
+function backendToUIMessage(backendMsg: BackendMessage): UIMessage {
+  return {
+    id: backendMsg?.id?.toString(),
+    type: backendMsg?.type,
+    content: backendMsg?.content ?? "",
+    timestamp: new Date(backendMsg?.createdAt),
+    status: backendMsg?.status,
+    // These would be populated from additional API calls or metadata
+    agents: undefined,
+    mcpServers: undefined,
+    systemPrompt: undefined,
+    attachedFiles: undefined,
+  };
+}
 
 // Helper to map attached files to preview objects (with image URLs if needed)
-function getFilePreviews(messages: Message[]) {
+function getFilePreviews(messages: UIMessage[]) {
   // Returns: { [messageId]: { name, type, url (for images), file }[] }
   const previews: Record<string, { name: string; type: string; url?: string; file: File }[]> = {};
   messages.forEach((msg) => {
@@ -109,17 +61,39 @@ function getFilePreviews(messages: Message[]) {
 }
 
 export function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>(demoMessages);
+  const { chatId } = useParams({ from: '/chat/$chatId' });
+  const llmsFetcher = useCallback(async () => await window.electronAPI.llm.getAll(), []);
+  const { data: llms } = use({ fetcher: llmsFetcher });
+  const {
+    chatTitle,
+    messages: backendMessages,
+    selectedLLM,
+    setSelectedLLM,
+    error,
+    isLoading,
+    isSending,
+    sendMessage,
+    retryMessage,
+    refresh
+  } = useChat(Number(chatId));
+
+  // Convert backend messages to UI messages
+  const messages = useMemo(() =>
+    backendMessages?.map(backendToUIMessage)?.filter((msg): msg is UIMessage => msg !== null),
+    [backendMessages]
+  );
+
   const [inputValue, setInputValue] = useState("");
-  const [selectedModel, setSelectedModel] = useState("gpt-4");
-  const [isTyping, setIsTyping] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [showCharacterError, setShowCharacterError] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [showLoading, setShowLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isInitialLoad = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const previousMessageCount = useRef(0);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = useCallback((smooth = true) => {
     messagesEndRef.current?.scrollIntoView({
@@ -127,16 +101,71 @@ export function ChatInterface() {
     });
   }, []);
 
+  // Reset initial load flag when chatId changes
+  useEffect(() => {
+    isInitialLoad.current = true;
+    previousMessageCount.current = 0;
+    setShowLoading(false); // Clear loading state when switching chats
+
+    // Clear any pending loading timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+  }, [chatId]);
+
   useEffect(() => {
     if (isInitialLoad.current) {
-      // On initial load, scroll without animation
-      scrollToBottom(false);
-      isInitialLoad.current = false;
+      // On initial load (including when switching chats), scroll without animation
+      if (messages.length > 0) {
+        scrollToBottom(false);
+        isInitialLoad.current = false;
+        previousMessageCount.current = messages.length;
+      }
     } else {
-      // On subsequent updates, scroll with animation
+      // Only smooth scroll when message count actually increases (new message sent/received)
+      const currentMessageCount = messages.length;
+      if (currentMessageCount > previousMessageCount.current) {
+        scrollToBottom(true);
+      }
+      previousMessageCount.current = currentMessageCount;
+    }
+  }, [messages, scrollToBottom]);
+
+  // Smooth scroll when sending (optimistic message appears)
+  useEffect(() => {
+    if (isSending && !isInitialLoad.current) {
       scrollToBottom(true);
     }
-  }, [messages, isTyping, scrollToBottom]);
+  }, [isSending, scrollToBottom]);
+
+  // Handle delayed loading state - only show loading after 500ms
+  useEffect(() => {
+    if (isLoading) {
+      // Clear any existing timeout
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+
+      // Set timeout to show loading after 500ms
+      loadingTimeoutRef.current = setTimeout(() => {
+        setShowLoading(true);
+      }, 500);
+    } else {
+      // Clear timeout and hide loading immediately when not loading
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      setShowLoading(false);
+    }
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, [isLoading]);
 
   const toggleMessageExpansion = useCallback((messageId: string) => {
     setExpandedMessages(prev => {
@@ -150,37 +179,27 @@ export function ChatInterface() {
     });
   }, []);
 
-  const handleSend = useCallback(() => {
-    if (!inputValue.trim() || isTyping) return;
+  const handleSend = useCallback(async () => {
+    if (!inputValue.trim() || isSending) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: inputValue,
-      timestamp: new Date(),
-      attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined, // Attach files
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
+    const content = inputValue.trim();
     setInputValue("");
     setAttachedFiles([]); // Clear attached files after sending
-    setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const response: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "assistant",
-        content:
-          "This is a demo response. In a real implementation, this would be processed by your selected model and routing rules.",
-        timestamp: new Date(),
-        agents: ["Email Assistant", "Coding Assistant"],
-        mcpServers: ["Gmail"],
-      };
-      setMessages((prev) => [...prev, response]);
-      setIsTyping(false);
-    }, 2000);
-  }, [inputValue, isTyping, attachedFiles]);
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
+    try {
+      await sendMessage({
+        content,
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Could add a toast notification here
+    }
+  }, [inputValue, isSending, sendMessage]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -199,15 +218,12 @@ export function ChatInterface() {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !isTyping) {
+    if (e.key === "Enter" && !e.shiftKey && !isSending) {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend, isTyping]);
+  }, [handleSend, isSending]);
 
-  const handleModelChange = useCallback((value: string) => {
-    setSelectedModel(value);
-  }, []);
 
   const handleAttachClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -249,9 +265,27 @@ export function ChatInterface() {
               }`}
           >
             {message.type === "user" ? (
-              <div className="whitespace-pre-wrap leading-relaxed">{message.content}</div>
+              <div className="whitespace-pre-wrap leading-relaxed">
+                {message.content}
+                {message.status === "pending" && (
+                  <div className="inline-flex items-center ml-2 text-xs opacity-70">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"></div>
+                  </div>
+                )}
+                {message.status === "error" && (
+                  <div className="inline-flex items-center ml-2 text-xs text-red-500">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    <button
+                      onClick={() => retryMessage(Number(message.id))}
+                      className="hover:underline flex items-center"
+                    >
+                      Retry <RotateCcw className="w-3 h-3 ml-1" />
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
-              <MessageContent content={message.content} />
+              <MessageContent content={message.content ?? ""} />
             )}
 
             {/* Show attached files if present */}
@@ -330,14 +364,14 @@ export function ChatInterface() {
         </div>
       </div>
     ));
-  }, [messages, expandedMessages, toggleMessageExpansion, filePreviews]);
+  }, [messages, expandedMessages, toggleMessageExpansion, filePreviews, retryMessage]);
 
   return (
     <div className="flex-1 flex flex-col pt-[-5px] min-h-[calc(100vh-3.5rem-1px)]">
       {/* Chat Header */}
       <div className="sticky top-[57px] z-20 bg-gradient-to-b from-white via-white/80 to-transparent dark:from-neutral-950 dark:via-neutral-950/80 dark:to-transparent p-3">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100">Email Summary & Code</h1>
+          <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100">{chatTitle}</h1>
         </div>
       </div>
 
@@ -345,9 +379,44 @@ export function ChatInterface() {
       <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
         <div className="flex-1"></div>
         <div className="max-w-4xl mx-auto px-3 py-8 space-y-6" style={{ width: "-webkit-fill-available" }}>
-          {renderedMessages}
+          {/* Loading state */}
+          {showLoading && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100 mx-auto"></div>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">Loading messages...</p>
+            </div>
+          )}
 
-          {isTyping && (
+          {/* Error state */}
+          {error && (
+            <div className="text-center py-8">
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                <p className="text-red-700 dark:text-red-300 mb-2">Failed to load messages</p>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error.message}</p>
+                <Button
+                  onClick={refresh}
+                  variant="outline"
+                  size="sm"
+                  className="text-red-700 border-red-300 hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-950/30"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
+          {!isLoading && !error && messages.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-600 dark:text-gray-400">No messages yet. Start a conversation!</p>
+            </div>
+          )}
+
+          {!isLoading && !error && renderedMessages}
+
+          {isSending && (
             <div className="text-left">
               <div className="flex gap-1 ml-3">
                 <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -410,15 +479,18 @@ export function ChatInterface() {
               {/* Bottom Right Controls */}
               <div className="flex items-center">
                 {/* Model Selector */}
-                <Select value={selectedModel} onValueChange={handleModelChange}>
+                <Select value={selectedLLM?.toString()} onValueChange={(llmId) => setSelectedLLM(parseInt(llmId))}>
                   <SelectTrigger className="w-36 h-8 text-xs border-0 shadow-none ring-sidebar-accent hover:ring-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gpt-4">🧠 GPT-4</SelectItem>
-                    <SelectItem value="claude">🎭 Claude 3.5 Sonnet</SelectItem>
-                    <SelectItem value="local-llama">🦙 Local Llama</SelectItem>
-                    <SelectItem value="codestral">💻 Local Codestral</SelectItem>
+                    {
+                      llms?.map((llm) => (
+                        <SelectItem key={llm.id} value={llm.id.toString()} >
+                          {llm.name}
+                        </SelectItem>
+                      ))
+                    }
                   </SelectContent>
                 </Select>
                 <div>
@@ -443,11 +515,15 @@ export function ChatInterface() {
                 {/* Send Button */}
                 <Button
                   onClick={handleSend}
-                  disabled={!inputValue.trim() || isTyping}
+                  disabled={!inputValue.trim() || isSending}
                   size="icon"
                   variant="ghost"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  {isSending ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
                 </Button>
               </div>
             </div>

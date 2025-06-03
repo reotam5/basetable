@@ -6,10 +6,14 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { hasCompletedOnboarding } = useAuth();
+  const { hasCompletedOnboarding, isAuthenticated } = useAuth();
 
   if (!hasCompletedOnboarding) {
     return <SignIn />;
+  }
+
+  if (!isAuthenticated) {
+    return null;
   }
 
   return <>{children}</>;

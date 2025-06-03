@@ -6,15 +6,23 @@ import { Skeleton } from "./ui/skeleton";
 
 export function ChatMenuItems() {
   const navigate = useNavigate();
-  const { filteredChats, isLoading } = useChatSearch()
+  const { filteredChats, isLoading, refetch } = useChatSearch()
   const matches = useMatches<any>();
+
+  React.useEffect(() => {
+    const onChatCreated = () => refetch();
+    window.addEventListener("sidebar.refresh", onChatCreated);
+    return () => {
+      window.removeEventListener("sidebar.refresh", onChatCreated);
+    }
+  }, [refetch])
 
   // Show skeleton loading state
   if (isLoading) {
     return (
       <React.Fragment key={"chat-menu-items-loading"}>
         {Array.from({ length: 5 }).map((_, index) => (
-          <Skeleton className="h-6 w-full mb-2 bg-sidebar-border dark:bg-sidebar-accent" key={index} />
+          <Skeleton key={"chat-loading" + index} className="h-6 w-full mb-2 bg-sidebar-border dark:bg-sidebar-accent" key={index} />
         ))}
       </React.Fragment>
     );
@@ -22,8 +30,13 @@ export function ChatMenuItems() {
 
   return (
     <React.Fragment key={"chat-menu-items"}>
+      {filteredChats.length > 0 && (
+        <div key={"chat-divider"} className="ml-2 text-xs text-muted-foreground mt-2">
+          Recents
+        </div>
+      )}
       {filteredChats.map((item) => (
-        <SidebarMenuButton key={item.title} isActive={matches?.[matches.length - 1]?.params?.chatId === item.id} onClick={() => { navigate({ to: `/chat/${item.id}` as any }) }}>
+        <SidebarMenuButton key={"chat" + item.id} isActive={matches?.[matches.length - 1]?.params?.chatId == item.id} onClick={() => { navigate({ to: `/chat/${item.id}` as any }) }}>
           <span>{item.title}</span>
         </SidebarMenuButton>
       ))}

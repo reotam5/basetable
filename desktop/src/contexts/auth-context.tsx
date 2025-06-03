@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface User {
   id: string;
@@ -27,7 +27,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const isSilentlySigningIn = useRef<boolean>(false);
   const [hasCompletedOnboarding, setHasCompletedOnboardingState] = useState<boolean>(!!store.get("onboarding-complete"));
   const setHasCompletedOnboarding = (value: boolean) => {
     setHasCompletedOnboardingState(value);
@@ -55,21 +54,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hasCompletedOnboarding && !user && !isSilentlySigningIn.current) {
-      isSilentlySigningIn.current = true;
-      window.electronAPI.auth.login(true).then(({ accessToken, profile }) => {
-        isSilentlySigningIn.current = false;
-        setUser({
-          id: profile.sub,
-          email: profile.email,
-          name: profile.name,
-          picture: profile.picture,
-          exp: profile.exp,
-        });
-        setToken(accessToken);
-      });
+    const onLogoutComplete = () => {
+      setUser(null);
+      setToken(null);
+      setHasCompletedOnboarding(false);
+      console.log('User logged out successfully');
     }
-  }, [hasCompletedOnboarding, user]);
+    const cleanup = window.electronAPI.auth.onLogoutComplete(onLogoutComplete);
+    return () => {
+      cleanup();
+    };
+  }, []);
 
   const login = () => {
     setIsSigningIn(true);

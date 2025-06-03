@@ -1,30 +1,15 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { use } from "@/hooks/use"
+import useAgent from "@/hooks/use-agent"
 import { useMatches } from "@tanstack/react-router"
 import { Activity, Check, ChevronLeft, ChevronRight, Info, Save, Settings, Trash2 } from "lucide-react"
-import { useState } from "react"
-
-interface LLMModel {
-  id: string
-  name: string
-  provider: string
-  description: string
-}
-
-interface MCPServer {
-  id: string
-  name: string
-  description: string
-  capabilities: string[]
-  installed: boolean
-  active?: boolean
-  logoUrl: string
-}
-
+import { useCallback, useState } from "react"
 interface Template {
   id: string
   name: string
@@ -32,64 +17,6 @@ interface Template {
   content: string
 }
 
-interface Tone {
-  id: string
-  name: string
-  description: string
-}
-
-interface Style {
-  id: string
-  name: string
-  description: string
-}
-
-const mockModels: LLMModel[] = [
-  { id: 'gpt-4', name: 'GPT-4', provider: 'OpenAI', description: 'Most capable model for complex tasks' },
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI', description: 'Fast and efficient for most tasks' },
-  { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'Anthropic', description: 'Excellent for analysis and reasoning' },
-  { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', provider: 'Anthropic', description: 'Balanced performance and speed' },
-  { id: 'gemini-pro', name: 'Gemini Pro', provider: 'Google', description: 'Multimodal capabilities' }
-]
-
-const mockServers: MCPServer[] = [
-  {
-    id: 'gmail',
-    name: 'Gmail',
-    description: 'Access Gmail functionality',
-    capabilities: ['Send Email', 'Read Email', 'Search Mail'],
-    installed: true,
-    active: true,
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg'
-  },
-  {
-    id: 'slack',
-    name: 'Slack',
-    description: 'Integrate with Slack workspaces',
-    capabilities: ['Send Messages', 'Read Channels', 'File Upload'],
-    installed: true,
-    active: false,
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Slack_icon_2019.svg'
-  },
-  {
-    id: 'github',
-    name: 'GitHub',
-    description: 'Access GitHub repositories',
-    capabilities: ['Repository Access', 'Issue Management', 'Pull Requests'],
-    installed: true,
-    active: true,
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/91/Octicons-mark-github.svg'
-  },
-  {
-    id: 'notion',
-    name: 'Notion',
-    description: 'Connect to Notion workspaces',
-    capabilities: ['Database Access', 'Page Creation', 'Content Search'],
-    installed: true,
-    active: false,
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png'
-  }
-]
 
 const templates: Template[] = [
   {
@@ -140,24 +67,6 @@ Available tools: {{mcp_servers}}
 
 Always cite sources and provide balanced perspectives. Be transparent about limitations and uncertainties in your research.`
   }
-]
-
-const tones: Tone[] = [
-  { id: 'professional', name: 'Professional', description: 'Formal and business-appropriate tone' },
-  { id: 'friendly', name: 'Friendly', description: 'Warm and approachable communication' },
-  { id: 'casual', name: 'Casual', description: 'Relaxed and informal interaction' },
-  { id: 'technical', name: 'Technical', description: 'Precise and detailed technical language' },
-  { id: 'creative', name: 'Creative', description: 'Imaginative and expressive style' },
-  { id: 'concise', name: 'Concise', description: 'Brief and to-the-point responses' }
-]
-
-const styles: Style[] = [
-  { id: 'detailed', name: 'Detailed', description: 'Comprehensive explanations with examples' },
-  { id: 'bullet-points', name: 'Bullet Points', description: 'Structured lists and key points' },
-  { id: 'step-by-step', name: 'Step-by-step', description: 'Clear sequential instructions' },
-  { id: 'conversational', name: 'Conversational', description: 'Natural dialogue format' },
-  { id: 'analytical', name: 'Analytical', description: 'Data-driven insights and reasoning' },
-  { id: 'storytelling', name: 'Storytelling', description: 'Narrative-based explanations' }
 ]
 
 const CHARACTER_LIMIT = 2000
@@ -323,38 +232,54 @@ export function AgentPage() {
   const currentRoute = (currentPath?.endsWith('/') && currentPath.length > 1) ? currentPath.slice(0, -1) : currentPath;
   const isMainAgent = currentRoute === '/agent'
   const isNewAgent = currentRoute === '/agents'
-  const agentId = matches[matches.length - 1]?.params?.agentId || ''
 
-  const [selectedModel, setSelectedModel] = useState<string>('')
-  const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set())
-  const [description, setDescription] = useState('')
-  const [selectedTone, setSelectedTone] = useState<string>('')
-  const [selectedStyle, setSelectedStyle] = useState<string>('')
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  // Memoize fetcher functions to prevent infinite re-renders
+  const agentsFetcher = useCallback(() => window.electronAPI.agent.getAll(), []);
+  const mcpServersFetcher = useCallback(async () => await window.electronAPI.mcp.getAll({ is_active: true }), []);
+  const llmsFetcher = useCallback(async () => await window.electronAPI.llm.getAll(), []);
+  const tonesFetcher = useCallback(async () => await window.electronAPI.agent.getTones(), []);
+  const stylesFetcher = useCallback(async () => await window.electronAPI.agent.getStyles(), []);
+
+  const { data } = use({ fetcher: agentsFetcher })
+  const mainAgentId = data?.find((agent: any) => agent.is_main)?.id;
+  const agentId = isMainAgent ? mainAgentId : matches?.[matches.length - 1]?.params?.agentId ?? null;
+  const { data: mcpServers } = use({ fetcher: mcpServersFetcher });
+  const { data: llms } = use({ fetcher: llmsFetcher });
+  const { data: tones } = use({ fetcher: tonesFetcher });
+  const { data: styles } = use({ fetcher: stylesFetcher });
+  const { agent, updateAgent, createAgent, deleteAgent } = useAgent(agentId ?? undefined);
+  const selectedTone = tones?.find(t => agent?.styles?.includes(t.id))?.id;
+  const selectedStyle = styles?.find(s => agent?.styles?.includes(s.id))?.id;
   const [activeTab, setActiveTab] = useState<string>('configurations')
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Pagination state for activities
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  const installedServers = mockServers.filter(server => server.installed)
-  const charactersUsed = description.length
+  const charactersUsed = agent?.instruction?.length ?? 0
   const charactersRemaining = CHARACTER_LIMIT - charactersUsed
 
-  const toggleServer = (serverId: string) => {
-    const newSelected = new Set(selectedServers)
-    if (newSelected.has(serverId)) {
-      newSelected.delete(serverId)
-    } else {
-      newSelected.add(serverId)
-    }
-    setSelectedServers(newSelected)
-    setHasUnsavedChanges(true)
+  const toggleServer = (serverId: number) => {
+    const mcpServerIds = agent?.mcpIds?.slice() ?? []
+    if (!mcpServerIds.includes(serverId)) mcpServerIds.push(serverId);
+    else mcpServerIds.splice(mcpServerIds.indexOf(serverId), 1);
+
+    updateAgent({
+      mcpIds: mcpServerIds
+    })
+  }
+
+  const selectLLM = (llmId: number) => {
+    updateAgent({
+      llmId: llmId
+    })
   }
 
   const applyTemplate = (template: Template) => {
-    setDescription(template.content)
-    setHasUnsavedChanges(true)
+    updateAgent({
+      instruction: template.content
+    })
   }
 
   const insertVariable = (variable: string) => {
@@ -362,10 +287,12 @@ export function AgentPage() {
     if (textarea) {
       const start = textarea.selectionStart
       const end = textarea.selectionEnd
-      const newText = description.substring(0, start) + variable + description.substring(end)
+      const currentText = agent?.instruction ?? ''
+      const newText = currentText?.substring(0, start) + variable + currentText.substring(end)
       if (newText.length <= CHARACTER_LIMIT) {
-        setDescription(newText)
-        setHasUnsavedChanges(true)
+        updateAgent({
+          instruction: newText
+        })
         // Restore cursor position
         setTimeout(() => {
           textarea.selectionStart = textarea.selectionEnd = start + variable.length
@@ -376,22 +303,18 @@ export function AgentPage() {
   }
 
   const handleSave = () => {
-    // TODO: Implement save functionality
-    setHasUnsavedChanges(false)
-    console.log('Saving agent configuration...', {
-      model: selectedModel,
-      servers: Array.from(selectedServers),
-      description,
-      tone: selectedTone,
-      style: selectedStyle
-    })
+    createAgent()
   }
 
   const handleDelete = () => {
-    // TODO: Implement delete functionality
-    console.log('Deleting agent...', agentId)
-    // Show confirmation dialog and delete agent
+    setShowDeleteDialog(true)
   }
+
+  const confirmDelete = () => {
+    deleteAgent()
+    setShowDeleteDialog(false)
+  }
+  // Show confirmation dialog and delete agent
 
   // Helper function to render the configuration content
   const renderConfigurationContent = () => (
@@ -414,12 +337,14 @@ export function AgentPage() {
                 {/* Tone Selection */}
                 <div className="flex flex-col gap-3">
                   <label className="text-sm font-medium text-foreground">Communication Tone</label>
-                  <Select value={selectedTone} onValueChange={(value) => { setSelectedTone(value); setHasUnsavedChanges(true) }}>
+                  <Select value={selectedTone} onValueChange={(value) => updateAgent({
+                    styles: [...(selectedStyle ? [selectedStyle] : []), parseInt(value)]
+                  })}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select tone" />
                     </SelectTrigger>
                     <SelectContent>
-                      {tones.map((tone) => (
+                      {tones?.map((tone) => (
                         <SelectItem key={tone.id} value={tone.id}>
                           <div className="flex flex-col items-start">
                             <span className="font-medium">{tone.name}</span>
@@ -434,12 +359,14 @@ export function AgentPage() {
                 {/* Style Selection */}
                 <div className="flex flex-col gap-3">
                   <label className="text-sm font-medium text-foreground">Response Style</label>
-                  <Select value={selectedStyle} onValueChange={(value) => { setSelectedStyle(value); setHasUnsavedChanges(true) }}>
+                  <Select value={selectedStyle} onValueChange={(value) => updateAgent({
+                    styles: [...(selectedTone ? [selectedTone] : []), parseInt(value)]
+                  })}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select style" />
                     </SelectTrigger>
                     <SelectContent>
-                      {styles.map((style) => (
+                      {styles?.map((style) => (
                         <SelectItem key={style.id} value={style.id}>
                           <div className="flex flex-col items-start">
                             <span className="font-medium">{style.name}</span>
@@ -467,9 +394,9 @@ export function AgentPage() {
                 <div className="relative">
                   {/* Compact toolbar directly above textarea */}
                   <div className="flex items-center justify-between mb-2 px-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <span className="text-xs font-medium text-muted-foreground">Variables:</span>
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap gap-1">
                         {DYNAMIC_VARIABLES.map((variable) => (
                           <Tooltip key={variable}>
                             <TooltipTrigger asChild>
@@ -494,11 +421,12 @@ export function AgentPage() {
                     </div>
                   </div>
                   <Textarea
-                    value={description}
+                    value={agent?.instruction}
                     onChange={(e) => {
                       if (e.target.value.length <= CHARACTER_LIMIT) {
-                        setDescription(e.target.value)
-                        setHasUnsavedChanges(true)
+                        updateAgent({
+                          instruction: e.target.value
+                        })
                       }
                     }}
                     placeholder="Enter any specific instructions, preferences, or guidelines for your main agent..."
@@ -526,9 +454,9 @@ export function AgentPage() {
               <div className="relative">
                 {/* Compact toolbar directly above textarea */}
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs font-medium text-muted-foreground">Variables:</span>
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
                       {DYNAMIC_VARIABLES.map((variable) => (
                         <Tooltip key={variable}>
                           <TooltipTrigger asChild>
@@ -553,11 +481,12 @@ export function AgentPage() {
                   </div>
                 </div>
                 <Textarea
-                  value={description}
+                  value={agent?.instruction}
                   onChange={(e) => {
                     if (e.target.value.length <= CHARACTER_LIMIT) {
-                      setDescription(e.target.value)
-                      setHasUnsavedChanges(true)
+                      updateAgent({
+                        instruction: e.target.value
+                      })
                     }
                   }}
                   placeholder="Describe your agent's role, responsibilities, and behavior..."
@@ -583,7 +512,7 @@ export function AgentPage() {
                   {isNewAgent && (
                     <Button
                       onClick={handleSave}
-                      disabled={!hasUnsavedChanges || !selectedModel || !description.trim()}
+                      disabled={!agent?.instruction || !agent?.llmId}
                       className="flex items-center space-x-2"
                     >
                       <Save className="w-4 h-4" />
@@ -613,15 +542,15 @@ export function AgentPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-medium text-foreground">LLM Model</h2>
           <div className="border border-border rounded-lg p-4 bg-background">
-            <Select value={selectedModel} onValueChange={(value) => { setSelectedModel(value); setHasUnsavedChanges(true) }}>
+            <Select value={agent?.llmId as any} onValueChange={(llm) => selectLLM(parseInt(llm))}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a language model" />
               </SelectTrigger>
               <SelectContent>
-                {mockModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id}>
+                {llms?.map((llm) => (
+                  <SelectItem key={llm.id} value={llm.id}>
                     <div className="flex flex-col">
-                      <span className="font-medium">{model.name}</span>
+                      <span className="font-medium">{llm.name}</span>
                     </div>
                   </SelectItem>
                 ))}
@@ -635,12 +564,12 @@ export function AgentPage() {
           <h2 className="text-lg font-medium text-foreground">MCP Servers</h2>
           <p className="text-sm text-muted-foreground">Select tools and services your agent can access</p>
           <div className="space-y-2">
-            {installedServers.map((server) => (
+            {mcpServers?.map((server) => (
               <div key={server.id} className="border border-border rounded-lg p-3 bg-background">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-2 flex-1 min-w-0">
                     <img
-                      src={server.logoUrl}
+                      src={server.icon}
                       alt={`${server.name} logo`}
                       className="w-4 h-4 object-contain mt-0.5 shrink-0"
                       onError={(e) => {
@@ -654,23 +583,23 @@ export function AgentPage() {
                   </div>
                   <button
                     onClick={() => toggleServer(server.id)}
-                    className={`p-1 rounded border transition-colors shrink-0 ml-2 ${selectedServers.has(server.id)
+                    className={`p-1 rounded border transition-colors shrink-0 ml-2 ${agent?.mcpIds?.includes(server.id)
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-background border-border hover:border-muted-foreground'
                       }`}
                   >
-                    {selectedServers.has(server.id) ? (
+                    {agent?.mcpIds?.includes(server.id) ? (
                       <Check className="w-3 h-3" />
                     ) : (
                       <div className="w-3 h-3" />
                     )}
                   </button>
                 </div>
-                {server.capabilities.length > 0 && (
+                {server.tools.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {server.capabilities.map((capability) => (
-                      <Badge key={capability} variant="secondary" className="text-xs px-1.5 py-0">
-                        {capability}
+                    {server.tools.map((tool) => (
+                      <Badge key={tool} variant="secondary" className="text-xs px-1.5 py-0">
+                        {tool}
                       </Badge>
                     ))}
                   </div>
@@ -781,7 +710,7 @@ export function AgentPage() {
       <div className={`pb-6 mb-6 ${isNewAgent ? "border-b" : ""}`}>
         <div className="flex items-center space-x-2">
           <h1 className="text-2xl sm:text-3xl font-bold">
-            {isMainAgent ? 'Main Agent' : isNewAgent ? 'Create Agent' : 'Agent Configuration'}
+            {isMainAgent ? (agent?.name ?? 'Main Agent') : isNewAgent ? 'Create Agent' : agent?.name}
           </h1>
           {!isNewAgent && (
             <Tooltip>
@@ -839,6 +768,26 @@ export function AgentPage() {
           {renderConfigurationContent()}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Agent</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{agent?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
