@@ -38,8 +38,8 @@ export class ChatUpdate extends BaseEvent {
     super('chat.update', backend, false, true);
   }
 
-  override async execute(_: IpcMainInvokeEvent, args: Parameters<typeof ChatService.updateChat>): Promise<any> {
-    return await ChatService.updateChat(...args)
+  override async execute(_: IpcMainInvokeEvent, id: Parameters<typeof ChatService.updateChat>[0], chat: Parameters<typeof ChatService.updateChat>[1]): Promise<any> {
+    return await ChatService.updateChat(id, chat)
   }
 }
 

@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { use } from "@/hooks/use"
 import { ChevronDown, ChevronRight, Download, Trash2 } from "lucide-react"
@@ -29,11 +30,19 @@ export function MCPServers() {
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
   const [uninstallDialogOpen, setUninstallDialogOpen] = useState(false)
   const [serverToUninstall, setServerToUninstall] = useState<MCPServer | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const { data: servers, refetch } = use({ fetcher: async () => await window.electronAPI.mcp.getAll() })
 
   const installedServers = servers?.filter(server => server.is_installed) ?? []
   const availableServers = servers?.filter(server => !server.is_installed) ?? []
+
+  // Filter available servers based on search query
+  const filteredAvailableServers = availableServers.filter(server =>
+    server.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    server.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    server.tools.some(tool => tool.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
 
   const toggleServer = (serverName: string, is_active) => {
     window.electronAPI.mcp.setActiveState(serverName, is_active).then(() => {
@@ -186,14 +195,26 @@ export function MCPServers() {
 
       {/* Available Servers */}
       <div className="space-y-4">
-        <h2 className="text-lg font-medium text-foreground">Available Servers</h2>
-        {availableServers.length === 0 ? (
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium text-foreground">Available Servers</h2>
+          <div className="w-64">
+            <Input
+              placeholder="Search servers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9"
+            />
+          </div>
+        </div>
+        {filteredAvailableServers.length === 0 ? (
           <div className="border border-border rounded-lg p-8 text-center">
-            <p className="text-muted-foreground">No available servers to install</p>
+            <p className="text-muted-foreground">
+              {searchQuery ? `No servers found matching "${searchQuery}"` : "No available servers to install"}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {availableServers.map((server) => (
+            {filteredAvailableServers.map((server) => (
               <div key={server.id} className="border border-border rounded-lg p-4 bg-background">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">

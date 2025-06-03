@@ -51,7 +51,7 @@ class AgentService {
   public async createAgent(agent: {
     instruction: string;
     llmId: number;
-    mcpIds?: number[];
+    mcpTools?: { [serverId: number]: string[] };
     styles?: number[];
   }): Promise<any | null> {
     try {
@@ -67,13 +67,22 @@ class AgentService {
         userId: AuthHandler.profile?.sub,
       });
 
-      // Add MCPs
-      if (agent.mcpIds && agent.mcpIds.length > 0) {
-        const mcpModels = await Database.sequelize?.model(Users_MCPs.name).findAll({
-          where: { id: agent.mcpIds, userId: AuthHandler.profile?.sub },
+      // Handle MCP tool selections
+      const mcpSelections = agent?.mcpTools || {};
+
+      // Add MCP associations with tool selections
+      for (const [serverId, selectedTools] of Object.entries(mcpSelections)) {
+        const mcpId = parseInt(serverId);
+        const mcpModel = await Database.sequelize?.model(Users_MCPs.name).findOne({
+          where: { id: mcpId, userId: AuthHandler.profile?.sub },
         });
-        if (mcpModels && mcpModels.length > 0) {
-          await newAgent.addUsers_MCPs(mcpModels);
+
+        if (mcpModel) {
+          await newAgent.addUsers_MCPs(mcpModel, {
+            through: {
+              selected_tools: selectedTools
+            }
+          });
         }
       }
 
@@ -119,9 +128,12 @@ class AgentService {
         include: [{
           model: Database.sequelize?.model(Users_MCPs.name),
           attributes: ['id', 'is_active', 'is_installed'],
+          through: {
+            attributes: ['selected_tools']
+          },
           include: [{
             model: Database.sequelize?.model(MCPs.name),
-            attributes: ['id', 'name', 'description', 'icon'],
+            attributes: ['id', 'name', 'description', 'icon', 'tools'],
           }]
         }, {
           model: Database.sequelize?.model('Styles'),
@@ -139,14 +151,18 @@ class AgentService {
       if (!this.model) {
         throw new Error("Agent model is not initialized.");
       }
+
       const data = (await this.model.findOne({
         where: { id, userId: AuthHandler.profile?.sub },
         include: [{
           model: Database.sequelize?.model(Users_MCPs.name),
           attributes: ['id', 'is_active', 'is_installed'],
+          through: {
+            attributes: ['selected_tools']
+          },
           include: [{
             model: Database.sequelize?.model(MCPs.name),
-            attributes: ['id', 'name', 'description', 'icon'],
+            attributes: ['id', 'name', 'description', 'icon', 'tools'],
           }]
         }, {
           model: Database.sequelize?.model('Styles'),
@@ -163,7 +179,7 @@ class AgentService {
     name?: string;
     instruction?: string;
     llmId?: number;
-    mcpIds?: number[];
+    mcpTools?: { [serverId: number]: string[] };
     styles?: number[];
   }) {
     try {
@@ -192,18 +208,32 @@ class AgentService {
 
       await agent_db.save();
 
-      // Clear existing MCP associations
-      await agent_db.setUsers_MCPs([]);
+      // Only update MCP associations if mcpTools is provided
+      if (agent?.mcpTools !== undefined) {
+        // Clear existing MCP associations
+        await agent_db.setUsers_MCPs([]);
 
-      for (const mcpId of agent?.mcpIds || []) {
-        const mcp = await Database.sequelize?.model(Users_MCPs.name).findOne({
-          where: {
-            userId: AuthHandler.profile?.sub,
-            mcpId: mcpId
+        // Handle MCP tool selections
+        const mcpSelections = agent.mcpTools;
+        if (Object.keys(mcpSelections).length > 0) {
+          // Add MCP associations with tool selections
+          for (const [serverId, selectedTools] of Object.entries(mcpSelections)) {
+            const mcpId = parseInt(serverId);
+            const mcp = await Database.sequelize?.model(Users_MCPs.name).findOne({
+              where: {
+                userId: AuthHandler.profile?.sub,
+                mcpId: mcpId
+              }
+            });
+
+            if (mcp) {
+              await agent_db.addUsers_MCPs(mcp, {
+                through: {
+                  selected_tools: selectedTools
+                }
+              });
+            }
           }
-        })
-        if (mcp) {
-          await agent_db.addUsers_MCPs(mcp);
         }
       }
 

@@ -1,14 +1,14 @@
-import { Badge } from "@/components/ui/badge"
+import { MCPToolSelector } from "@/components/mcp-tool-selector"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { use } from "@/hooks/use"
 import useAgent from "@/hooks/use-agent"
 import { useMatches } from "@tanstack/react-router"
-import { Activity, Check, ChevronLeft, ChevronRight, Info, Save, Settings, Trash2 } from "lucide-react"
+import { Activity, ChevronLeft, ChevronRight, Info, Save, Settings, Trash2 } from "lucide-react"
 import { useCallback, useState } from "react"
 interface Template {
   id: string
@@ -260,13 +260,17 @@ export function AgentPage() {
   const charactersUsed = agent?.instruction?.length ?? 0
   const charactersRemaining = CHARACTER_LIMIT - charactersUsed
 
-  const toggleServer = (serverId: number) => {
-    const mcpServerIds = agent?.mcpIds?.slice() ?? []
-    if (!mcpServerIds.includes(serverId)) mcpServerIds.push(serverId);
-    else mcpServerIds.splice(mcpServerIds.indexOf(serverId), 1);
+  const handleToolSelection = (serverId: number, selectedTools: string[]) => {
+    const mcpTools = agent?.mcpTools ? { ...agent.mcpTools } : {}
+
+    if (selectedTools.length > 0) {
+      mcpTools[serverId] = selectedTools
+    } else {
+      delete mcpTools[serverId]
+    }
 
     updateAgent({
-      mcpIds: mcpServerIds
+      mcpTools: mcpTools
     })
   }
 
@@ -313,142 +317,99 @@ export function AgentPage() {
   const confirmDelete = () => {
     deleteAgent()
     setShowDeleteDialog(false)
+  }  // Helper function to get disabled reason for Create button
+  const getCreateButtonDisabledReason = () => {
+    const missingFields: string[] = []
+    if (!agent?.instruction?.trim()) missingFields.push('instructions')
+    if (!agent?.llmId) missingFields.push('model')
+    if (!selectedTone) missingFields.push('tone')
+    if (!selectedStyle) missingFields.push('style')
+
+    if (missingFields.length === 0) return null
+
+    return `Missing required: ${missingFields.join(', ')}`
   }
-  // Show confirmation dialog and delete agent
+
+  const isCreateButtonDisabled = !agent?.instruction || !agent?.llmId || !selectedTone || !selectedStyle
+  const disabledReason = getCreateButtonDisabledReason()
 
   // Helper function to render the configuration content
   const renderConfigurationContent = () => (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Left Side - Main Agent Tone/Style or Text Editor */}
+      {/* Left Side - Configuration */}
       <div className="lg:col-span-2 space-y-6">
-        {isMainAgent ? (
-          // Main Agent: Configuration Options
-          <div className="space-y-6">
-            {/* Communication Preferences */}
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-lg font-medium text-foreground mb-2">Communication Preferences</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Set how your main agent should communicate with you across all interactions
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Tone Selection */}
-                <div className="flex flex-col gap-3">
-                  <label className="text-sm font-medium text-foreground">Communication Tone</label>
-                  <Select value={selectedTone} onValueChange={(value) => updateAgent({
-                    styles: [...(selectedStyle ? [selectedStyle] : []), parseInt(value)]
-                  })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select tone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tones?.map((tone) => (
-                        <SelectItem key={tone.id} value={tone.id}>
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">{tone.name}</span>
-                            <span className="text-xs text-muted-foreground">{tone.description}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Style Selection */}
-                <div className="flex flex-col gap-3">
-                  <label className="text-sm font-medium text-foreground">Response Style</label>
-                  <Select value={selectedStyle} onValueChange={(value) => updateAgent({
-                    styles: [...(selectedTone ? [selectedTone] : []), parseInt(value)]
-                  })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select style" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {styles?.map((style) => (
-                        <SelectItem key={style.id} value={style.id}>
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">{style.name}</span>
-                            <span className="text-xs text-muted-foreground">{style.description}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+        <div className="space-y-6">
+          {/* Communication Preferences */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-medium text-foreground mb-2">Communication Preferences</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Set how your agent should communicate
+              </p>
             </div>
 
-            {/* Additional Instructions */}
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-lg font-medium text-foreground mb-2">Additional Instructions</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Provide any additional instructions or preferences for your main agent
-                </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Tone Selection */}
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-medium text-foreground">
+                  Communication Tone {isNewAgent && <span className="text-red-500">*</span>}
+                </label>
+                <Select value={selectedTone} onValueChange={(value) => updateAgent({
+                  styles: [...(selectedStyle ? [selectedStyle] : []), parseInt(value)]
+                })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select tone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tones?.map((tone) => (
+                      <SelectItem key={tone.id} value={tone.id}>
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">{tone.name}</span>
+                          <span className="text-xs text-muted-foreground">{tone.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-2">
-                {/* Dynamic Variables - Integrated with textarea */}
-                <div className="relative">
-                  {/* Compact toolbar directly above textarea */}
-                  <div className="flex items-center justify-between mb-2 px-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs font-medium text-muted-foreground">Variables:</span>
-                      <div className="flex flex-wrap gap-1">
-                        {DYNAMIC_VARIABLES.map((variable) => (
-                          <Tooltip key={variable}>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => insertVariable(variable)}
-                                className="px-2 py-1 text-xs font-mono text-muted-foreground bg-muted/50 border border-border rounded hover:bg-muted hover:text-foreground transition-colors"
-                              >
-                                {variable}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">
-                                {variable === '{{user_name}}' && 'Inserts the current user\'s name'}
-                                {variable === '{{mcp_servers}}' && 'Lists the available MCP servers and tools'}
-                                {variable === '{{current_date}}' && 'Inserts the current date'}
-                                {variable === '{{current_time}}' && 'Inserts the current time'}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <Textarea
-                    value={agent?.instruction}
-                    onChange={(e) => {
-                      if (e.target.value.length <= CHARACTER_LIMIT) {
-                        updateAgent({
-                          instruction: e.target.value
-                        })
-                      }
-                    }}
-                    placeholder="Enter any specific instructions, preferences, or guidelines for your main agent..."
-                    className="min-h-48 resize-none"
-                  />
-                </div>
-                <div className="flex justify-between items-center text-xs text-muted-foreground">
-                  <span>{charactersUsed} / {CHARACTER_LIMIT} characters</span>
-                  <span className={charactersRemaining < 100 ? 'text-orange-600 dark:text-orange-400' : ''}>
-                    {charactersRemaining} remaining
-                  </span>
-                </div>
+              {/* Style Selection */}
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-medium text-foreground">
+                  Response Style {isNewAgent && <span className="text-red-500">*</span>}
+                </label>
+                <Select value={selectedStyle} onValueChange={(value) => updateAgent({
+                  styles: [...(selectedTone ? [selectedTone] : []), parseInt(value)]
+                })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {styles?.map((style) => (
+                      <SelectItem key={style.id} value={style.id}>
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">{style.name}</span>
+                          <span className="text-xs text-muted-foreground">{style.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
-        ) : (
-          // Sub Agent or Create Agent: Text Editor
-          <div className="space-y-3">
-            <h2 className="text-lg font-medium text-foreground">Agent Instructions</h2>
-            <p className="text-sm text-muted-foreground">Describe what your agent should do and how it should behave</p>
 
-            {/* Text Editor with integrated dynamic variables */}
+          {/* Agent Instructions */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-medium text-foreground mb-2">
+                Agent Instructions {isNewAgent && <span className="text-red-500">*</span>}
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Describe what your agent should do and how it should behave
+              </p>
+            </div>
+
             <div className="space-y-2">
               {/* Dynamic Variables - Integrated with textarea */}
               <div className="relative">
@@ -490,7 +451,7 @@ export function AgentPage() {
                     }
                   }}
                   placeholder="Describe your agent's role, responsibilities, and behavior..."
-                  className="min-h-96 resize-none"
+                  className="min-h-64 resize-none"
                 />
               </div>
               <div className="flex justify-between items-center text-xs text-muted-foreground">
@@ -500,60 +461,84 @@ export function AgentPage() {
                 </span>
               </div>
             </div>
-
-            {/* Action Buttons - Only for Create Agent or Existing Agent (Delete) */}
-            {(isNewAgent || (!isMainAgent && !isNewAgent)) && (
-              <div className="flex items-center justify-between pt-4">
-                <div>
-                </div>
-
-                {/* Right side - Create button (only for new agents) */}
-                <div className="flex justify-end flex-1">
-                  {isNewAgent && (
-                    <Button
-                      onClick={handleSave}
-                      disabled={!agent?.instruction || !agent?.llmId}
-                      className="flex items-center space-x-2"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Create Agent</span>
-                    </Button>
-                  )}
-                  {!isMainAgent && !isNewAgent && (
-                    <Button
-                      variant="destructive"
-                      onClick={handleDelete}
-                      className="flex items-center space-x-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete Agent</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
-        )}
+
+          {/* Action Buttons - Desktop only (large screens) */}
+          {(isNewAgent || (!isMainAgent && !isNewAgent)) && (
+            <div className="hidden lg:flex justify-end pt-6">
+              {isNewAgent && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        onClick={handleSave}
+                        disabled={isCreateButtonDisabled}
+                        className="flex items-center space-x-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Create Agent</span>
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {disabledReason && (
+                    <TooltipContent>
+                      <p className="text-xs">{disabledReason}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              )}
+              {!isMainAgent && !isNewAgent && (
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  className="flex items-center space-x-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete Agent</span>
+                </Button>
+              )}
+            </div>
+          )}
+
+        </div>
       </div>
 
       {/* Right Side - Selectors */}
       <div className="space-y-6">
         {/* LLM Model Selection */}
         <div className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">LLM Model</h2>
+          <h2 className="text-lg font-medium text-foreground">
+            LLM Model {isNewAgent && <span className="text-red-500">*</span>}
+          </h2>
           <div className="border border-border rounded-lg p-4 bg-background">
             <Select value={agent?.llmId as any} onValueChange={(llm) => selectLLM(parseInt(llm))}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a language model" />
               </SelectTrigger>
               <SelectContent>
-                {llms?.map((llm) => (
-                  <SelectItem key={llm.id} value={llm.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{llm.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {(() => {
+                  // Group LLMs by provider
+                  const groupedLLMs = llms?.reduce((acc, llm) => {
+                    if (!acc[llm.provider]) {
+                      acc[llm.provider] = [];
+                    }
+                    acc[llm.provider].push(llm);
+                    return acc;
+                  }, {} as Record<string, any[]>) || {};
+
+                  return Object.entries(groupedLLMs).map(([provider, models]) => (
+                    <SelectGroup key={provider}>
+                      <SelectLabel>{provider}</SelectLabel>
+                      {(models as any[]).map((llm: any) => (
+                        <SelectItem key={llm.id} value={llm.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{llm.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ));
+                })()}
               </SelectContent>
             </Select>
           </div>
@@ -563,73 +548,34 @@ export function AgentPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-medium text-foreground">MCP Servers</h2>
           <p className="text-sm text-muted-foreground">Select tools and services your agent can access</p>
+          <MCPToolSelector
+            servers={mcpServers || []}
+            selectedTools={agent?.mcpTools || {}}
+            onToolSelectionChange={handleToolSelection}
+          />
+        </div>
+
+        {/* Quick Templates */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-medium text-foreground">Quick Templates</h2>
           <div className="space-y-2">
-            {mcpServers?.map((server) => (
-              <div key={server.id} className="border border-border rounded-lg p-3 bg-background">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-2 flex-1 min-w-0">
-                    <img
-                      src={server.icon}
-                      alt={`${server.name} logo`}
-                      className="w-4 h-4 object-contain mt-0.5 shrink-0"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-sm truncate">{server.name}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">{server.description}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleServer(server.id)}
-                    className={`p-1 rounded border transition-colors shrink-0 ml-2 ${agent?.mcpIds?.includes(server.id)
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background border-border hover:border-muted-foreground'
-                      }`}
-                  >
-                    {agent?.mcpIds?.includes(server.id) ? (
-                      <Check className="w-3 h-3" />
-                    ) : (
-                      <div className="w-3 h-3" />
-                    )}
-                  </button>
-                </div>
-                {server.tools.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {server.tools.map((tool) => (
-                      <Badge key={tool} variant="secondary" className="text-xs px-1.5 py-0">
-                        {tool}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                onClick={() => applyTemplate(template)}
+                className="w-full p-3 text-left border border-border rounded-lg hover:border-muted-foreground transition-colors bg-background"
+              >
+                <div className="font-medium text-sm">{template.name}</div>
+                <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{template.description}</div>
+              </button>
             ))}
           </div>
         </div>
-
-        {/* Quick Templates - Only for Sub/Create Agent */}
-        {!isMainAgent && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-medium text-foreground">Quick Templates</h2>
-            <div className="space-y-2">
-              {templates.map((template) => (
-                <button
-                  key={template.id}
-                  onClick={() => applyTemplate(template)}
-                  className="w-full p-3 text-left border border-border rounded-lg hover:border-muted-foreground transition-colors bg-background"
-                >
-                  <div className="font-medium text-sm">{template.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{template.description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
-  )  // Helper function to render activities content with pagination
+  )
+
+  // Helper function to render activities content with pagination
   const renderActivitiesContent = () => {
     const totalItems = agentRequests.length
     const totalPages = Math.ceil(totalItems / itemsPerPage)
@@ -705,17 +651,17 @@ export function AgentPage() {
   }
 
   return (
-    <div className="space-y-8 p-6 mx-auto max-w-5xl">
+    <div className="space-y-8 p-6 mx-auto max-w-5xl w-full">
       {/* Header */}
       <div className={`pb-6 mb-6 ${isNewAgent ? "border-b" : ""}`}>
-        <div className="flex items-center space-x-2">
-          <h1 className="text-2xl sm:text-3xl font-bold">
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+          <h1 className="text-2xl sm:text-3xl font-bold truncate">
             {isMainAgent ? (agent?.name ?? 'Main Agent') : isNewAgent ? 'Create Agent' : agent?.name}
           </h1>
           {!isNewAgent && (
             <Tooltip>
               <TooltipTrigger>
-                <Info className="w-4 h-4 text-muted-foreground" />
+                <Info className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </TooltipTrigger>
               <TooltipContent>
                 <p className="text-xs">
@@ -766,6 +712,43 @@ export function AgentPage() {
         /* Create Agent Scenario - No tabs, just configuration */
         <div className="space-y-6">
           {renderConfigurationContent()}
+        </div>
+      )}
+
+      {/* Action Buttons - Visible on small screens only, placed after all content */}
+      {(isNewAgent || (!isMainAgent && !isNewAgent)) && (
+        <div className="flex justify-end pt-6 lg:hidden">
+          {isNewAgent && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    onClick={handleSave}
+                    disabled={isCreateButtonDisabled}
+                    className="flex items-center space-x-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Create Agent</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {disabledReason && (
+                <TooltipContent>
+                  <p className="text-xs">{disabledReason}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          )}
+          {!isMainAgent && !isNewAgent && (
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              className="flex items-center space-x-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Agent</span>
+            </Button>
+          )}
         </div>
       )}
 

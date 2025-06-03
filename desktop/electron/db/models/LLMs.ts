@@ -26,14 +26,19 @@ export const LLMs: {
       allowNull: false,
       unique: true,
     },
+    provider: {
+      type: DataTypes.ENUM('OpenAI', 'Anthropic', 'Google', 'Azure', 'Other'),
+      allowNull: false,
+      comment: "The provider/company of the LLM (e.g., OpenAI, Anthropic, Google)",
+    },
   },
   addDefaultEntries: async (model) => {
     await model.bulkCreate([
-      { id: 1, name: "GPT-4" },
-      { id: 2, name: "GPT-3.5 Turbo" },
-      { id: 3, name: "Gemini Pro" },
-      { id: 4, name: "Claude 3 Opus" },
-      { id: 5, name: "Claude 3 Sonnet" },
+      { id: 1, name: "GPT-4", provider: "OpenAI" },
+      { id: 2, name: "GPT-3.5 Turbo", provider: "OpenAI" },
+      { id: 3, name: "Gemini Pro", provider: "Google" },
+      { id: 4, name: "Claude 3 Opus", provider: "Anthropic" },
+      { id: 5, name: "Claude 3 Sonnet", provider: "Anthropic" },
     ], {
       ignoreDuplicates: true,
     })

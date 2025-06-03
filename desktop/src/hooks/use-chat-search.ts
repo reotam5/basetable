@@ -56,6 +56,20 @@ export function useChatSearch() {
     setIsSearching(false);
   }, [chats, addToHistory]);
 
+  useEffect(() => {
+    const onSidebarRefresh = () => {
+      if (searchQuery.trim()) {
+        searchChats(searchQuery);
+      } else {
+        fetchChats()
+      }
+    }
+    window.addEventListener("sidebar.refresh", onSidebarRefresh);
+    return () => {
+      window.removeEventListener("sidebar.refresh", onSidebarRefresh);
+    }
+  }, [fetchChats, searchChats, searchQuery])
+
   // Generate search suggestions based on chat content and history
   const generateSuggestions = useCallback((inputQuery: string) => {
     if (!inputQuery.trim()) {

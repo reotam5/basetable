@@ -2,7 +2,9 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -370,8 +372,10 @@ export function ChatInterface() {
     <div className="flex-1 flex flex-col pt-[-5px] min-h-[calc(100vh-3.5rem-1px)]">
       {/* Chat Header */}
       <div className="sticky top-[57px] z-20 bg-gradient-to-b from-white via-white/80 to-transparent dark:from-neutral-950 dark:via-neutral-950/80 dark:to-transparent p-3">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100">{chatTitle}</h1>
+        <div className="grid grid-cols-1 justify-items-center">
+          <div className="w-full max-w-4xl px-3 grid">
+            <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100 truncate col-span-1 min-w-0">{chatTitle}</h1>
+          </div>
         </div>
       </div>
 
@@ -484,13 +488,27 @@ export function ChatInterface() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {
-                      llms?.map((llm) => (
-                        <SelectItem key={llm.id} value={llm.id.toString()} >
-                          {llm.name}
-                        </SelectItem>
-                      ))
-                    }
+                    {(() => {
+                      // Group LLMs by provider
+                      const groupedLLMs = llms?.reduce((acc, llm) => {
+                        if (!acc[llm.provider]) {
+                          acc[llm.provider] = [];
+                        }
+                        acc[llm.provider].push(llm);
+                        return acc;
+                      }, {} as Record<string, any[]>) || {};
+
+                      return Object.entries(groupedLLMs).map(([provider, models]) => (
+                        <SelectGroup key={provider}>
+                          <SelectLabel>{provider}</SelectLabel>
+                          {(models as any[]).map((llm: any) => (
+                            <SelectItem key={llm.id} value={llm.id.toString()}>
+                              {llm.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ));
+                    })()}
                   </SelectContent>
                 </Select>
                 <div>

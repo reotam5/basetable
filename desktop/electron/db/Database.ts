@@ -4,6 +4,8 @@ import { join } from "path";
 import { Sequelize } from "sequelize";
 import { AuthHandler, KeyManager, Window } from "../helpers/index.js";
 import { Logger } from "../helpers/Logger.js";
+import { MigrationRunner } from "./migrations/MigrationRunner.js";
+import { migrations } from "./migrations/versions/index.js";
 import { models } from "./models/index.js";
 import { Settings } from "./models/Settings.js";
 import { services } from "./services/index.js";
@@ -13,6 +15,7 @@ class Database {
   static #instance: Database;
   public sequelize: Sequelize | null = null;
   private window: Window | null = null;
+  private migrationRunner: MigrationRunner | null = null;
 
   private constructor() { }
 
@@ -40,18 +43,25 @@ class Database {
       dialect: 'sqlite',
       dialectModulePath: '@journeyapps/sqlcipher',
       storage: join(app.getPath("userData"), "db.sqlite"),
-      logging: (msg: string) => Logger.debug(msg),
+      // logging: (msg: string) => Logger.debug(msg),
+      logging: false,
     });
+
+    // Initialize migration runner
+    this.migrationRunner = new MigrationRunner(this.sequelize);
+    this.migrationRunner.registerMigrations(migrations);
   }
 
   public async getEncryption(): Promise<string | null> {
     return await KeyManager.getKey(KeyManager.KEYS.DB_PASSWORD);
-  }
-
-  public async registerModel() {
+  } public async registerModel() {
     if (!this.sequelize) {
       throw new Error("Database not initialized. Call initialize() first.");
     }
+
+    // Run migrations automatically before model registration
+    await this.ensureDatabaseIsUpToDate();
+
     for (const model of models) {
       this.sequelize.define(model.name, model.attributes, model.options);
     }
@@ -61,6 +71,41 @@ class Database {
     }
 
     await this.sequelize.sync();
+
+    // Migration system is self-contained - no need for additional version tracking
+  }
+
+  /**
+   * Automatically check and run pending migrations
+   */
+  private async ensureDatabaseIsUpToDate(): Promise<void> {
+    if (!this.migrationRunner) {
+      Logger.warn("Migration runner not initialized, skipping migration check");
+      return;
+    }
+
+    try {
+      Logger.info("Checking for pending database migrations...");
+
+      // Get installation info for better logging
+      const info = await this.migrationRunner.getInstallationInfo();
+      Logger.info(`Installation info: isFresh=${info.isFreshInstall}, tables=${info.existingTables.length}, pending=${info.migrationStatus.pending.length}`);
+
+      if (info.migrationStatus.pending.length > 0 || info.isFreshInstall) {
+        if (info.isFreshInstall) {
+          Logger.info("Fresh installation detected - migrations will be marked as executed after model sync");
+        } else {
+          Logger.info(`Found ${info.migrationStatus.pending.length} pending migration(s). Running automatically...`);
+        }
+
+        await this.migrationRunner.runMigrations();
+        Logger.info("Database migrations completed successfully");
+      } else {
+        Logger.info("Database is up to date, no migrations needed");
+      }
+    } catch (error) {
+      Logger.error("Failed to run database migrations:", error);
+    }
   }
 
   public async registerService() {
@@ -76,15 +121,13 @@ class Database {
     if (!this.sequelize) {
       throw new Error("Database not initialized. Call initialize() first.");
     }
-    // some default entries might fail because it requires other entries to exist first.
-    const tryModel = models;
-    while (tryModel.length > 0) {
-      const model = tryModel.shift();
-      try {
-        await model?.addDefaultEntries?.(this.sequelize.model(model.name), userId);
-      } catch (e) {
-        Logger.warn("Failed to load default entries for model:", model?.name, e);
-        tryModel.push(model!);
+    for (const model of models) {
+      if (model?.addDefaultEntries) {
+        try {
+          await model.addDefaultEntries(this.sequelize.model(model.name), userId);
+        } catch (e) {
+          Logger.warn("Failed to load default entries for model:", model.name, e);
+        }
       }
     }
   }
@@ -202,6 +245,8 @@ class Database {
       throw error;
     }
   }
+
+
 }
 
 const database = Database.instance;

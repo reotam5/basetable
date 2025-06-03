@@ -9,6 +9,7 @@ type IAgent = {
   llmId?: number;
   instruction?: string;
   mcpIds?: number[];
+  mcpTools?: { [serverId: number]: string[] }; // New field for tool-level selection
   styles?: number[];
 }
 
@@ -35,7 +36,22 @@ const useAgent = (id?: number): IUseAgent => {
       setLoading(true);
       setError(null);
       const agentData = await window.electronAPI.agent.get(id);
+
+      // Process legacy mcpIds for backward compatibility
       agentData.mcpIds = agentData?.Users_MCPs?.map((mcp: { id: number }) => mcp.id);
+
+      // Process new mcpTools data structure
+      agentData.mcpTools = {};
+      if (agentData?.Users_MCPs) {
+        agentData.Users_MCPs.forEach((mcp: any) => {
+          const serverId = mcp.id;
+          const selectedTools = mcp.Agents_MCPs?.selected_tools || mcp.MCP?.tools || [];
+          if (selectedTools.length > 0) {
+            agentData.mcpTools[serverId] = selectedTools;
+          }
+        });
+      }
+
       agentData.styles = agentData?.Styles?.map((style: { id: number }) => style.id) ?? [];
       delete agentData.Users_MCPs;
       delete agentData.Styles;
@@ -56,8 +72,9 @@ const useAgent = (id?: number): IUseAgent => {
         const updatePayload: {
           name?: string;
           instruction?: string;
-          llmId?: string;
+          llmId?: number;
           mcpIds?: number[];
+          mcpTools?: { [serverId: number]: string[] };
           styles?: number[];
         } = {};
 
@@ -70,10 +87,13 @@ const useAgent = (id?: number): IUseAgent => {
           updatePayload.instruction = pendingUpdate.instruction;
         }
         if (pendingUpdate.llmId !== undefined) {
-          updatePayload.llmId = pendingUpdate.llmId.toString();
+          updatePayload.llmId = pendingUpdate.llmId;
         }
         if (pendingUpdate.mcpIds !== undefined) {
           updatePayload.mcpIds = pendingUpdate.mcpIds;
+        }
+        if (pendingUpdate.mcpTools !== undefined) {
+          updatePayload.mcpTools = pendingUpdate.mcpTools;
         }
         if (pendingUpdate.styles !== undefined) {
           updatePayload.styles = pendingUpdate.styles ?? [];
@@ -132,6 +152,14 @@ const useAgent = (id?: number): IUseAgent => {
     fetchAgent();
   }, [fetchAgent]);
 
+  useEffect(() => {
+    const onSidebarRefresh = () => refetch();
+    window.addEventListener('sidebar.refresh', onSidebarRefresh);
+    return () => {
+      window.removeEventListener('sidebar.refresh', onSidebarRefresh);
+    }
+  }, [refetch])
+
   // Cleanup debounced function on unmount
   useEffect(() => {
     return () => {
@@ -149,7 +177,7 @@ const useAgent = (id?: number): IUseAgent => {
       const newAgent = await window.electronAPI.agent.create({
         instruction: pendingUpdatesRef.current.instruction!,
         llmId: pendingUpdatesRef.current.llmId!,
-        mcpIds: pendingUpdatesRef.current.mcpIds,
+        mcpTools: pendingUpdatesRef.current.mcpTools,
         styles: pendingUpdatesRef.current.styles
       })
       window.dispatchEvent(new CustomEvent('sidebar.refresh'));

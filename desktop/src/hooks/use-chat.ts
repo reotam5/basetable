@@ -26,13 +26,21 @@ export interface SendMessageOptions {
 
 export function useChat(chatId: number) {
   const { data: initialData, error: fetchError, isLoading, refetch } = use<MessagesResponse>({ fetcher: async () => await window.electronAPI.chat.message.getByChat(chatId), dependencies: [chatId] });
-  const { data: chatRoomData } = use<{ title: string }>({ fetcher: async () => await window.electronAPI.chat.getById(chatId), dependencies: [chatId] });
+  const { data: chatRoomData, refetch: refetchChatRoomData } = use<{ title: string }>({ fetcher: async () => await window.electronAPI.chat.getById(chatId), dependencies: [chatId] });
   const { data: mainAgentData, refetch: refetchMainAgent } = use<{ llmId: number, id: number }>({ fetcher: async () => await window.electronAPI.agent.getMain() });
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [isSending, setIsSending] = useState(false);
   const optimisticIdCounter = useRef(-1);
+
+  useEffect(() => {
+    const onSidebarRefresh = () => refetchChatRoomData();
+    window.addEventListener("sidebar.refresh", onSidebarRefresh);
+    return () => {
+      window.removeEventListener("sidebar.refresh", onSidebarRefresh);
+    };
+  }, [refetchChatRoomData])
 
   // Clear all messages immediately when chatId changes
   useEffect(() => {

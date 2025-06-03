@@ -1,4 +1,4 @@
-import { Model, ModelAttributes, ModelCtor, ModelOptions, Sequelize } from "sequelize";
+import { DataTypes, Model, ModelAttributes, ModelCtor, ModelOptions, Sequelize } from "sequelize";
 
 export const Agents_MCPs: {
   name: string;
@@ -15,7 +15,13 @@ export const Agents_MCPs: {
   options: {
     timestamps: true,
   },
-  attributes: {},
+  attributes: {
+    selected_tools: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: "Array of selected tool names for this MCP server",
+    },
+  },
 };
 
 
