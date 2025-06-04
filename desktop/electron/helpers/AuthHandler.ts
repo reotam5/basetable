@@ -1,8 +1,8 @@
 import { shell } from "electron";
 import Store from "electron-store";
 import { jwtDecode } from "jwt-decode";
-import { Database } from "../db/Database.js";
-import { UserService } from "../db/services/User.js";
+import User from "../db/models/user.model.js";
+import { seedDatabase } from "../db/seeder.js";
 import { KeyManager } from "./KeyManager.js";
 import { Logger } from "./Logger.js";
 import { Window } from "./Window.js";
@@ -100,18 +100,18 @@ export class AuthHandler {
       AuthHandler.profile = jwtDecode<UserProfile>(id_token);
       await KeyManager.setKey(KeyManager.KEYS.REFRESH_TOKEN, newRefreshToken);
 
-      const db_user = await UserService.getUserById(AuthHandler.profile?.sub);
+      const db_user = await User.findOne({ where: { id: AuthHandler.profile?.sub } });
 
       // this user is first time logging in. create a new user and load up default entries
       if (!db_user) {
-        await UserService.createUser({
+        await User.create({
           id: AuthHandler.profile?.sub,
           name: AuthHandler.profile?.name,
           email: AuthHandler.profile?.email,
           picture: AuthHandler.profile?.picture,
         })
       }
-      await Database.loadDefaultEntries(AuthHandler.profile!.sub!);
+      await seedDatabase();
 
       AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGIN_CALLBACK_EVENT, {
         accessToken: AuthHandler.accessToken,

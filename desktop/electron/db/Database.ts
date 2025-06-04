@@ -1,14 +1,18 @@
 import crypto from "crypto";
 import { app } from "electron";
-import { join } from "path";
-import { Sequelize } from "sequelize";
+import path, { join } from "path";
+import { Sequelize } from 'sequelize-typescript';
+import { fileURLToPath } from "url";
 import { AuthHandler, KeyManager, Window } from "../helpers/index.js";
 import { Logger } from "../helpers/Logger.js";
+import { services } from "../services/index.js";
 import { MigrationRunner } from "./migrations/MigrationRunner.js";
 import { migrations } from "./migrations/versions/index.js";
-import { models } from "./models/index.js";
-import { Settings } from "./models/Settings.js";
-import { services } from "./services/index.js";
+import Setting from "./models/settings.model.js";
+import { seedDefaultSettings } from "./seeder.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class Database {
   public static readonly DB_IMPORTED_EVENT = "db.imported";
@@ -45,6 +49,7 @@ class Database {
       storage: join(app.getPath("userData"), "db.sqlite"),
       // logging: (msg: string) => Logger.debug(msg),
       logging: false,
+      models: [__dirname + '/models']
     });
 
     // Initialize migration runner
@@ -62,17 +67,11 @@ class Database {
     // Run migrations automatically before model registration
     await this.ensureDatabaseIsUpToDate();
 
-    for (const model of models) {
-      this.sequelize.define(model.name, model.attributes, model.options);
+    try {
+      await this.sequelize.sync();
+    } catch (error) {
+      Logger.error("Failed to sync database models:", error);
     }
-
-    for (const model of models) {
-      await model?.customize?.(this.sequelize);
-    }
-
-    await this.sequelize.sync();
-
-    // Migration system is self-contained - no need for additional version tracking
   }
 
   /**
@@ -113,22 +112,8 @@ class Database {
       throw new Error("Database not initialized. Call initialize() first.");
     }
     for (const service of services) {
-      service.initialize()
-    }
-  }
-
-  public async loadDefaultEntries(userId: string): Promise<void> {
-    if (!this.sequelize) {
-      throw new Error("Database not initialized. Call initialize() first.");
-    }
-    for (const model of models) {
-      if (model?.addDefaultEntries) {
-        try {
-          await model.addDefaultEntries(this.sequelize.model(model.name), userId);
-        } catch (e) {
-          Logger.warn("Failed to load default entries for model:", model.name, e);
-        }
-      }
+      // this will load up the decorators and register the service to ipcMain
+      new service()
     }
   }
 
@@ -143,8 +128,7 @@ class Database {
     }
 
     try {
-      const settingsModel = this.sequelize.model("Settings");
-      const userSettings = await settingsModel.findAll({
+      const userSettings = await Setting.findAll({
         where: { userId: AuthHandler.profile?.sub },
         attributes: {
           exclude: ['id', 'userId', 'createdAt', 'updatedAt']
@@ -196,8 +180,6 @@ class Database {
         throw new Error("Invalid settings data type. Expected 'application_settings'.");
       }
 
-      const settingsModel = this.sequelize.model("Settings");
-
       // Process each setting from the import
       const settingsToImport = settingsData.data.settings;
 
@@ -210,7 +192,7 @@ class Database {
 
         try {
           // Use upsert to update existing settings or create new ones
-          await settingsModel.upsert({
+          await Setting.upsert({
             key: setting.key,
             value: setting.value,
             type: setting.type,
@@ -234,11 +216,10 @@ class Database {
     }
 
     try {
-      const settingsModel = this.sequelize.model("Settings");
-      await settingsModel.destroy({
+      await Setting.destroy({
         where: { userId: AuthHandler.profile?.sub }
       });
-      await Settings.addDefaultEntries?.(this.sequelize.model(Settings.name), AuthHandler.profile!.sub);
+      await seedDefaultSettings()
       this.window?.windowInstance.webContents.send(Database.DB_IMPORTED_EVENT)
     } catch (error) {
       Logger.error("Failed to reset application settings:", error);

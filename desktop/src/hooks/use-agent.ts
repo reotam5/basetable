@@ -37,24 +37,20 @@ const useAgent = (id?: number): IUseAgent => {
       setError(null);
       const agentData = await window.electronAPI.agent.get(id);
 
-      // Process legacy mcpIds for backward compatibility
-      agentData.mcpIds = agentData?.Users_MCPs?.map((mcp: { id: number }) => mcp.id);
-
       // Process new mcpTools data structure
       agentData.mcpTools = {};
-      if (agentData?.Users_MCPs) {
-        agentData.Users_MCPs.forEach((mcp: any) => {
-          const serverId = mcp.id;
-          const selectedTools = mcp.Agents_MCPs?.selected_tools || mcp.MCP?.tools || [];
+      if (agentData?.userMcps) {
+        agentData.userMcps.forEach((mcp: any) => {
+          const serverId = mcp.id
+          const selectedTools = mcp.Agent_User_MCP?.selected_tools ?? []
           if (selectedTools.length > 0) {
             agentData.mcpTools[serverId] = selectedTools;
           }
-        });
+        })
       }
+      delete agentData.userMcps;
 
-      agentData.styles = agentData?.Styles?.map((style: { id: number }) => style.id) ?? [];
-      delete agentData.Users_MCPs;
-      delete agentData.Styles;
+      agentData.styles = agentData?.styles?.map((style: { id: number }) => style.id) ?? [];
       setAgent(agentData);
     } catch (err) {
       console.error('Error fetching agent:', err);

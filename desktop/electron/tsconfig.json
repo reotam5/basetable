@@ -20,7 +20,9 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2020",
-    "outDir": "../dist/main"
+    "outDir": "../dist/main",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": [
     "**/*.ts",

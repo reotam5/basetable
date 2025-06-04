@@ -69,7 +69,7 @@ export function RouteComponent() {
       id: key.id,
       name: key.name,
       key: key.value.replace(/(.{4})(.*)(.{4})/, '$1•••••••••••$3'),
-      active: mcp.is_active,
+      active: mcp?.users?.[0]?.User_MCP?.is_active,
       lastUsed: key.lastUsed ? new Date(key.lastUsed).toLocaleString() : "Never",
     })))
   });

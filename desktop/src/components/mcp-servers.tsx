@@ -34,8 +34,8 @@ export function MCPServers() {
 
   const { data: servers, refetch } = use({ fetcher: async () => await window.electronAPI.mcp.getAll() })
 
-  const installedServers = servers?.filter(server => server.is_installed) ?? []
-  const availableServers = servers?.filter(server => !server.is_installed) ?? []
+  const installedServers = servers?.filter(server => server?.users?.[0]?.User_MCP?.is_installed) ?? []
+  const availableServers = servers?.filter(server => !server?.users?.[0]?.User_MCP?.is_installed) ?? []
 
   // Filter available servers based on search query
   const filteredAvailableServers = availableServers.filter(server =>
@@ -136,7 +136,7 @@ export function MCPServers() {
                         <div className="flex items-center space-x-2">
                           <span className="text-xs text-muted-foreground">Active</span>
                           <Switch
-                            checked={server.is_active}
+                            checked={server?.users?.[0]?.User_MCP?.is_active}
                             onCheckedChange={(checked) => toggleServer(server.name, checked)}
                           />
                         </div>

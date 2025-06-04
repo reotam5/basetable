@@ -235,7 +235,7 @@ export function AgentPage() {
 
   // Memoize fetcher functions to prevent infinite re-renders
   const agentsFetcher = useCallback(() => window.electronAPI.agent.getAll(), []);
-  const mcpServersFetcher = useCallback(async () => await window.electronAPI.mcp.getAll({ is_active: true }), []);
+  const mcpServersFetcher = useCallback(async () => (await window.electronAPI.mcp.getAll({ is_active: true })).map(s => ({ ...s, id: s?.users?.[0]?.User_MCP?.id })), []);
   const llmsFetcher = useCallback(async () => await window.electronAPI.llm.getAll(), []);
   const tonesFetcher = useCallback(async () => await window.electronAPI.agent.getTones(), []);
   const stylesFetcher = useCallback(async () => await window.electronAPI.agent.getStyles(), []);

@@ -92,8 +92,8 @@ const electronAPI = {
     }
   },
   settings: {
-    get: (key: string) => handler.invoke("settings.get", key),
-    set: (key: string, value: any) => handler.invoke("settings.set", key, value),
+    get: (key: string) => handler.invoke("setting.get", key),
+    set: (key: string, value: any) => handler.invoke("setting.set", key, value),
   },
   chat: {
     create: (chat: { title?: string; initialMessage?: { content: string }, metadata?: any }) => handler.invoke("chat.create", chat),
@@ -104,10 +104,10 @@ const electronAPI = {
     search: (query: string, options?: { limit?: number; offset?: number }) => handler.invoke("chat.search", query, options),
     message: {
       create: (message: { chatId: number; type: string; content: string; status?: string }) => handler.invoke("message.create", message),
-      getByChat: (chatId: number, options?: { limit?: number; offset?: number }) => handler.invoke("message.getByChat", chatId, options),
+      getByChat: (chatId: number, options?: { limit?: number; offset?: number }) => handler.invoke("message.getByChatId", chatId, options),
       attachment: {
         create: (attachment: { messageId: number; filePath: string; fileName: string, type: string }) => handler.invoke("attachment.create", attachment),
-        getByMessage: (messageId: number) => handler.invoke("attachment.getByMessage", messageId),
+        getByMessage: (messageId: number) => handler.invoke("attachment.getByMessageId", messageId),
       }
     },
   },
@@ -115,7 +115,7 @@ const electronAPI = {
     getAll: (filter?: { is_active?: boolean }) => handler.invoke("mcp.getAll", filter),
     uninstall: (name: string) => handler.invoke("mcp.uninstall", name),
     install: (name: string) => handler.invoke("mcp.install", name),
-    setActiveState: (name: string, is_active: boolean) => handler.invoke("mcp.active", name, is_active),
+    setActiveState: (name: string, is_active: boolean) => handler.invoke("mcp.setActiveState", name, is_active),
   },
   key: {
     set: (name: string, value: string) => handler.invoke("apikey.set", name, value),
@@ -126,10 +126,10 @@ const electronAPI = {
     getAll: () => handler.invoke("agent.getAll"),
     delete: (id: number) => handler.invoke("agent.delete", id),
     create: (agent: { instruction: string; llmId: number; mcpTools?: { [serverId: number]: string[] }; styles?: number[] }) => handler.invoke("agent.create", agent),
-    get: (id: number) => handler.invoke("agent.get", id),
+    get: (id: number) => handler.invoke("agent.getById", id),
     update: (id: number, agent?: { name?: string; instruction?: string; llmId?: number; mcpTools?: { [serverId: number]: string[] }; styles?: number[] }) => handler.invoke("agent.update", id, agent),
-    getTones: () => handler.invoke("agent.get.tones"),
-    getStyles: () => handler.invoke("agent.get.styles"),
+    getTones: () => handler.invoke("style.getTones"),
+    getStyles: () => handler.invoke("style.getStyles"),
   },
   llm: {
     getAll: () => handler.invoke("llm.getAll"),

@@ -112,10 +112,10 @@ export function MCPToolSelector({ servers, selectedTools, onToolSelectionChange 
                   <button
                     onClick={() => toggleServerSelection(server.id)}
                     className={`p-1 rounded border transition-colors ${selectionState === 'all'
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : selectionState === 'partial'
-                          ? 'bg-primary/50 text-primary-foreground border-primary'
-                          : 'bg-background border-border hover:border-muted-foreground'
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : selectionState === 'partial'
+                        ? 'bg-primary/50 text-primary-foreground border-primary'
+                        : 'bg-background border-border hover:border-muted-foreground'
                       }`}
                   >
                     {selectionState === 'all' ? (
