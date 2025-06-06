@@ -143,12 +143,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {...props}
         >
             <Sidebar
-                className={`w-[72px] z-50 fixed`}
+                className={`w-[75px] z-50 fixed`}
                 collapsible="none"
             >
                 <SidebarHeader className="mb-3 mt-2">
                     <a className="flex items-center justify-center cursor-pointer" onClick={() => navigate({ to: '/' })}>
-                        <img src={logo} className="rounded-2xl size-11" />
+                        <img src={logo} className="rounded-2xl size-15" />
                     </a>
                 </SidebarHeader>
                 <SidebarContent className="overflow-visible">

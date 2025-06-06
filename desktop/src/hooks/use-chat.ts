@@ -146,7 +146,6 @@ export function useChat(chatId: number) {
     mainAgent: mainAgentData,
     selectedLLM: mainAgentData?.llmId ?? null,
     setSelectedLLM: (llmId: number) => {
-      console.log(llmId)
       window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId }).then(() => {
         refetchMainAgent();
       })

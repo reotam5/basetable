@@ -22,10 +22,16 @@ export default class LLM extends Model<InferAttributes<LLM>, InferCreationAttrib
   name!: string;
 
   @Column({
-    type: DataType.ENUM("OpenAI", "Anthropic", "Google", "Azure", "Other"),
+    type: DataType.STRING,
+    allowNull: true,
+  })
+  description!: string;
+
+  @Column({
+    type: DataType.ENUM("OpenAI", "Anthropic", "Google", "Azure", "Meta", "Mistral AI", "Cohere", "Other"),
     allowNull: false,
   })
-  provider!: "OpenAI" | "Anthropic" | "Google" | "Azure" | "Other";
+  provider!: "OpenAI" | "Anthropic" | "Google" | "Azure" | "Meta" | "Mistral AI" | "Cohere" | "Other";
 
   @HasMany(() => Agent)
   agents?: Agent[];

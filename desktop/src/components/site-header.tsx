@@ -17,20 +17,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet"
 
 const ROUTE_BREADCRUMB_MAP: Record<string, string[]> = {
-  "/": ["Basetable", "New Chat"],
-  "/chats": ["Basetable", "Chat History"],
-  "/chat/$chatId": ["Basetable", "Chat"],
-  "/agent": ["Basetable", "Main Agent"],
-  "/agents": ["Basetable", "New Agent"],
-  "/agent/$agentId": ["Basetable", "Agent"],
-  "/dashboard": ["Basetable", "Dashboard"],
-  "/mcp-servers": ["Basetable", "MCP Servers"],
-  "/settings/_layout/appearance": ["Basetable", "Settings", "Appearance"],
-  "/settings/_layout/account": ["Basetable", "Settings", "Account"],
-  "/settings/_layout/security": ["Basetable", "Settings", "Security"],
-  "/settings/_layout/billing": ["Basetable", "Settings", "Billing"],
-  "/settings/_layout/data": ["Basetable", "Settings", "Data"],
-  "/settings/_layout/privacy": ["Basetable", "Settings", "Privacy"],
+  "/": ["Home", "New Chat"],
+  "/chats": ["Home", "Chat History"],
+  "/chat/$chatId": ["Home", "Chat"],
+  "/agent": ["Home", "Main Agent"],
+  "/agents": ["Home", "New Agent"],
+  "/agent/$agentId": ["Home", "Agent"],
+  "/dashboard": ["Home", "Dashboard"],
+  "/mcp-servers": ["Home", "MCP Servers"],
+  "/settings/_layout/appearance": ["Home", "Settings", "Appearance"],
+  "/settings/_layout/account": ["Home", "Settings", "Account"],
+  "/settings/_layout/security": ["Home", "Settings", "Security"],
+  "/settings/_layout/billing": ["Home", "Settings", "Billing"],
+  "/settings/_layout/data": ["Home", "Settings", "Data"],
+  "/settings/_layout/privacy": ["Home", "Settings", "Privacy"],
 }
 
 const getUserInitials = (name: string) => {

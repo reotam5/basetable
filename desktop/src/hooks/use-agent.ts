@@ -181,16 +181,9 @@ const useAgent = (id?: number): IUseAgent => {
     },
     deleteAgent: async () => {
       if (!id) return;
-      const agents = await window.electronAPI.agent.getAll();
-      const deletedAgentIndex = agents.findIndex((a) => a.id == id);
-      const nextAgentIndex = deletedAgentIndex === 1 ? (agents.length > 2 ? deletedAgentIndex + 1 : 0) : deletedAgentIndex - 1;
       await window.electronAPI.agent.delete(id);
       window.dispatchEvent(new CustomEvent('sidebar.refresh'));
-      if (nextAgentIndex === 0) {
-        navigate({ to: `/agent` })
-      } else {
-        navigate({ to: `/agent/${agents[nextAgentIndex].id}` })
-      }
+      navigate({ to: `/agents` });
     }
   };
 }
