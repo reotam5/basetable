@@ -11,7 +11,7 @@ const handler = {
 
   on(channel: string, callback: (...args: any[]) => void): () => void {
     const subscription = (_event: any, ...args: any[]): void => {
-      callback(args);
+      callback(...args);
     };
     ipcRenderer.on(channel, subscription);
 
@@ -73,18 +73,8 @@ const electronAPI = {
     logout: () => handler.send("auth.logout"),
     profile: () => handler.invoke("auth.profile"),
     accessToken: () => handler.invoke("auth.accessToken"),
-    onLoginComplete: (callback: (...args: any[]) => void) => {
-      handler.on("auth.login.complete", callback);
-      return () => {
-        handler.removeEventListener("auth.login.complete", callback);
-      }
-    },
-    onLogoutComplete: (callback: () => void) => {
-      handler.on("auth.logout.complete", callback);
-      return () => {
-        handler.removeEventListener("auth.logout.complete", callback);
-      }
-    },
+    onLoginComplete: (callback: (...args: any[]) => void) => handler.on("auth.login.complete", callback),
+    onLogoutComplete: (callback: () => void) => handler.on("auth.logout.complete", callback),
   },
   window: {
     resize: {
@@ -95,8 +85,16 @@ const electronAPI = {
     get: (key: string) => handler.invoke("setting.get", key),
     set: (key: string, value: any) => handler.invoke("setting.set", key, value),
   },
+  stream: {
+    start: (options: { streamId: string; channel: string; data?: any }) => handler.invoke("stream.start", options),
+    cancel: (streamId: string) => handler.invoke("stream.cancel", streamId),
+    pause: (streamId: string) => handler.invoke("stream.pause", streamId),
+    resume: (streamId: string) => handler.invoke("stream.resume", streamId),
+    isStreaming: (streamId: string) => handler.invoke("stream.isStreaming", streamId),
+    onData: (callback: (streamData: any) => void) => handler.on("stream.data", callback)
+  },
   chat: {
-    create: (chat: { title?: string; initialMessage?: { content: string }, metadata?: any }) => handler.invoke("chat.create", chat),
+    create: (chat: { title?: string; metadata?: any }) => handler.invoke("chat.create", chat),
     getAll: (options?: { limit?: number; offset?: number; search?: string }) => handler.invoke("chat.getAll", options),
     getById: (id: number) => handler.invoke("chat.getById", id),
     update: (id: number, chat: { title?: string; metadata?: any }) => handler.invoke("chat.update", id, chat),
@@ -145,13 +143,8 @@ const electronAPI = {
     reset: {
       applicationSettings: () => handler.invoke("db.reset.applicationSettings"),
     },
-    onSettingsImported: (callback: () => void) => {
-      handler.on("db.imported", callback);
-      return () => {
-        handler.removeEventListener("db.imported", callback);
-      }
-    }
-  }
+    onSettingsImported: (callback: () => void) => handler.on("db.imported", callback)
+  },
 }
 
 contextBridge.exposeInMainWorld("store", store);

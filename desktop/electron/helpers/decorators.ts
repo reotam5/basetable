@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import "reflect-metadata";
 import { Logger } from "./Logger.js";
+import { StreamManager } from "./StreamManager.js";
 
 // attach this to service class and it will automatically register all methods with @event decorator
 export function service<T extends new (...args: any[]) => any>(target: T) {
@@ -14,6 +15,7 @@ export function service<T extends new (...args: any[]) => any>(target: T) {
         // get decorators of the method
         const eventName = Reflect.getMetadata('event:name', target.prototype, method);
         const eventType = Reflect.getMetadata('event:type', target.prototype, method);
+        const streamChannel = Reflect.getMetadata('stream:channel', target.prototype, method);
 
         if (eventName) {
           (ipcMain as any)[eventType](eventName, async (_: any, ...args: any[]) => {
@@ -21,6 +23,12 @@ export function service<T extends new (...args: any[]) => any>(target: T) {
             return result;
           });
           Logger.debug("Service:", eventName, "->", method);
+        }
+
+        if (streamChannel) {
+          const manager = StreamManager.getInstance();
+          manager.registerHandler(streamChannel, this[method].bind(this));
+          Logger.debug("Stream:", streamChannel, "->", method);
         }
       }
     }
@@ -33,6 +41,15 @@ export function event(name: string, type: 'handle' | 'on' | 'once' = 'handle') {
     // Store metadata about the event
     Reflect.defineMetadata('event:name', name, target, propertyKey);
     Reflect.defineMetadata('event:type', type, target, propertyKey);
+    return descriptor;
+  };
+}
+
+// Decorator for easy stream handler registration
+export function streamHandler(channel: string) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    // Store metadata about the stream handler
+    Reflect.defineMetadata('stream:channel', channel, target, propertyKey);
     return descriptor;
   };
 }

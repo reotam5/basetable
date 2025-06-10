@@ -5,6 +5,7 @@ import { BaseEvent } from "./events/BaseEvent.js";
 import { events } from "./events/index.js";
 import { AuthHandler, KeyManager, Window } from "./helpers/index.js";
 import { Logger } from "./helpers/Logger.js";
+import { StreamManager } from "./helpers/StreamManager.js";
 
 let once = false;
 
@@ -56,6 +57,9 @@ export class Backend {
       await Database.registerService();
       AuthHandler.getInstance().setWindow(this.mainWindow);
 
+      // Initialize StreamManager to register IPC handlers
+      StreamManager.getInstance();
+
       if (this.isProd) {
         this.mainWindow?.windowInstance.loadFile(join(app.getAppPath(), "dist/react/index.html"));
       } else {
@@ -80,6 +84,8 @@ export class Backend {
     });
 
     app.on('before-quit', async () => {
+      // Cleanup streams before closing
+      StreamManager.getInstance().cleanup();
       await Database.close();
     })
   }

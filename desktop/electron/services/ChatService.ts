@@ -12,9 +12,6 @@ export class ChatService {
   @event('chat.create', 'handle')
   public async createChat(data: {
     title?: string;
-    initialMessage?: {
-      content: string;
-    };
     metadata?: any;
   }): Promise<any | null> {
     try {
@@ -24,15 +21,6 @@ export class ChatService {
         lastMessageAt: new Date(),
         metadata: data.metadata || {},
       });
-
-      if (data.initialMessage) {
-        await this.createMessage({
-          chatId: chat.id!,
-          type: 'user',
-          content: data.initialMessage.content,
-          status: 'success',
-        });
-      }
 
       return await this.getChatById(chat.id!);
     } catch (error) {
@@ -203,7 +191,7 @@ export class ChatService {
       }
 
       const { rows, count } = await Message.findAndCountAll({
-        where: { chatId },
+        where: { chatId, status: 'success' },
         include: [
           {
             model: Attachment,

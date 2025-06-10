@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/auth-context";
 import { use } from "@/hooks/use";
+import { useStream } from "@/hooks/use-stream";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Paperclip, Search, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -68,15 +69,24 @@ export function NewChat() {
       }
     }
   }, [user]);
+  const stream = useStream({ channel: 'chat.stream' });
 
   const handleSubmit = () => {
     if (message.trim()) {
       // Handle sending the message
-      window.electronAPI.chat.create({
-        initialMessage: { content: message },
-      }).then((chat) => {
-        window.dispatchEvent(new CustomEvent("sidebar.refresh"));
-        navigate({ to: `/chat/${chat.id}` });
+      window.electronAPI.chat.create({}).then((chat) => {
+        console.log("New chat created:", chat.id.toString());
+        stream.startStream(chat.id.toString(), {
+          chatId: chat.id,
+          message: message.trim(),
+          attachments: [],
+        }).then(() => {
+          stream.pauseStream(chat.id.toString()).then(() => {
+            window.dispatchEvent(new CustomEvent("sidebar.refresh"));
+            navigate({ to: `/chat/${chat.id}` });
+            setMessage("");
+          })
+        });
       })
       setMessage("");
       setAttachedFiles([]);

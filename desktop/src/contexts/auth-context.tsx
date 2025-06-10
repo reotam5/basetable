@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => {
-    const onLoginComplete = ([{ accessToken, profile }]) => {
+    const onLoginComplete = ({ accessToken, profile }) => {
       setIsSigningIn(false);
       setUser({
         id: profile.sub,

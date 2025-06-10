@@ -1,6 +1,7 @@
 import { AgentService } from "./AgentService.js";
 import { APIKeyService } from "./APIKeyService.js";
 import { ChatService } from "./ChatService.js";
+import { ChatStreamService } from "./ChatStreamService.js";
 import { LLMService } from "./LLMService.js";
 import { MCPService } from "./MCPService.js";
 import { SettingService } from "./SettingService.js";
@@ -16,4 +17,5 @@ export const services = [
   SettingService,
   StyleService,
   UserService,
+  ChatStreamService,
 ]

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { use } from "./use";
+import { useStream } from "./use-stream";
 
 // Type definitions based on the example structure
 export interface Message {
@@ -20,19 +21,152 @@ export interface MessagesResponse {
 
 export interface SendMessageOptions {
   content?: string;
-  onSuccess?: (message: Message) => void;
-  onError?: (error: Error) => void;
+  attachments?: Blob[];
+}
+
+interface ChatResponseChunk_MessageStart {
+  type: 'message_start';
+  data: {
+    chatId: number;
+    agentMessageId: number;
+    userMessageId: number;
+    userMessage: {
+      content: string;
+    }
+  }
+}
+
+interface ChatResponseChunk_ContentChunk {
+  type: 'content_chunk';
+  data: {
+    chunk: string;
+    fullContent: string;
+    agentMessageId: number;
+    userMessageId: number;
+  };
+}
+
+interface ChatResponseChunk_ContentComplete {
+  type: 'content_complete';
+  data: {
+    agentMessageId: number;
+    userMessageId: number;
+  }
+}
+
+interface ChatResponseChunk_Error {
+  type: 'error';
+  data: {
+    error: string;
+    chatId?: number;
+    userMessageId: number;
+    agentMessageId: number;
+  };
+}
+
+type ChatStreamChunk = ChatResponseChunk_MessageStart | ChatResponseChunk_ContentChunk | ChatResponseChunk_ContentComplete | ChatResponseChunk_Error;
+interface ChatStreamData {
+  chatId: number;
+  message: string;
+  attachments?: Array<{
+    filename: string;
+    type: string;
+    data: string;
+  }>;
 }
 
 export function useChat(chatId: number) {
-  const { data: initialData, error: fetchError, isLoading, refetch } = use<MessagesResponse>({ fetcher: async () => await window.electronAPI.chat.message.getByChat(chatId), dependencies: [chatId] });
+  const { data: initialData, error: fetchError, isLoading } = use<MessagesResponse>({
+    fetcher: async () => {
+      setMessages([]);
+      return await window.electronAPI.chat.message.getByChat(chatId)
+    },
+    dependencies: [chatId]
+  });
   const { data: chatRoomData, refetch: refetchChatRoomData } = use<{ title: string }>({ fetcher: async () => await window.electronAPI.chat.getById(chatId), dependencies: [chatId] });
   const { data: mainAgentData, refetch: refetchMainAgent } = use<{ llmId: number, id: number }>({ fetcher: async () => await window.electronAPI.agent.getMain() });
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const optimisticIdCounter = useRef(-1);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  const streamOptions = useMemo(() => ({
+    onComplete: () => {
+      setIsStreaming(false);
+    },
+    onError: () => {
+      setIsStreaming(false);
+    },
+    onData: (chunk: ChatStreamChunk) => {
+      switch (chunk.type) {
+        case 'message_start':
+          setIsSending(false);
+          setMessages(prev => [
+            {
+              id: chunk.data.userMessageId,
+              chatId: chatId,
+              type: 'user',
+              content: chunk.data.userMessage.content,
+              status: 'success',
+              Attachments: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            ...prev,
+          ])
+          break;
+        case 'content_chunk': {
+          setIsStreaming(true);
+          setMessages(prev => {
+            const lastAssistantMessage = prev?.[0]
+            return [
+              {
+                id: chunk.data.agentMessageId,
+                chatId: chatId,
+                type: 'assistant',
+                content: chunk.data.fullContent,
+                status: 'pending',
+                Attachments: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              ...(lastAssistantMessage?.id === chunk.data.agentMessageId) ? prev.slice(1) : prev,
+            ]
+          })
+          break;
+        }
+        case 'content_complete': {
+          setIsStreaming(false);
+          setMessages(prev => {
+            const lastAssistantMessage = prev?.[0];
+            if (lastAssistantMessage?.id === chunk.data.agentMessageId) {
+              return [
+                {
+                  ...lastAssistantMessage,
+                  status: 'success',
+                },
+                ...prev.slice(1),
+              ];
+            }
+            return prev;
+          });
+          break;
+        }
+      }
+    },
+  }), [chatId]);
+
+
+  const stream = useStream<ChatStreamData, ChatStreamChunk>({ channel: 'chat.stream', ...streamOptions });
+
+  useEffect(() => {
+    stream.resumeStream(chatId.toString(), streamOptions)
+    return () => {
+      setIsStreaming(false);
+      stream.pauseStream(chatId.toString())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId])
 
   useEffect(() => {
     const onSidebarRefresh = () => refetchChatRoomData();
@@ -42,13 +176,6 @@ export function useChat(chatId: number) {
     };
   }, [refetchChatRoomData])
 
-  // Clear all messages immediately when chatId changes
-  useEffect(() => {
-    setMessages([]);
-    setOptimisticMessages([]);
-    optimisticIdCounter.current = -1;
-  }, [chatId]);
-
   // Update local messages when initial data loads
   useEffect(() => {
     if (initialData?.rows) {
@@ -56,94 +183,28 @@ export function useChat(chatId: number) {
     }
   }, [initialData]);
 
-  // Combine real messages with optimistic updates
-  const allMessages = useMemo(() => {
-    const combined = [...messages, ...optimisticMessages];
-    return combined.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      // If dates are the same, prioritize real messages (positive IDs) over optimistic ones (negative IDs)
-      if (dateA === dateB) {
-        return b.id - a.id;
-      }
-      return dateA - dateB;
-    });
-  }, [messages, optimisticMessages]);
+  // Combine real messages with streaming messages
+  const allMessages: Message[] = useMemo(() => {
+    return messages.filter(msg => msg.chatId === chatId).reverse();
+  }, [chatId, messages]);
 
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
-    const { content = '', onSuccess, onError } = options;
-
-    if (!content.trim() || isSending) return;
+    const { content = '' } = options;
+    if (!content.trim() || isSending || isStreaming) return;
 
     setIsSending(true);
 
-    // Create optimistic message
-    const optimisticMessage: Message = {
-      id: optimisticIdCounter.current--,
-      chatId,
-      type: 'user',
-      content: content.trim(),
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      Attachments: []
-    };
+    // send message by starting a stream
+    stream.startStream(chatId.toString(), {
+      chatId: chatId,
+      message: content.trim(),
+      attachments: [],
+    });
 
-    // Add optimistic message immediately
-    setOptimisticMessages(prev => [...prev, optimisticMessage]);
-
-    try {
-      // Send message to backend
-      const createdMessage = await window.electronAPI.chat.message.create({
-        chatId,
-        type: 'user',
-        content: content.trim(),
-      });
-
-      // Remove optimistic message and add the real message to our local state
-      setOptimisticMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
-      setMessages(prev => [...prev, createdMessage]);
-
-      onSuccess?.(createdMessage);
-    } catch (err) {
-      // Update optimistic message status to error
-      setOptimisticMessages(prev =>
-        prev.map(msg =>
-          msg.id === optimisticMessage.id
-            ? { ...msg, status: 'error' as const }
-            : msg
-        )
-      );
-
-      const error = err instanceof Error ? err : new Error('Failed to send message');
-      onError?.(error);
-    } finally {
-      setIsSending(false);
-    }
-  }, [chatId, isSending]);
-
-  const retryMessage = useCallback(async (messageId: number) => {
-    const failedMessage = optimisticMessages.find(msg => msg.id === messageId && msg.status === 'error');
-    if (!failedMessage) return;
-
-    await sendMessage({ content: failedMessage.content });
-
-    // Remove the failed message
-    setOptimisticMessages(prev => prev.filter(msg => msg.id !== messageId));
-  }, [optimisticMessages, sendMessage]);
-
-  const clearOptimisticMessages = useCallback(() => {
-    setOptimisticMessages([]);
-  }, []);
-
-  const refresh = useCallback(async () => {
-    clearOptimisticMessages();
-    await refetch();
-  }, [refetch, clearOptimisticMessages]);
+  }, [chatId, isSending, isStreaming, stream]);
 
   return {
     chatTitle: chatRoomData?.title ?? 'New Chat',
-    mainAgent: mainAgentData,
     selectedLLM: mainAgentData?.llmId ?? null,
     setSelectedLLM: (llmId: number) => {
       window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId }).then(() => {
@@ -153,11 +214,25 @@ export function useChat(chatId: number) {
     messages: allMessages,
     error: fetchError,
     isLoading,
+    isAgentResponding: isStreaming,
     isSending,
     sendMessage,
-    retryMessage,
-    refresh,
-    clearOptimisticMessages,
-    totalCount: messages.length + optimisticMessages.length
+    cancel: () => {
+      stream.cancelStream(chatId.toString()).then(() => {
+        setMessages(prev => {
+          const lastAssistantMessage = prev?.[0];
+          if (lastAssistantMessage?.type === 'assistant' && lastAssistantMessage.status === 'pending') {
+            return [
+              {
+                ...lastAssistantMessage,
+                status: 'success',
+              },
+              ...prev.slice(1),
+            ]
+          }
+          return prev;
+        })
+      })
+    },
   };
 }

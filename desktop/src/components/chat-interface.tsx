@@ -11,7 +11,8 @@ import {
 import { use } from "@/hooks/use";
 import { Message as BackendMessage, useChat } from "@/hooks/use-chat";
 import { useParams } from "@tanstack/react-router";
-import { AlertCircle, Bot, Clock, Paperclip, RotateCcw, Send, Server, X } from "lucide-react";
+import debounce from "lodash.debounce";
+import { ArrowDown, Bot, Clock, Paperclip, Send, Server, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageContent } from "./message-content";
 import { Textarea } from "./ui/textarea";
@@ -75,8 +76,8 @@ export function ChatInterface() {
     isLoading,
     isSending,
     sendMessage,
-    retryMessage,
-    refresh
+    isAgentResponding,
+    cancel,
   } = useChat(Number(chatId));
 
   // Convert backend messages to UI messages
@@ -96,12 +97,14 @@ export function ChatInterface() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previousMessageCount = useRef(0);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
 
-  const scrollToBottom = useCallback((smooth = true) => {
+  const scrollToBottom = useMemo(() => debounce((smooth = true) => {
     messagesEndRef.current?.scrollIntoView({
       behavior: smooth ? "smooth" : "instant"
     });
-  }, []);
+  }, 10, { leading: true, trailing: false }), []);
 
   // Reset initial load flag when chatId changes
   useEffect(() => {
@@ -115,31 +118,6 @@ export function ChatInterface() {
       loadingTimeoutRef.current = null;
     }
   }, [chatId]);
-
-  useEffect(() => {
-    if (isInitialLoad.current) {
-      // On initial load (including when switching chats), scroll without animation
-      if (messages.length > 0) {
-        scrollToBottom(false);
-        isInitialLoad.current = false;
-        previousMessageCount.current = messages.length;
-      }
-    } else {
-      // Only smooth scroll when message count actually increases (new message sent/received)
-      const currentMessageCount = messages.length;
-      if (currentMessageCount > previousMessageCount.current) {
-        scrollToBottom(true);
-      }
-      previousMessageCount.current = currentMessageCount;
-    }
-  }, [messages, scrollToBottom]);
-
-  // Smooth scroll when sending (optimistic message appears)
-  useEffect(() => {
-    if (isSending && !isInitialLoad.current) {
-      scrollToBottom(true);
-    }
-  }, [isSending, scrollToBottom]);
 
   // Handle delayed loading state - only show loading after 500ms
   useEffect(() => {
@@ -203,6 +181,75 @@ export function ChatInterface() {
     }
   }, [inputValue, isSending, sendMessage]);
 
+  // when chat is opened, it should start at the bottom.
+  const instantScrollDown = useRef(true);
+  useEffect(() => () => { instantScrollDown.current = true }, [chatId]);
+  useEffect(() => {
+    if (!instantScrollDown.current || !messages?.length) return;
+    scrollToBottom(false);
+    instantScrollDown.current = false;
+  }, [chatId, scrollToBottom, messages]);
+
+  useEffect(() => {
+    // after sending a message (it has isSending = false back again after sending)
+    if (!isSending && !instantScrollDown.current) {
+      if (messagesContainerRef.current) {
+        // get last children that has the class "text-right" (user message)
+        const lastUserMessage = Array.from(messagesContainerRef.current.children)
+          .reverse()
+          .find(child => child.classList.contains("text-right")) as HTMLElement;
+        const currentMessageContainerHeight = messagesContainerRef.current.getBoundingClientRect().height;
+        const lastUserMessagePosition = lastUserMessage.offsetTop;
+        const remainingHeight = currentMessageContainerHeight - lastUserMessagePosition;
+
+        messagesContainerRef.current.style.minHeight = currentMessageContainerHeight + (window.innerHeight - 460 - remainingHeight) + 'px';
+        scrollToBottom(true);
+      }
+    }
+  }, [isSending, scrollToBottom]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          setShowScrollToBottomButton(false);
+        } else {
+          if (isSending) return;
+          setShowScrollToBottomButton(true);
+        }
+      });
+    })
+    if (messagesEndRef.current) {
+      observer.observe(messagesEndRef.current);
+    }
+    return () => {
+      if (messagesEndRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        observer.unobserve(messagesEndRef.current);
+      }
+    }
+  }, [isSending])
+
+  // stick scroll at bottom as ai response is being generated
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      entries.forEach(() => {
+        if (!showScrollToBottomButton && !instantScrollDown.current && isAgentResponding) {
+          scrollToBottom(true);
+        }
+      })
+    });
+    if (messagesContainerRef.current) {
+      resizeObserver.observe(messagesContainerRef.current);
+    }
+    return () => {
+      if (messagesContainerRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        resizeObserver.unobserve(messagesContainerRef.current);
+      }
+    }
+  }, [isAgentResponding, scrollToBottom, showScrollToBottomButton])
+
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     if (value.length > 2000) {
@@ -254,119 +301,107 @@ export function ChatInterface() {
   }, [filePreviews]);
 
   const renderedMessages = useMemo(() => {
-    return messages.map((message) => (
-      <div
-        key={message.id}
-        className={`${message.type === "user" ? "text-right" : "text-left"}`}
-      >
-        <div className="inline-block">
+    return (
+      <div className="space-y-6" ref={messagesContainerRef}>
+        {messages.map((message) => (
           <div
-            className={`${message.type === "user"
-              ? "bg-primary p-3 text-primary-foreground rounded-sm max-w-2xl"
-              : "bg-secondary p-3 text-secondary-foreground rounded-sm"
-              }`}
+            key={message.id}
+            className={`${message.type === "user" ? "text-right" : "text-left"}`}
           >
-            {message.type === "user" ? (
-              <div className="whitespace-pre-wrap leading-relaxed">
-                {message.content}
-                {message.status === "pending" && (
-                  <div className="inline-flex items-center ml-2 text-xs opacity-70">
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"></div>
+            <div className="inline-block">
+              <div
+                className={`${message.type === "user"
+                  ? "bg-primary py-[6px] px-3 text-primary-foreground rounded-sm max-w-2xl"
+                  : "bg-secondary py-[6px] px-3 text-secondary-foreground rounded-sm"
+                  }`}
+              >
+                {message.type === "user" ? (
+                  <div className="whitespace-pre-wrap leading-relaxed">
+                    {message.content}
                   </div>
+                ) : (
+                  <MessageContent content={message.content ?? ""} />
                 )}
-                {message.status === "error" && (
-                  <div className="inline-flex items-center ml-2 text-xs text-red-500">
-                    <AlertCircle className="w-3 h-3 mr-1" />
-                    <button
-                      onClick={() => retryMessage(Number(message.id))}
-                      className="hover:underline flex items-center"
-                    >
-                      Retry <RotateCcw className="w-3 h-3 ml-1" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <MessageContent content={message.content ?? ""} />
-            )}
 
-            {/* Show attached files if present */}
-            {filePreviews[message.id] && filePreviews[message.id].length > 0 && (
-              <div className="mt-3 flex flex-col">
-                {/* Image attachments */}
-                <div className="flex flex-wrap gap-2">
-                  {
-                    filePreviews[message.id].filter(preview => preview.type.startsWith("image/")).map(preview => (
-                      <img src={preview.url} alt={preview.name} className="max-w-[120px] max-h-[80px] rounded mb-1" />
-                    ))
-                  }
-                </div>
-                {filePreviews[message.id].some(preview => !preview.type.startsWith("image/")) && filePreviews[message.id].some(preview => preview.type.startsWith("image/")) && (
-                  <div className="mb-2"></div>
-                )}
-                {/* File attachments */}
-                <div className="flex flex-wrap gap-2">
-                  {filePreviews[message.id].filter(preview => !preview.type.startsWith("image/")).map((preview, idx) => (
-                    <div
-                      key={preview.name + preview.file.size + idx}
-                      className={`flex items-center px-3 py-1 text-sm rounded-sm border ${message.type === "user" ? "border-neutral-500 dark:border-neutral-300" : "border-neutral-300 dark:border-neutral-500"}`}
-                    >
-                      <Paperclip className="w-4 h-4 mr-1 opacity-70" />
-                      <span className="truncate max-w-[120px]" title={preview.name}>{preview.name}</span>
+                {/* Show attached files if present */}
+                {filePreviews[message.id] && filePreviews[message.id].length > 0 && (
+                  <div className="mt-3 flex flex-col">
+                    {/* Image attachments */}
+                    <div className="flex flex-wrap gap-2">
+                      {
+                        filePreviews[message.id].filter(preview => preview.type.startsWith("image/")).map(preview => (
+                          <img src={preview.url} alt={preview.name} className="max-w-[120px] max-h-[80px] rounded mb-1" />
+                        ))
+                      }
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {(message.type === "assistant" &&
-              (message.mcpServers ||
-                message.agents)) && (
-                <>
-                  <div className="mt-3 pt-3">
-                    <button
-                      onClick={() => toggleMessageExpansion(message.id)}
-                      className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-400 transition-colors"
-                    >
-                      <div className={`transform transition-transform ${expandedMessages.has(message.id) ? 'rotate-90' : 'rotate-0'}`}>
-                        ▶
-                      </div>
-                      {expandedMessages.has(message.id) ? "Hide details" : "Show details"}
-                    </button>
-
-                    {expandedMessages.has(message.id) && (
-                      <div className="mt-3 space-y-2 pl-1">
-                        {message.mcpServers && (
-                          <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
-                            <Server className="w-3 h-3" />
-                            <span className="font-medium">Accessed:</span>
-                            <span>{message.mcpServers.join(", ")}</span>
-                          </div>
-                        )}
-                        {message.agents && (
-                          <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300">
-                            <Bot className="w-3 h-3" />
-                            <span className="font-medium">Agents:</span>
-                            {message.agents.map((agent, idx) => (
-                              <span key={idx}>{agent}</span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                          <Clock className="w-3 h-3" />
-                          <span className="font-medium">Time:</span>
-                          <span>{message.timestamp.toLocaleString()}</span>
-                        </div>
-                      </div>
+                    {filePreviews[message.id].some(preview => !preview.type.startsWith("image/")) && filePreviews[message.id].some(preview => preview.type.startsWith("image/")) && (
+                      <div className="mb-2"></div>
                     )}
+                    {/* File attachments */}
+                    <div className="flex flex-wrap gap-2">
+                      {filePreviews[message.id].filter(preview => !preview.type.startsWith("image/")).map((preview, idx) => (
+                        <div
+                          key={preview.name + preview.file.size + idx}
+                          className={`flex items-center px-3 py-1 text-sm rounded-sm border ${message.type === "user" ? "border-neutral-500 dark:border-neutral-300" : "border-neutral-300 dark:border-neutral-500"}`}
+                        >
+                          <Paperclip className="w-4 h-4 mr-1 opacity-70" />
+                          <span className="truncate max-w-[120px]" title={preview.name}>{preview.name}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </>
-              )}
+                )}
+
+                {(message.type === "assistant" &&
+                  (message.mcpServers ||
+                    message.agents)) && (
+                    <>
+                      <div className="mt-3 pt-3">
+                        <button
+                          onClick={() => toggleMessageExpansion(message.id)}
+                          className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-400 transition-colors"
+                        >
+                          <div className={`transform transition-transform ${expandedMessages.has(message.id) ? 'rotate-90' : 'rotate-0'}`}>
+                            ▶
+                          </div>
+                          {expandedMessages.has(message.id) ? "Hide details" : "Show details"}
+                        </button>
+
+                        {expandedMessages.has(message.id) && (
+                          <div className="mt-3 space-y-2 pl-1">
+                            {message.mcpServers && (
+                              <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
+                                <Server className="w-3 h-3" />
+                                <span className="font-medium">Accessed:</span>
+                                <span>{message.mcpServers.join(", ")}</span>
+                              </div>
+                            )}
+                            {message.agents && (
+                              <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300">
+                                <Bot className="w-3 h-3" />
+                                <span className="font-medium">Agents:</span>
+                                {message.agents.map((agent, idx) => (
+                                  <span key={idx}>{agent}</span>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                              <Clock className="w-3 h-3" />
+                              <span className="font-medium">Time:</span>
+                              <span>{message.timestamp.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
-    ));
-  }, [messages, expandedMessages, toggleMessageExpansion, filePreviews, retryMessage]);
+    );
+  }, [messages, expandedMessages, toggleMessageExpansion, filePreviews]);
 
   return (
     <div className="flex-1 flex flex-col pt-[-5px] min-h-[calc(100vh-3.5rem-1px)]">
@@ -381,33 +416,12 @@ export function ChatInterface() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
-        <div className="flex-1"></div>
         <div className="max-w-4xl mx-auto px-3 py-8 space-y-6" style={{ width: "-webkit-fill-available" }}>
           {/* Loading state */}
           {showLoading && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100 mx-auto"></div>
               <p className="mt-2 text-gray-600 dark:text-gray-400">Loading messages...</p>
-            </div>
-          )}
-
-          {/* Error state */}
-          {error && (
-            <div className="text-center py-8">
-              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                <p className="text-red-700 dark:text-red-300 mb-2">Failed to load messages</p>
-                <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error.message}</p>
-                <Button
-                  onClick={refresh}
-                  variant="outline"
-                  size="sm"
-                  className="text-red-700 border-red-300 hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-950/30"
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Try Again
-                </Button>
-              </div>
             </div>
           )}
 
@@ -430,12 +444,24 @@ export function ChatInterface() {
             </div>
           )}
 
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef}></div>
         </div>
       </div>
 
       {/* Input Area */}
       <div className="sticky bottom-0 p-4">
+        {
+          showScrollToBottomButton && (
+            <Button
+              onClick={() => scrollToBottom(true)}
+              className="absolute top-[-30px] right-[calc(50%-24px)] rounded-full"
+              variant="outline"
+              size="icon"
+            >
+              <ArrowDown />
+            </Button>
+          )
+        }
         <div className="max-w-4xl mx-auto">
 
           <div className="bg-white dark:bg-neutral-800 rounded-sm  border border-neutral-200 dark:border-neutral-500">
@@ -531,18 +557,30 @@ export function ChatInterface() {
                   />
                 </div>
                 {/* Send Button */}
-                <Button
-                  onClick={handleSend}
-                  disabled={!inputValue.trim() || isSending}
-                  size="icon"
-                  variant="ghost"
-                >
-                  {isSending ? (
-                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
+                {
+                  isAgentResponding ? (
+                    <Button
+                      onClick={cancel}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
                   ) : (
-                    <Send className="w-3.5 h-3.5" />
-                  )}
-                </Button>
+                    <Button
+                      onClick={handleSend}
+                      disabled={!inputValue.trim() || isSending}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      {isSending ? (
+                        <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  )
+                }
               </div>
             </div>
           </div>
