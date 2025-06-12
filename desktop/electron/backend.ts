@@ -5,6 +5,7 @@ import { BaseEvent } from "./events/BaseEvent.js";
 import { events } from "./events/index.js";
 import { AuthHandler, KeyManager, Window } from "./helpers/index.js";
 import { Logger } from "./helpers/Logger.js";
+import { PaymentHandler } from "./helpers/PaymentHandler.js";
 import { StreamManager } from "./helpers/StreamManager.js";
 
 let once = false;
@@ -34,7 +35,21 @@ export class Backend {
     // Handle deep links (macOS and Windows/Linux)
     this.handleDeepLink((url: string) => {
       Logger.debug("Received deep link:", url);
-      AuthHandler.getInstance().handleAuthCallback(url);
+      const path = url.split(":/")[1]?.split("?")[0] || "";
+      switch (path) {
+        case "/auth/login":
+          AuthHandler.getInstance().handleAuthCallback(url);
+          break;
+        case "/payment/success":
+          PaymentHandler.handlePaymentSuccess(this.getMainWindow()!, url);
+          break;
+        case "/payment/cancel":
+          PaymentHandler.handlePaymentCancel(this.getMainWindow()!, url);
+          break;
+        default:
+          Logger.warn(`Unhandled path in deep link: ${path}`);
+          break;
+      }
     });
 
     app.on("window-all-closed", () => {
@@ -44,7 +59,7 @@ export class Backend {
     app.once("ready", async () => {
       await this.registerEvents();
 
-      this.mainWindow = new Window(this, "controller", {
+      this.mainWindow = new Window("controller", {
         titleBarStyle: "hiddenInset",
         trafficLightPosition: { x: 17, y: 20 },
         minHeight: 245,

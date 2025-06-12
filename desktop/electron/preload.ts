@@ -79,7 +79,11 @@ const electronAPI = {
   window: {
     resize: {
       onboarding: () => handler.send("window.resize.onboarding"),
-    }
+    },
+  },
+  payment: {
+    purchase: (amount: number) => handler.invoke("payment.purchase", amount),
+    onPurchaseCallback: (callback: (data: { session_id: string; credits: number; success: boolean }) => void) => handler.on("payment.callback", callback),
   },
   settings: {
     get: (key: string) => handler.invoke("setting.get", key),

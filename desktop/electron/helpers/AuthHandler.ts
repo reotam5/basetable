@@ -1,10 +1,13 @@
+import { randomUUID } from "crypto";
 import { shell } from "electron";
 import Store from "electron-store";
 import { jwtDecode } from "jwt-decode";
+import { electronConfig } from "../config.js";
 import User from "../db/models/user.model.js";
 import { seedDatabase } from "../db/seeder.js";
 import { KeyManager } from "./KeyManager.js";
 import { Logger } from "./Logger.js";
+import { PaymentHandler } from "./PaymentHandler.js";
 import { Window } from "./Window.js";
 
 export interface UserProfile {
@@ -28,16 +31,17 @@ export interface UserProfile {
 export class AuthHandler {
   private static instance: AuthHandler | null = null;
   private static window: Window | null = null;
-  private static readonly AUTH_URL = "https://dev-mctp8faju5qr8drf.us.auth0.com/authorize";
+  private static readonly AUTH_URL = `${electronConfig.auth_provider_url}/authorize`;
   private static readonly AUTH_SCOPES = "openid profile email offline_access";
-  private static readonly AUTH_CALLBACK_URL = "basetable://auth/callback";
-  private static readonly CLIENT_ID = "4MXFvuUpCRkBEcxsdZ5VRIG93lstLtzs";
+  private static readonly AUTH_CALLBACK_URL = electronConfig.auth_callback_url;
+  private static readonly CLIENT_ID = electronConfig.client_id;
   private static readonly LOGIN_CALLBACK_EVENT = "auth.login.complete";
   private static readonly LOGOUT_CALLBACK_EVENT = "auth.logout.complete";
-  private static readonly TOKEN_EXCHANGE_URL = "https://dev-mctp8faju5qr8drf.us.auth0.com/oauth/token";
+  private static readonly TOKEN_EXCHANGE_URL = `${electronConfig.auth_provider_url}/oauth/token`;
   public static accessToken: string | null = null;
   public static profile: UserProfile | null = null;
   public static appStateStore = new Store({ name: "app-state" });
+  private static CSFR_STATE: string | null = null;
 
   private constructor() {
     // Private constructor to prevent instantiation
@@ -116,6 +120,7 @@ export class AuthHandler {
       AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGIN_CALLBACK_EVENT, {
         accessToken: AuthHandler.accessToken,
         profile: AuthHandler.profile,
+        credits: await PaymentHandler.getAvailableCredit(),
       })
     } catch (error) {
       Logger.error("Error requesting tokens:", error);
@@ -129,12 +134,14 @@ export class AuthHandler {
   }
 
   public openAuthWindow(): void {
+    AuthHandler.CSFR_STATE = randomUUID();
     const params = new URLSearchParams({
       response_type: "code",
       client_id: AuthHandler.CLIENT_ID,
       redirect_uri: AuthHandler.AUTH_CALLBACK_URL,
       scope: AuthHandler.AUTH_SCOPES,
       prompt: "login",
+      state: AuthHandler.CSFR_STATE,
     });
 
     const authUrl = `${AuthHandler.AUTH_URL}?${params.toString()}`;
@@ -152,6 +159,14 @@ export class AuthHandler {
       Logger.error("Authentication error from deeplink", error);
       return;
     }
+
+    // check state to prevent CSRF attacks
+    const state = params.get("state");
+    if (!state || state !== AuthHandler.CSFR_STATE) {
+      Logger.error("Invalid state parameter in authentication callback");
+      return;
+    }
+    AuthHandler.CSFR_STATE = null;
 
     await this.requestTokens({ code: code });
 

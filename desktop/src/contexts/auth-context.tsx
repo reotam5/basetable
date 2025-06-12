@@ -6,6 +6,7 @@ interface User {
   name: string;
   picture?: string;
   exp?: number;
+  credits?: number;
 }
 
 interface AuthContextType {
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   useEffect(() => {
-    const onLoginComplete = ({ accessToken, profile }) => {
+    const onLoginComplete = ({ accessToken, profile, credits }) => {
       setIsSigningIn(false);
       setUser({
         id: profile.sub,
@@ -43,11 +44,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: profile.name,
         picture: profile.picture,
         exp: profile.exp,
+        credits: credits,
       });
       setToken(accessToken);
       setHasCompletedOnboarding(true);
     }
     const cleanup = window.electronAPI.auth.onLoginComplete(onLoginComplete);
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onPaymentCallback = ({ credits }) => {
+      setUser((prevUser) => {
+        if (!prevUser) return null;
+        return {
+          ...prevUser,
+          credits: credits,
+        };
+      });
+    }
+    const cleanup = window.electronAPI.payment.onPurchaseCallback(onPaymentCallback);
     return () => {
       cleanup();
     };

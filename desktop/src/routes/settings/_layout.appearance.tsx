@@ -13,7 +13,6 @@ export const Route = createFileRoute('/settings/_layout/appearance')({
 export function RouteComponent() {
   const { theme, setTheme } = useTheme()
   const { font, setFont } = useFont()
-  console.log(font)
 
   return (
     <div className="space-y-6">

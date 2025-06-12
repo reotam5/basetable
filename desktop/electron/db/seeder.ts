@@ -112,6 +112,5 @@ export async function seedDefaultSettings() {
     { key: "account.notifications.delivery.email", value: true, type: "boolean", userId: AuthHandler.profile?.sub },
     { key: "account.notifications.delivery.inApp", value: true, type: "boolean", userId: AuthHandler.profile?.sub },
     { key: "security.autoKeyRotation", value: true, type: "boolean", userId: AuthHandler.profile?.sub },
-    { key: "billing.budget", value: 0, type: "number", userId: AuthHandler.profile?.sub },
   ], { ignoreDuplicates: true });
 }

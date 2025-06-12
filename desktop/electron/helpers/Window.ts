@@ -1,4 +1,5 @@
 import {
+    app,
     BrowserWindow,
     BrowserWindowConstructorOptions,
     Rectangle,
@@ -7,8 +8,7 @@ import {
 import Store from "electron-store";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Backend } from "../backend.js";
-import { WindowResizeOnboarding } from "../events/WindowResizeOnboarding.js";
+import { WindowResizeOnboarding } from "../events/WindowEvents.js";
 import { Logger } from "./Logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,17 +21,14 @@ export class Window {
     private store: Store;
     private state: Rectangle | null = null;
     private window: BrowserWindow;
-    private backend: Backend;
     public static readonly DEAFAULT_WIDTH = 1800;
     public static readonly DEFAULT_HEIGHT = 1000;
     public static appStateStore = new Store({ name: "app-state" });
 
     constructor(
-        backend: Backend,
         windowName: string,
         options: BrowserWindowConstructorOptions,
     ) {
-        this.backend = backend;
         this.options = options;
         this.name = `window-state-${windowName}`;
         this.resetToDefaults();
@@ -47,6 +44,7 @@ export class Window {
                 nodeIntegration: true,
                 contextIsolation: true,
                 preload: path.resolve(__dirname, "..", "preload.js"),
+                webSecurity: app.isPackaged,
                 ...options.webPreferences,
             },
         };
@@ -67,7 +65,7 @@ export class Window {
             "before-input-event",
             (_event: any, input: any) => {
                 if (input.control && input.shift && input.key.toLowerCase() === "i") {
-                    if (this.backend.isProduction()) return;
+                    // if (this.backend.isProduction()) return;
                     this.window.webContents.toggleDevTools();
                     _event.preventDefault();
                 }
