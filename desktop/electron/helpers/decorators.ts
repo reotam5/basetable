@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import "reflect-metadata";
-import { Logger } from "./Logger.js";
-import { StreamManager } from "./StreamManager.js";
+import { Logger } from "./custom-logger.js";
+import { StreamManager } from "./stream-manager.js";
 
 // attach this to service class and it will automatically register all methods with @event decorator
 export function service<T extends new (...args: any[]) => any>(target: T) {

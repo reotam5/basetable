@@ -17,7 +17,7 @@ interface AuthContextType {
   login: () => void;
   logout: () => void;
   cancelAuth: () => void;
-  getToken: () => Promise<string>;
+  getToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);

@@ -65,14 +65,14 @@ export function RouteComponent() {
   })
 
   const { data: api_keys, refetch } = use({
-    fetcher: async () => (await window.electronAPI.mcp.getAll())?.flatMap(mcp => mcp?.keys?.map(key => ({
-      id: key.id,
-      name: key.name,
-      key: key.value.replace(/(.{4})(.*)(.{4})/, '$1•••••••••••$3'),
-      active: mcp?.users?.[0]?.User_MCP?.is_active,
-      lastUsed: key.lastUsed ? new Date(key.lastUsed).toLocaleString() : "Never",
-    })))
-  });
+    fetcher: async () => (await window.electronAPI.key.getAll())?.map(key => ({
+      id: key.api_key.id,
+      name: key.api_key.name,
+      key: key.api_key.value.replace(/(.{4})(.*)(.{4})/, '$1•••••••••••$3'),
+      lastUsed: key.api_key.last_used ? new Date(key.api_key.last_used).toLocaleString() : "Never",
+      active: key.user_mcp?.is_active || false,
+    }))
+  })
 
   return (
     <div className="space-y-6">

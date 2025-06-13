@@ -1,21 +1,10 @@
-import { AgentService } from "./AgentService.js";
-import { APIKeyService } from "./APIKeyService.js";
-import { ChatService } from "./ChatService.js";
-import { ChatStreamService } from "./ChatStreamService.js";
-import { LLMService } from "./LLMService.js";
-import { MCPService } from "./MCPService.js";
-import { SettingService } from "./SettingService.js";
-import { StyleService } from "./StyleService.js";
-import { UserService } from "./UserService.js";
+export * from './agent-service.js';
+export * from './agent-style-service.js';
+export * from './api-key-service.js';
+export * from './chat-service.js';
+export * from './llm-service.js';
+export * from './mcp-service.js';
+export * from './message-service.js';
+export * from './setting-service.js';
+export * from './user-service.js';
 
-export const services = [
-  AgentService,
-  APIKeyService,
-  ChatService,
-  LLMService,
-  MCPService,
-  SettingService,
-  StyleService,
-  UserService,
-  ChatStreamService,
-]

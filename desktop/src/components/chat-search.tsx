@@ -209,7 +209,7 @@ export function ChatSearch() {
                     </div>
                     <div className="mt-auto">
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(chat.lastMessageAt)}
+                        {formatDate(new Date(chat.updated_at!))}
                       </span>
                     </div>
                   </div>

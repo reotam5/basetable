@@ -1,7 +1,7 @@
-import { AuthAccessToken, AuthLogin, AuthLogout, AuthOpen, AuthProfile } from './AuthEvents.js';
-import { DatabaseExportApplicationSettings, DatabaseGetEncryption, DatabaseImport, DatabaseResetApplicationSettings } from './DatabaseEvents.js';
-import { PaymentPurchase } from './PaymentEvents.js';
-import { WindowResizeOnboarding } from './WindowEvents.js';
+import { AuthAccessToken, AuthLogin, AuthLogout, AuthOpen, AuthProfile } from './auth-events.js';
+import { DatabaseGetEncryption } from './database-events.js';
+import { PaymentPurchase } from './payment-events.js';
+import { WindowResizeOnboarding } from './window-events.js';
 
 export const events = [
   AuthAccessToken,
@@ -13,9 +13,6 @@ export const events = [
   WindowResizeOnboarding,
 
   DatabaseGetEncryption,
-  DatabaseExportApplicationSettings,
-  DatabaseImport,
-  DatabaseResetApplicationSettings,
 
   PaymentPurchase,
 ]

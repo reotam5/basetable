@@ -2,26 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { use } from "./use";
 import { useStream } from "./use-stream";
 
-// Type definitions based on the example structure
-export interface Message {
-  id: number;
-  chatId: number;
-  type: "user" | "assistant" | "system";
-  content: string;
-  status: "success" | "pending" | "error";
-  createdAt: string;
-  updatedAt: string;
-  Attachments: any[];
-}
-
-export interface MessagesResponse {
-  rows: Message[];
-  count: number;
-}
-
 export interface SendMessageOptions {
   content?: string;
-  attachments?: Blob[];
 }
 
 interface ChatResponseChunk_MessageStart {
@@ -68,25 +50,20 @@ type ChatStreamChunk = ChatResponseChunk_MessageStart | ChatResponseChunk_Conten
 interface ChatStreamData {
   chatId: number;
   message: string;
-  attachments?: Array<{
-    filename: string;
-    type: string;
-    data: string;
-  }>;
 }
 
 export function useChat(chatId: number) {
-  const { data: initialData, error: fetchError, isLoading } = use<MessagesResponse>({
+  const { data: initialData, error: fetchError, isLoading } = use({
     fetcher: async () => {
       setMessages([]);
       return await window.electronAPI.chat.message.getByChat(chatId)
     },
     dependencies: [chatId]
   });
-  const { data: chatRoomData, refetch: refetchChatRoomData } = use<{ title: string }>({ fetcher: async () => await window.electronAPI.chat.getById(chatId), dependencies: [chatId] });
-  const { data: mainAgentData, refetch: refetchMainAgent } = use<{ llmId: number, id: number }>({ fetcher: async () => await window.electronAPI.agent.getMain() });
+  const { data: chatRoomData, refetch: refetchChatRoomData } = use({ fetcher: async () => await window.electronAPI.chat.getById(chatId), dependencies: [chatId] });
+  const { data: mainAgentData, refetch: refetchMainAgent } = use({ fetcher: async () => await window.electronAPI.agent.getMain() });
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<typeof initialData>([]);
   const [isSending, setIsSending] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -104,15 +81,15 @@ export function useChat(chatId: number) {
           setMessages(prev => [
             {
               id: chunk.data.userMessageId,
-              chatId: chatId,
+              chat_id: chatId,
               type: 'user',
               content: chunk.data.userMessage.content,
               status: 'success',
-              Attachments: [],
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
+              created_at: new Date(),
+              updated_at: new Date(),
+              metadata: null,
             },
-            ...prev,
+            ...(prev ?? []),
           ])
           break;
         case 'content_chunk': {
@@ -122,15 +99,15 @@ export function useChat(chatId: number) {
             return [
               {
                 id: chunk.data.agentMessageId,
-                chatId: chatId,
+                chat_id: chatId,
                 type: 'assistant',
                 content: chunk.data.fullContent,
                 status: 'pending',
-                Attachments: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
+                created_at: new Date(),
+                updated_at: new Date(),
+                metadata: null,
               },
-              ...(lastAssistantMessage?.id === chunk.data.agentMessageId) ? prev.slice(1) : prev,
+              ...((lastAssistantMessage?.id === chunk.data.agentMessageId) ? prev?.slice(1) : prev) ?? [],
             ]
           })
           break;
@@ -145,7 +122,7 @@ export function useChat(chatId: number) {
                   ...lastAssistantMessage,
                   status: 'success',
                 },
-                ...prev.slice(1),
+                ...prev?.slice(1) ?? [],
               ];
             }
             return prev;
@@ -178,14 +155,14 @@ export function useChat(chatId: number) {
 
   // Update local messages when initial data loads
   useEffect(() => {
-    if (initialData?.rows) {
-      setMessages(initialData.rows);
+    if (initialData?.length) {
+      setMessages(initialData);
     }
   }, [initialData]);
 
   // Combine real messages with streaming messages
-  const allMessages: Message[] = useMemo(() => {
-    return messages.filter(msg => msg.chatId === chatId).reverse();
+  const allMessages = useMemo(() => {
+    return messages?.filter(msg => msg.chat_id === chatId).reverse();
   }, [chatId, messages]);
 
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
@@ -198,14 +175,13 @@ export function useChat(chatId: number) {
     stream.startStream(chatId.toString(), {
       chatId: chatId,
       message: content.trim(),
-      attachments: [],
     });
 
   }, [chatId, isSending, isStreaming, stream]);
 
   return {
     chatTitle: chatRoomData?.title ?? 'New Chat',
-    selectedLLM: mainAgentData?.llmId ?? null,
+    selectedLLM: mainAgentData?.llm_id ?? null,
     setSelectedLLM: (llmId: number) => {
       window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId }).then(() => {
         refetchMainAgent();
@@ -227,7 +203,7 @@ export function useChat(chatId: number) {
                 ...lastAssistantMessage,
                 status: 'success',
               },
-              ...prev.slice(1),
+              ...prev?.slice(1) ?? [],
             ]
           }
           return prev;

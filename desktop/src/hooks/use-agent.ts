@@ -8,8 +8,7 @@ type IAgent = {
   name?: string;
   llmId?: number;
   instruction?: string;
-  mcpIds?: number[];
-  mcpTools?: { [serverId: number]: string[] }; // New field for tool-level selection
+  mcpTools?: { [serverId: number]: string[] };
   styles?: number[];
 }
 
@@ -37,21 +36,15 @@ const useAgent = (id?: number): IUseAgent => {
       setError(null);
       const agentData = await window.electronAPI.agent.get(id);
 
-      // Process new mcpTools data structure
-      agentData.mcpTools = {};
-      if (agentData?.userMcps) {
-        agentData.userMcps.forEach((mcp: any) => {
-          const serverId = mcp.id
-          const selectedTools = mcp.Agent_User_MCP?.selected_tools ?? []
-          if (selectedTools.length > 0) {
-            agentData.mcpTools[serverId] = selectedTools;
-          }
-        })
-      }
-      delete agentData.userMcps;
-
-      agentData.styles = agentData?.styles?.map((style: { id: number }) => style.id) ?? [];
-      setAgent(agentData);
+      setAgent({
+        id: agentData?.id,
+        is_main: agentData?.is_main,
+        name: agentData?.name,
+        llmId: agentData?.llm_id,
+        instruction: agentData?.instruction,
+        mcpTools: agentData?.mcpTools ?? {},
+        styles: agentData?.styles ?? []
+      });
     } catch (err) {
       console.error('Error fetching agent:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch agent');
@@ -84,9 +77,6 @@ const useAgent = (id?: number): IUseAgent => {
         }
         if (pendingUpdate.llmId !== undefined) {
           updatePayload.llmId = pendingUpdate.llmId;
-        }
-        if (pendingUpdate.mcpIds !== undefined) {
-          updatePayload.mcpIds = pendingUpdate.mcpIds;
         }
         if (pendingUpdate.mcpTools !== undefined) {
           updatePayload.mcpTools = pendingUpdate.mcpTools;
@@ -176,6 +166,7 @@ const useAgent = (id?: number): IUseAgent => {
         mcpTools: pendingUpdatesRef.current.mcpTools,
         styles: pendingUpdatesRef.current.styles
       })
+      if (!newAgent) return;
       window.dispatchEvent(new CustomEvent('sidebar.refresh'));
       navigate({ to: `/agent/${newAgent.id}`, replace: true });
     },

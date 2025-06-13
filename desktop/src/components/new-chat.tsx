@@ -28,8 +28,8 @@ export function NewChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: models } = use({ fetcher: async () => await window.electronAPI.llm.getAll() });
-  const { data: mainAgentData, refetch: refetchMainAgent } = use<{ llmId: number, id: number }>({ fetcher: async () => await window.electronAPI.agent.getMain() });
-  const selectedModel = mainAgentData?.llmId ?? null;
+  const { data: mainAgentData, refetch: refetchMainAgent } = use({ fetcher: async () => await window.electronAPI.agent.getMain() });
+  const selectedModel = mainAgentData?.llm_id ?? null;
   const setSelectedModel = (llmId: string) => {
     window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId: parseInt(llmId) }).then(() => {
       refetchMainAgent();
@@ -38,7 +38,7 @@ export function NewChat() {
 
   // Filter models based on search quer  const [selectedModel, setSelectedModel] = useState("4");y
   const filteredModels = models?.filter(model =>
-    model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    model.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     model.provider.toLowerCase().includes(searchQuery.toLowerCase()) ||
     model.description.toLowerCase().includes(searchQuery.toLowerCase())
   ) ?? [];
@@ -75,7 +75,10 @@ export function NewChat() {
     if (message.trim()) {
       // Handle sending the message
       window.electronAPI.chat.create({}).then((chat) => {
-        console.log("New chat created:", chat.id.toString());
+        if (!chat) {
+          console.error("Failed to create chat");
+          return;
+        }
         stream.startStream(chat.id.toString(), {
           chatId: chat.id,
           message: message.trim(),
@@ -199,7 +202,7 @@ export function NewChat() {
                 <DialogTrigger asChild>
                   <Button variant="ghost" className="h-8 px-3 text-xs border-0 flex items-center gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-700">
                     <span className="text-sm font-medium truncate max-w-[100px]">
-                      {selectedModelDetails?.name || "Claude Sonnet 4"}
+                      {selectedModelDetails?.display_name || "Claude Sonnet 4"}
                     </span>
                     <ChevronDown className="h-3 w-3 opacity-70" />
                   </Button>
@@ -226,14 +229,14 @@ export function NewChat() {
                       {paginatedModels.map(model => (
                         <div
                           key={model.id}
-                          onClick={() => handleSelectModel(model.id)}
+                          onClick={() => handleSelectModel(model.id.toString())}
                           className={`p-3 rounded-md cursor-pointer transition-colors ${selectedModel === model.id
                             ? 'bg-neutral-100 dark:bg-neutral-700'
                             : 'hover:bg-neutral-50 dark:hover:bg-neutral-800'
                             }`}
                         >
                           <div className="flex justify-between items-center">
-                            <div className="font-medium">{model.name}</div>
+                            <div className="font-medium">{model.display_name}</div>
                             <div className="text-xs text-neutral-500">{model.provider}</div>
                           </div>
                           <div className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">

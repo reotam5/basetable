@@ -1,22 +1,21 @@
 import { app, ipcMain, IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { join } from "path";
-import { Database } from "./db/Database.js";
-import { BaseEvent } from "./events/BaseEvent.js";
+import database from "./database/database.js";
+import { BaseEvent } from "./events/base-events.js";
 import { events } from "./events/index.js";
-import { AuthHandler, KeyManager, Window } from "./helpers/index.js";
-import { Logger } from "./helpers/Logger.js";
-import { PaymentHandler } from "./helpers/PaymentHandler.js";
-import { StreamManager } from "./helpers/StreamManager.js";
+import { AuthHandler } from "./helpers/auth-handler.js";
+import { Logger } from "./helpers/custom-logger.js";
+import { Window } from "./helpers/custom-window.js";
+import { KeyManager } from "./helpers/key-manager.js";
+import { PaymentHandler } from "./helpers/payment-handler.js";
+import { StreamManager } from "./helpers/stream-manager.js";
+import "./services/index.js";
 
 let once = false;
 
-export class Backend {
+class Backend {
   private readonly isProd: boolean = app.isPackaged;
-  private mainWindow: Window | null = null;
-
-  public static main(): Backend {
-    return new Backend();
-  }
+  public mainWindow!: Window;
 
   public constructor() {
     if (!this.isProd) {
@@ -67,9 +66,7 @@ export class Backend {
         autoHideMenuBar: true,
         show: false,
       });
-      await Database.initialize(this.mainWindow);
-      await Database.registerModel();
-      await Database.registerService();
+      await database.initialize();
       AuthHandler.getInstance().setWindow(this.mainWindow);
 
       // Initialize StreamManager to register IPC handlers
@@ -101,7 +98,7 @@ export class Backend {
     app.on('before-quit', async () => {
       // Cleanup streams before closing
       StreamManager.getInstance().cleanup();
-      await Database.close();
+      await database.close();
     })
   }
 
@@ -152,7 +149,7 @@ export class Backend {
   private async registerEvents(): Promise<void> {
     for await (const eventClass of events) {
       try {
-        const event: BaseEvent = new eventClass(this);
+        const event: BaseEvent = new eventClass();
         Logger.debug('Registering event:', event.getName());
         if (event.useInvoke()) {
           ipcMain.handle(event.getName(), (receivedEvent: IpcMainInvokeEvent, ...args: any[]) => event.preExecute(receivedEvent, ...args).catch((error: any) => {
@@ -175,3 +172,9 @@ export class Backend {
     }
   }
 }
+
+const instance = new Backend();
+type BackendType = typeof Backend;
+export { instance as backend };
+export type { BackendType as Backend };
+

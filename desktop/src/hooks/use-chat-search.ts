@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchHistory } from "./use-search-history";
 // import { chatApi } from '../services/chat-api';
 
-export interface ChatItem {
+interface ChatItem {
   id: number;
   title: string;
-  lastMessageAt: Date;
+  created_at: string | null;
+  updated_at: string | null;
+  user_id: string;
 }
 
 export function useChatSearch() {
@@ -23,7 +25,7 @@ export function useChatSearch() {
   const fetchChats = useCallback(async () => {
     setError(null);
     try {
-      const { rows } = await window.electronAPI.chat.getAll();
+      const rows = await window.electronAPI.chat.getAll();
       setChats(rows);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch chats';
@@ -47,7 +49,7 @@ export function useChatSearch() {
     }
 
     setIsSearching(true);
-    const data = await window.electronAPI.chat.search(query, { limit: 100 });
+    const data = await window.electronAPI.chat.getAll({ search: query, limit: 100 });
 
     setFilteredChats(data ?? []);
 

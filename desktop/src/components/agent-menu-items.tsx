@@ -12,8 +12,8 @@ import { Skeleton } from "./ui/skeleton";
 export function AgentMenuItems() {
   const navigate = useNavigate();
   const { data, isLoading, refetch } = use({ fetcher: window.electronAPI.agent.getAll })
-  const mainAgent = data?.find((agent: any) => agent.is_main);
-  const subbAgents = data?.filter((agent: any) => !agent.is_main);
+  const mainAgent = data?.find((agent) => agent.is_main);
+  const subbAgents = data?.filter((agent) => !agent.is_main) || [];
   const matches = useMatches<any>();
   const currentMatch = matches[matches.length - 1];
   const routePattern = (currentMatch?.fullPath?.endsWith('/') && currentMatch?.fullPath.length > 1) ? currentMatch?.fullPath.slice(0, -1) : currentMatch?.fullPath;
@@ -145,7 +145,7 @@ export function AgentMenuItems() {
       </SidebarMenuItem>
 
       {
-        isLoading && !(data?.length > 0) && (
+        isLoading && (!data || !(data.length > 0)) && (
           Array.from({ length: 5 }).map((_, index) => (
             <Skeleton className="h-6 w-full mb-2 bg-sidebar-border dark:bg-sidebar-accent" key={index} />
           ))

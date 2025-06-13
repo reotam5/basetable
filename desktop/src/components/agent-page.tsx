@@ -239,7 +239,7 @@ export function AgentPage() {
   // Memoize fetcher functions to prevent infinite re-renders
   const agentsFetcher = useCallback(() => window.electronAPI.agent.getAll(), []);
   const mcpServersFetcher = useCallback(async () => {
-    return (await window.electronAPI.mcp.getAll({ is_active: true })).map(s => ({ ...s, id: s?.users?.[0]?.User_MCP?.id }));
+    return (await window.electronAPI.mcp.getAll({ is_active: true }));
   }, []);
   const llmsFetcher = useCallback(async () => {
     return await window.electronAPI.llm.getAll();
@@ -248,7 +248,7 @@ export function AgentPage() {
   const stylesFetcher = useCallback(async () => await window.electronAPI.agent.getStyles(), []);
 
   const { data } = use({ fetcher: agentsFetcher })
-  const mainAgentId = data?.find((agent: any) => agent.is_main)?.id;
+  const mainAgentId = data?.find((agent) => agent.is_main)?.id;
   const agentId = isMainAgent ? mainAgentId : matches?.[matches.length - 1]?.params?.agentId ?? null;
   const { data: mcpServers } = use({ fetcher: mcpServersFetcher });
   const { data: llms } = use({ fetcher: llmsFetcher });
@@ -268,12 +268,30 @@ export function AgentPage() {
   };
 
   const currentAgent = agent ? { ...agent, ...localChanges } : (isNewAgent ? { ...defaultAgent, ...localChanges } : null);
-  const selectedTone = tones?.find(t => currentAgent?.styles?.includes(t.id))?.id;
-  const selectedStyle = styles?.find(s => currentAgent?.styles?.includes(s.id))?.id;
+  const selectedTone = tones?.find(t => currentAgent?.styles?.includes(t.id))?.id?.toString();
+  const selectedStyle = styles?.find(s => currentAgent?.styles?.includes(s.id))?.id?.toString();
   const [activeTab, setActiveTab] = useState<string>('configurations')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [activeServer, setActiveServer] = useState<any>(null)
+  const [activeServer, setActiveServer] = useState<{
+    user_mcp: {
+      id: number;
+      user_id: string;
+      mcp_id: number;
+      is_active: boolean;
+      is_installed: boolean;
+    };
+    mcp: {
+      id: number;
+      name: string;
+      description: string;
+      icon: string;
+      tools: {
+        name: string;
+        id: string;
+      }[] | null;
+    } | null;
+  } | null>(null)
   const [serverToolsDialogOpen, setServerToolsDialogOpen] = useState(false)
 
   // Use a reset key to force remounting of select components
@@ -418,7 +436,7 @@ export function AgentPage() {
             {llms && llms.length > 0 ? (
               (() => {
                 const filteredModels = llms.filter(llm =>
-                  llm.name.toLowerCase().includes(llmSearchQuery.toLowerCase()) ||
+                  llm.display_name.toLowerCase().includes(llmSearchQuery.toLowerCase()) ||
                   (llm.provider && llm.provider.toLowerCase().includes(llmSearchQuery.toLowerCase())) ||
                   (llm.description && llm.description.toLowerCase().includes(llmSearchQuery.toLowerCase()))
                 );
@@ -457,7 +475,7 @@ export function AgentPage() {
                           >
                             <div className="flex items-center justify-between p-2.5 h-full">
                               <div className="flex-1">
-                                <div className="font-medium text-sm">{llm.name}</div>
+                                <div className="font-medium text-sm">{llm.display_name}</div>
                                 {llm.description && (
                                   <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                                     {llm.description}
@@ -549,7 +567,7 @@ export function AgentPage() {
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-muted-foreground">Select tools and services your agent can access</p>
               <Badge variant="outline" className="text-xs">
-                {Object.keys(currentAgent?.mcpTools || {}).length}/{mcpServers?.length ?? 0} servers
+                {Object.values(currentAgent?.mcpTools || {})?.filter(v => (v as any[])?.length).length}/{mcpServers?.length ?? 0} servers
               </Badge>
             </div>
 
@@ -571,7 +589,7 @@ export function AgentPage() {
             {mcpServers && mcpServers.length > 0 ? (
               (() => {
                 const filteredServers = mcpServers.filter(server =>
-                  server.name.toLowerCase().includes(mcpSearchQuery.toLowerCase())
+                  server.mcp?.name.toLowerCase().includes(mcpSearchQuery.toLowerCase())
                 );
 
                 const SERVERS_PER_PAGE = 4;
@@ -597,12 +615,12 @@ export function AgentPage() {
                     <div className="h-[268px]">
                       <div className="space-y-2">
                         {visibleServers.map((server) => {
-                          const selectedTools = currentAgent?.mcpTools?.[server.id] || [];
-                          const totalTools = server.tools?.length || 0;
+                          const selectedTools = currentAgent?.mcpTools?.[server.user_mcp.id] || [];
+                          const totalTools = server.mcp?.tools?.length || 0;
 
                           return (
                             <div
-                              key={server.id}
+                              key={server.user_mcp.id}
                               className="border rounded-md cursor-pointer hover:bg-muted/30 h-[64px]"
                               onClick={() => {
                                 setActiveServer(server);
@@ -616,14 +634,14 @@ export function AgentPage() {
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
                                     <img
-                                      src={server.icon || 'placeholder-icon.svg'}
-                                      alt={server.name}
+                                      src={server.mcp?.icon || 'placeholder-icon.svg'}
+                                      alt={server.mcp?.name}
                                       className="w-5 h-5 object-contain"
                                       onError={(e) => {
                                         e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
                                       }}
                                     />
-                                    <span className="font-medium text-sm">{server.name}</span>
+                                    <span className="font-medium text-sm">{server.mcp?.name}</span>
                                   </div>
                                   {/* Add description line to match height of LLM model items */}
                                   <div className="text-xs text-muted-foreground mt-0.5 ml-7">
@@ -737,7 +755,7 @@ export function AgentPage() {
                   <SelectGroup>
                     <SelectLabel>Available Tones</SelectLabel>
                     {tones?.map((tone) => (
-                      <SelectItem key={tone.id} value={tone.id}>
+                      <SelectItem key={tone.id} value={tone.id.toString()}>
                         {tone.name}
                       </SelectItem>
                     ))}
@@ -762,7 +780,7 @@ export function AgentPage() {
                   <SelectGroup>
                     <SelectLabel>Available Styles</SelectLabel>
                     {styles?.map((style) => (
-                      <SelectItem key={style.id} value={style.id}>
+                      <SelectItem key={style.id} value={style.id.toString()}>
                         {style.name}
                       </SelectItem>
                     ))}
@@ -1039,17 +1057,17 @@ export function AgentPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {activeServer?.icon && (
+              {activeServer?.mcp?.icon && (
                 <img
-                  src={activeServer.icon}
-                  alt={activeServer.name}
+                  src={activeServer.mcp.icon}
+                  alt={activeServer.mcp.name}
                   className="w-5 h-5 object-contain"
                   onError={(e) => {
                     e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
                   }}
                 />
               )}
-              {activeServer?.name} Tools
+              {activeServer?.mcp?.name} Tools
             </DialogTitle>
             <DialogDescription>
               Select the tools your agent can access from this server
@@ -1062,30 +1080,30 @@ export function AgentPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const allTools = activeServer?.tools || [];
-                  const currentTools = currentAgent?.mcpTools?.[activeServer?.id] || [];
+                  const allTools = activeServer?.mcp?.tools || [];
+                  const currentTools = currentAgent?.mcpTools?.[activeServer!.user_mcp.id] || [];
                   const allSelected = allTools.every(tool => currentTools.includes(tool));
 
                   if (allSelected) {
                     // Deselect all
                     const updatedMcpTools = { ...(currentAgent?.mcpTools || {}) };
-                    delete updatedMcpTools[activeServer?.id];
+                    delete updatedMcpTools[activeServer!.user_mcp.id];
                     updateLocalChanges({ mcpTools: updatedMcpTools });
                   } else {
                     // Select all
                     const updatedMcpTools = { ...(currentAgent?.mcpTools || {}) };
-                    updatedMcpTools[activeServer?.id] = [...allTools];
+                    updatedMcpTools[activeServer!.user_mcp.id] = [...allTools];
                     updateLocalChanges({ mcpTools: updatedMcpTools });
                   }
                 }}
               >
-                {activeServer?.tools?.every(tool =>
-                  (currentAgent?.mcpTools?.[activeServer?.id] || []).includes(tool)
+                {activeServer?.mcp?.tools?.every(tool =>
+                  (currentAgent?.mcpTools?.[activeServer?.user_mcp.id] || []).includes(tool)
                 ) ? "Deselect All" : "Select All"}
               </Button>
 
               <span className="text-xs text-muted-foreground">
-                {(currentAgent?.mcpTools?.[activeServer?.id] || []).length}/{activeServer?.tools?.length || 0} selected
+                {(currentAgent?.mcpTools?.[activeServer?.user_mcp.id ?? ""] || []).length}/{activeServer?.mcp?.tools?.length || 0} selected
               </span>
             </div>
 
@@ -1106,7 +1124,7 @@ export function AgentPage() {
 
             {/* Tools with pagination */}
             {(() => {
-              if (!activeServer?.tools?.length) {
+              if (!activeServer?.mcp?.tools?.length) {
                 return (
                   <div className="p-4 text-center border rounded-md">
                     <p className="text-sm text-muted-foreground">No tools available</p>
@@ -1114,8 +1132,8 @@ export function AgentPage() {
                 );
               }
 
-              const filteredTools = activeServer.tools.filter(tool =>
-                tool.toLowerCase().includes(toolsSearchQuery.toLowerCase())
+              const filteredTools = activeServer.mcp.tools.filter(tool =>
+                tool.name.toLowerCase().includes(toolsSearchQuery.toLowerCase())
               );
 
               const ITEMS_PER_PAGE = 8;
@@ -1137,27 +1155,26 @@ export function AgentPage() {
                     <div className="h-full overflow-y-auto">
                       {visibleTools.map((tool, index) => (
                         <div
-                          key={tool}
+                          key={tool.id}
                           className={`flex items-center gap-2 p-3 hover:bg-muted/30 ${index !== visibleTools.length - 1 ? 'border-b' : ''
                             }`}
                         >
                           <Checkbox
-                            id={`${activeServer.id}-${tool}`}
-                            checked={(currentAgent?.mcpTools?.[activeServer.id] || []).includes(tool)}
+                            id={`${activeServer.user_mcp.id}-${tool.id}`}
+                            checked={(currentAgent?.mcpTools?.[activeServer.user_mcp.id] || []).map(t => t.id).includes(tool.id)}
                             onCheckedChange={(checked) => {
-                              const currentTools = currentAgent?.mcpTools?.[activeServer.id] || [];
+                              const currentTools = currentAgent?.mcpTools?.[activeServer.user_mcp.id] || [];
                               const updatedTools = checked
                                 ? [...currentTools, tool]
-                                : currentTools.filter(t => t !== tool);
-
-                              handleToolSelection(activeServer.id, updatedTools);
+                                : currentTools.filter(t => t.id !== tool.id);
+                              handleToolSelection(activeServer.user_mcp.id, updatedTools);
                             }}
                           />
                           <label
-                            htmlFor={`${activeServer.id}-${tool}`}
+                            htmlFor={`${activeServer.user_mcp.id}-${tool.id}`}
                             className="text-sm cursor-pointer flex-1"
                           >
-                            {tool}
+                            {tool.name}
                           </label>
                         </div>
                       ))}

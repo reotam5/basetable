@@ -1,3 +1,2 @@
-import { Backend } from './backend.js';
-
-Backend.main();
+// this will trigger backend singleton creation
+import './backend.js';

@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { use } from "@/hooks/use";
-import { Message as BackendMessage, useChat } from "@/hooks/use-chat";
+import { useChat } from "@/hooks/use-chat";
 import { useParams } from "@tanstack/react-router";
 import debounce from "lodash.debounce";
 import { ArrowDown, Bot, Clock, Paperclip, Send, Server, X } from "lucide-react";
@@ -31,14 +31,14 @@ interface UIMessage {
 }
 
 // Helper function to convert backend messages to UI messages
-function backendToUIMessage(backendMsg: BackendMessage): UIMessage {
+function backendToUIMessage(backendMsg: NonNullable<ReturnType<typeof useChat>['messages']>[number]): UIMessage {
   return {
     id: backendMsg?.id?.toString(),
-    type: backendMsg?.type,
+    type: backendMsg?.type as 'user' | 'assistant' | 'system',
     content: backendMsg?.content ?? "",
-    timestamp: new Date(backendMsg?.createdAt),
-    status: backendMsg?.status,
-    // These would be populated from additional API calls or metadata
+    timestamp: new Date(backendMsg.created_at!),
+    status: backendMsg?.status as 'success' | 'pending' | 'error',
+    // These would be populated from  metadata
     agents: undefined,
     mcpServers: undefined,
     systemPrompt: undefined,
@@ -290,7 +290,7 @@ export function ChatInterface() {
   }, []);
 
   // Memoize the rendered messages to prevent unnecessary re-renders
-  const filePreviews = useMemo(() => getFilePreviews(messages), [messages]);
+  const filePreviews = useMemo(() => getFilePreviews(messages ?? []), [messages]);
   useEffect(() => {
     // Cleanup image URLs on unmount or messages change
     return () => {
@@ -303,7 +303,7 @@ export function ChatInterface() {
   const renderedMessages = useMemo(() => {
     return (
       <div className="space-y-6" ref={messagesContainerRef}>
-        {messages.map((message) => (
+        {messages?.map((message) => (
           <div
             key={message.id}
             className={`${message.type === "user" ? "text-right" : "text-left"}`}
@@ -426,7 +426,7 @@ export function ChatInterface() {
           )}
 
           {/* Messages */}
-          {!isLoading && !error && messages.length === 0 && (
+          {!isLoading && !error && messages?.length === 0 && (
             <div className="text-center py-8">
               <p className="text-gray-600 dark:text-gray-400">No messages yet. Start a conversation!</p>
             </div>
@@ -522,14 +522,14 @@ export function ChatInterface() {
                         }
                         acc[llm.provider].push(llm);
                         return acc;
-                      }, {} as Record<string, any[]>) || {};
+                      }, {}) || {};
 
                       return Object.entries(groupedLLMs).map(([provider, models]) => (
                         <SelectGroup key={provider}>
                           <SelectLabel>{provider}</SelectLabel>
                           {(models as any[]).map((llm: any) => (
                             <SelectItem key={llm.id} value={llm.id.toString()}>
-                              {llm.name}
+                              {llm.display_name}
                             </SelectItem>
                           ))}
                         </SelectGroup>
