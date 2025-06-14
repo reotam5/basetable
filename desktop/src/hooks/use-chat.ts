@@ -10,8 +10,6 @@ interface ChatResponseChunk_MessageStart {
   type: 'message_start';
   data: {
     chatId: number;
-    agentMessageId: number;
-    userMessageId: number;
     userMessage: {
       content: string;
     }
@@ -23,30 +21,14 @@ interface ChatResponseChunk_ContentChunk {
   data: {
     chunk: string;
     fullContent: string;
-    agentMessageId: number;
-    userMessageId: number;
   };
 }
 
 interface ChatResponseChunk_ContentComplete {
   type: 'content_complete';
-  data: {
-    agentMessageId: number;
-    userMessageId: number;
-  }
 }
 
-interface ChatResponseChunk_Error {
-  type: 'error';
-  data: {
-    error: string;
-    chatId?: number;
-    userMessageId: number;
-    agentMessageId: number;
-  };
-}
-
-type ChatStreamChunk = ChatResponseChunk_MessageStart | ChatResponseChunk_ContentChunk | ChatResponseChunk_ContentComplete | ChatResponseChunk_Error;
+type ChatStreamChunk = ChatResponseChunk_MessageStart | ChatResponseChunk_ContentChunk | ChatResponseChunk_ContentComplete;
 interface ChatStreamData {
   chatId: number;
   message: string;
@@ -56,6 +38,7 @@ export function useChat(chatId: number) {
   const { data: initialData, error: fetchError, isLoading } = use({
     fetcher: async () => {
       setMessages([]);
+      setNewChatIds([]);
       return await window.electronAPI.chat.message.getByChat(chatId)
     },
     dependencies: [chatId]
@@ -66,6 +49,8 @@ export function useChat(chatId: number) {
   const [messages, setMessages] = useState<typeof initialData>([]);
   const [isSending, setIsSending] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isWaitingAI, setIsWaitingAI] = useState(false);
+  const [newChatIds, setNewChatIds] = useState<number[]>([]);
 
   const streamOptions = useMemo(() => ({
     onComplete: () => {
@@ -78,9 +63,10 @@ export function useChat(chatId: number) {
       switch (chunk.type) {
         case 'message_start':
           setIsSending(false);
+          setIsWaitingAI(true);
           setMessages(prev => [
             {
-              id: chunk.data.userMessageId,
+              id: new Date().getTime(), // Use timestamp as a temporary ID
               chat_id: chatId,
               type: 'user',
               content: chunk.data.userMessage.content,
@@ -94,11 +80,12 @@ export function useChat(chatId: number) {
           break;
         case 'content_chunk': {
           setIsStreaming(true);
+          setIsWaitingAI(false);
           setMessages(prev => {
-            const lastAssistantMessage = prev?.[0]
+            const lastAssistantMessage = prev?.[0]?.type === 'assistant' ? prev[0] : null;
             return [
               {
-                id: chunk.data.agentMessageId,
+                id: new Date().getTime(), // Use timestamp as a temporary ID
                 chat_id: chatId,
                 type: 'assistant',
                 content: chunk.data.fullContent,
@@ -107,7 +94,7 @@ export function useChat(chatId: number) {
                 updated_at: new Date(),
                 metadata: null,
               },
-              ...((lastAssistantMessage?.id === chunk.data.agentMessageId) ? prev?.slice(1) : prev) ?? [],
+              ...(lastAssistantMessage ? prev?.slice(1) : prev) ?? [],
             ]
           })
           break;
@@ -115,8 +102,8 @@ export function useChat(chatId: number) {
         case 'content_complete': {
           setIsStreaming(false);
           setMessages(prev => {
-            const lastAssistantMessage = prev?.[0];
-            if (lastAssistantMessage?.id === chunk.data.agentMessageId) {
+            const lastAssistantMessage = prev?.[0]?.type === 'assistant' ? prev[0] : null;
+            if (lastAssistantMessage) {
               return [
                 {
                   ...lastAssistantMessage,
@@ -153,6 +140,17 @@ export function useChat(chatId: number) {
     };
   }, [refetchChatRoomData])
 
+  useEffect(() => {
+    const onTitleUpdate = (chatId: number) => {
+      refetchChatRoomData()
+      setNewChatIds(prev => [...prev, chatId])
+    }
+    const cleanup = window.electronAPI.chat.onTitleUpdate(onTitleUpdate);
+    return () => {
+      cleanup()
+    }
+  }, [refetchChatRoomData])
+
   // Update local messages when initial data loads
   useEffect(() => {
     if (initialData?.length) {
@@ -180,7 +178,8 @@ export function useChat(chatId: number) {
   }, [chatId, isSending, isStreaming, stream]);
 
   return {
-    chatTitle: chatRoomData?.title ?? 'New Chat',
+    chatTitle: chatRoomData?.title,
+    newChatIds,
     selectedLLM: mainAgentData?.llm_id ?? null,
     setSelectedLLM: (llmId: number) => {
       window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId }).then(() => {
@@ -192,6 +191,7 @@ export function useChat(chatId: number) {
     isLoading,
     isAgentResponding: isStreaming,
     isSending,
+    isWaitingAI: isWaitingAI || allMessages?.length === 1,
     sendMessage,
     cancel: () => {
       stream.cancelStream(chatId.toString()).then(() => {

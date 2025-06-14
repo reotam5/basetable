@@ -5,6 +5,7 @@ import { jwtDecode } from "jwt-decode";
 import { electronConfig } from "../config.js";
 import { seedDatabase } from "../database/seeder.js";
 import { UserService } from "../services/user-service.js";
+import { chatOrchestrator } from "./chat-orchestrator.js";
 import { Logger } from "./custom-logger.js";
 import { Window } from "./custom-window.js";
 import { KeyManager } from "./key-manager.js";
@@ -116,6 +117,8 @@ export class AuthHandler {
         })
       }
       await seedDatabase();
+      await chatOrchestrator.loadLLMModels();
+      await chatOrchestrator.loadAgents();
 
       AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGIN_CALLBACK_EVENT, {
         accessToken: AuthHandler.accessToken,

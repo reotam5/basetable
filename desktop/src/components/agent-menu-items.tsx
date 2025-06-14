@@ -2,6 +2,7 @@ import { use } from "@/hooks/use";
 import { useMatches, useNavigate } from "@tanstack/react-router";
 import { Bot, Check, Edit, MoreHorizontal, Plus, Trash, X } from "lucide-react";
 import * as React from "react";
+import { AnimatedText } from "./animated-text";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -27,6 +28,7 @@ export function AgentMenuItems() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [agentToDelete, setAgentToDelete] = React.useState<{ id: number; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [loadingAgentId, setLoadingAgentId] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const onAgentCreated = () => refetch();
@@ -34,6 +36,15 @@ export function AgentMenuItems() {
     return () => {
       window.removeEventListener("sidebar.refresh", onAgentCreated);
     }
+  }, [refetch])
+
+  React.useEffect(() => {
+    const cleanup = window.electronAPI.agent.onNameUpdate((agentId: number) => {
+      refetch();
+      setLoadingAgentId(agentId);
+    });
+
+    return () => cleanup();
   }, [refetch])
 
   // Handle starting edit mode
@@ -195,11 +206,23 @@ export function AgentMenuItems() {
                       </Button>
                     </div>
                   ) : (
-                    <span className="truncate">{agent.name}</span>
+                    agent.name?.length ? (
+                      <span className="truncate">
+                        {
+                          loadingAgentId === agent.id ? (
+                            <AnimatedText text={agent.name} />
+                          ) : (
+                            agent.name
+                          )
+                        }
+                      </span>
+                    ) : (
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
+                    )
                   )}
                 </SidebarMenuButton>
 
-                {editingAgentId !== agent.id && (
+                {(editingAgentId !== agent.id && !!agent.name?.length) && (
                   <SidebarMenuAction showOnHover>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

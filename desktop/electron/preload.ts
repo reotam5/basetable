@@ -107,6 +107,7 @@ const electronAPI = {
     getById: (id: number) => handler.invoke("chat.getById", id) as ReturnType<typeof ChatService.getChatById>,
     update: (id: number, chat: { title?: string; metadata?: any }) => handler.invoke("chat.update", id, chat) as ReturnType<typeof ChatService.updateChat>,
     delete: (id: number) => handler.invoke("chat.delete", id) as ReturnType<typeof ChatService.deleteChat>,
+    onTitleUpdate: (callback: (chatId: number, title: string) => void) => handler.on("chat.titleUpdate", callback),
     message: {
       getByChat: (chatId: number) => handler.invoke("message.getByChatId", chatId) as ReturnType<typeof MessageService.getMessagesByChatId>,
     },
@@ -131,6 +132,7 @@ const electronAPI = {
     update: (id: number, agent?: { name?: string; instruction?: string; llmId?: number; mcpTools?: { [serverId: number]: string[] }; styles?: number[] }) => handler.invoke("agent.update", id, agent) as ReturnType<typeof AgentService.updateAgent>,
     getTones: () => handler.invoke("agentStyle.getTones") as ReturnType<typeof AgentStyleService.getTones>,
     getStyles: () => handler.invoke("agentStyle.getStyles") as ReturnType<typeof AgentStyleService.getStylesOnly>,
+    onNameUpdate: (callback: (agentId: number, name: string) => void) => handler.on("agent.nameUpdate", callback),
   },
   llm: {
     getAll: () => handler.invoke("llm.getAll") as ReturnType<typeof LLMService.getLLMs>,

@@ -13,9 +13,10 @@
     "cleanup": "rm -rf dist",
     "build:react": "vite build",
     "build:electron": "tsc -p electron/ && cpx \"./electron/database/migrations/**/*\" ./dist/main/database/migrations && vite build --config vite.preload.config.ts",
-    "postinstall": "npm run rebuild-native",
+    "postinstall": "npm run rebuild-native && npm run models:pull && electron-builder install-app-deps",
     "rebuild-native": "electron-rebuild -f -w better-sqlite3-multiple-ciphers",
-    "db:generate": "npm run build:electron && drizzle-kit generate --config ./electron/database/drizzle.config.ts"
+    "db:generate": "npm run build:electron && drizzle-kit generate --config ./electron/database/drizzle.config.ts",
+    "models:pull": "node-llama-cpp pull --dir ../resources/models hf:mradermacher/Mistral-Nemo-Instruct-2407-GGUF:Q4_K_M --filename mistral-nemo.gguf"
   },
   "dependencies": {
     "@journeyapps/sqlcipher": "^5.3.1",
@@ -52,6 +53,7 @@
     "keytar": "^7.9.0",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.511.0",
+    "node-llama-cpp": "^3.10.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
@@ -101,6 +103,12 @@
     "directories": {
       "output": "dist/electron"
     },
+    "extraResources": [
+      {
+        "from": "../resources",
+        "to": ""
+      }
+    ],
     "protocols": {
       "name": "basetable",
       "schemes": [

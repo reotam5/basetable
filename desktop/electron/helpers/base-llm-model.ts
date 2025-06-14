@@ -1,0 +1,32 @@
+
+/**
+ * Response chunk for streaming
+ */
+export interface LLMModelResponseChunk {
+  type: 'content_chunk';
+  content: string;
+  delta: string;
+}
+
+/**
+ * Complete model response
+ */
+export interface LLMModelResponse {
+  content: string;
+}
+
+export abstract class BaseLLMModel {
+  protected config: Record<string, any>;
+
+  constructor(config: Record<string, any> = {}) {
+    this.config = config;
+  }
+
+  abstract initialize(): Promise<void>;
+
+  abstract isAvailable(): Promise<boolean>
+
+  abstract streamResponse(prompt: string, abortController?: AbortController): AsyncGenerator<LLMModelResponseChunk, void, void>;
+
+  abstract structuredResponse<R>(prompt: string, grammar: any): Promise<R>;
+}

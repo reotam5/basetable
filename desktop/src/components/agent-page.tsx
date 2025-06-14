@@ -12,6 +12,7 @@ import useAgent from "@/hooks/use-agent"
 import { useMatches, useNavigate } from "@tanstack/react-router"
 import { Activity, ChevronLeft, ChevronRight, ChevronsUpDown, Info, Save, Search, Settings, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { AnimatedText } from "./animated-text"
 
 interface Template {
   id: string
@@ -256,6 +257,12 @@ export function AgentPage() {
   const { data: styles } = use({ fetcher: stylesFetcher });
   const { agent, updateAgent, createAgent, deleteAgent } = useAgent(agentId ?? undefined);
   const [localChanges, setLocalChanges] = useState<any>({});
+  const [nameUpdated, setNameUpdated] = useState('');
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.agent.onNameUpdate((_id: number, name: string) => setNameUpdated(name));
+    return () => cleanup()
+  }, [])
 
   // Create a default agent structure for new agents
   const defaultAgent = {
@@ -268,8 +275,8 @@ export function AgentPage() {
   };
 
   const currentAgent = agent ? { ...agent, ...localChanges } : (isNewAgent ? { ...defaultAgent, ...localChanges } : null);
-  const selectedTone = tones?.find(t => currentAgent?.styles?.includes(t.id))?.id?.toString();
-  const selectedStyle = styles?.find(s => currentAgent?.styles?.includes(s.id))?.id?.toString();
+  const selectedTone = tones?.find(t => currentAgent?.styles?.includes(t.id))?.id;
+  const selectedStyle = styles?.find(s => currentAgent?.styles?.includes(s.id))?.id;
   const [activeTab, setActiveTab] = useState<string>('configurations')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -743,10 +750,13 @@ export function AgentPage() {
               <label className="text-sm font-medium mb-2 block">Communication Tone</label>
               <Select
                 key={`tone-select-${selectResetKey}`}
-                value={selectedTone}
-                onValueChange={(value) => updateLocalChanges({
-                  styles: [...(selectedStyle ? [selectedStyle] : []), parseInt(value)]
-                })}
+                value={selectedTone?.toString()}
+                onValueChange={(value) => {
+                  console.log(selectedStyle, value)
+                  updateLocalChanges({
+                    styles: [...(selectedStyle ? [selectedStyle] : []), parseInt(value)],
+                  })
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select tone" />
@@ -768,7 +778,7 @@ export function AgentPage() {
               <label className="text-sm font-medium mb-2 block">Response Style</label>
               <Select
                 key={`style-select-${selectResetKey}`}
-                value={selectedStyle}
+                value={selectedStyle?.toString()}
                 onValueChange={(value) => updateLocalChanges({
                   styles: [...(selectedTone ? [selectedTone] : []), parseInt(value)]
                 })}
@@ -950,7 +960,13 @@ export function AgentPage() {
       <div className="border-b pb-6 mb-6">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl sm:text-3xl font-bold">
-            {isMainAgent ? "Main Agent" : (isNewAgent ? "Create Agent" : agent?.name)}
+            {isMainAgent ? "Main Agent" : (isNewAgent ? "Create Agent" : (
+              nameUpdated ? (
+                <AnimatedText text={nameUpdated} />
+              ) : (
+                agent?.name?.length ? agent.name : "New Agent"
+              )
+            ))}
           </h1>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1082,23 +1098,23 @@ export function AgentPage() {
                 onClick={() => {
                   const allTools = activeServer?.mcp?.tools || [];
                   const currentTools = currentAgent?.mcpTools?.[activeServer!.user_mcp.id] || [];
-                  const allSelected = allTools.every(tool => currentTools.includes(tool));
+                  const allSelected = allTools.every(tool => currentTools.includes(tool.id));
 
                   if (allSelected) {
                     // Deselect all
                     const updatedMcpTools = { ...(currentAgent?.mcpTools || {}) };
-                    delete updatedMcpTools[activeServer!.user_mcp.id];
+                    updatedMcpTools[activeServer!.user_mcp.id] = [];
                     updateLocalChanges({ mcpTools: updatedMcpTools });
                   } else {
                     // Select all
                     const updatedMcpTools = { ...(currentAgent?.mcpTools || {}) };
-                    updatedMcpTools[activeServer!.user_mcp.id] = [...allTools];
+                    updatedMcpTools[activeServer!.user_mcp.id] = [...allTools.map(tool => tool.id)];
                     updateLocalChanges({ mcpTools: updatedMcpTools });
                   }
                 }}
               >
                 {activeServer?.mcp?.tools?.every(tool =>
-                  (currentAgent?.mcpTools?.[activeServer?.user_mcp.id] || []).includes(tool)
+                  (currentAgent?.mcpTools?.[activeServer?.user_mcp.id] || []).includes(tool.id)
                 ) ? "Deselect All" : "Select All"}
               </Button>
 
@@ -1161,12 +1177,12 @@ export function AgentPage() {
                         >
                           <Checkbox
                             id={`${activeServer.user_mcp.id}-${tool.id}`}
-                            checked={(currentAgent?.mcpTools?.[activeServer.user_mcp.id] || []).map(t => t.id).includes(tool.id)}
+                            checked={(currentAgent?.mcpTools?.[activeServer.user_mcp.id] || []).includes(tool.id)}
                             onCheckedChange={(checked) => {
                               const currentTools = currentAgent?.mcpTools?.[activeServer.user_mcp.id] || [];
                               const updatedTools = checked
-                                ? [...currentTools, tool]
-                                : currentTools.filter(t => t.id !== tool.id);
+                                ? [...currentTools, tool.id]
+                                : currentTools.filter(t => t !== tool.id);
                               handleToolSelection(activeServer.user_mcp.id, updatedTools);
                             }}
                           />

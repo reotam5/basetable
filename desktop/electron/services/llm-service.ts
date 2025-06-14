@@ -15,7 +15,11 @@ class LLMService {
         .from(llm)
         .orderBy(asc(llm.display_name));
 
-      return llms;
+      // this should aggregate results from remote llm providers
+      return llms.map((llm) => ({
+        ...llm,
+        type: 'local'
+      }));
     } catch (error) {
       Logger.error("Error fetching LLMs:", error);
       return [];

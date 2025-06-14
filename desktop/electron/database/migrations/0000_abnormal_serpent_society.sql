@@ -60,7 +60,10 @@ CREATE TABLE `llm` (
 	`display_name` text NOT NULL,
 	`description` text NOT NULL,
 	`provider` text NOT NULL,
-	`model` text NOT NULL
+	`model` text NOT NULL,
+	`model_path` text NOT NULL,
+	`config` blob,
+	`is_default` integer DEFAULT false NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `mcp` (

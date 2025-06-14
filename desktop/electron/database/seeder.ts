@@ -99,20 +99,9 @@ export async function seedDatabase() {
       })
   )))
 
-  // llm
+  // local llm
   const llms: typeof llm.$inferInsert[] = [
-    { id: 2, display_name: "GPT-4 Turbo", description: "Latest OpenAI model with strong reasoning", provider: "OpenAI", model: 'gpt-4-turbo' },
-    { id: 1, display_name: "Claude Opus 4", description: "Powerful, large model for complex challenges", provider: "Anthropic", model: 'claude-4-opus' },
-    { id: 3, display_name: "GPT-3.5 Turbo", description: "Fast and cost-effective assistant", provider: "OpenAI", model: 'gpt-3.5-turbo' },
-    { id: 4, display_name: "Claude Sonnet 4", description: "Smart, efficient model for everyday use", provider: "Anthropic", model: 'claude-4-sonnet' },
-    { id: 5, display_name: "Claude Haiku", description: "Ultra-fast model for simple tasks", provider: "Anthropic", model: 'claude-haiku' },
-    { id: 6, display_name: "Gemini Pro", description: "Google's powerful multimodal model", provider: "Google", model: 'gemini-pro' },
-    { id: 7, display_name: "Llama 3 70B", description: "Meta's open model with strong capabilities", provider: "Meta", model: 'llama-3-70b' },
-    { id: 8, display_name: "Mistral Large", description: "High-performance model with strong reasoning", provider: "Mistral AI", model: 'mistral-large' },
-    { id: 9, display_name: "Gemini Ultra", description: "Google's most advanced multimodal model", provider: "Google", model: 'gemini-ultra' },
-    { id: 10, display_name: "Llama 3 8B", description: "Efficient open model for everyday tasks", provider: "Meta", model: 'llama-3-8b' },
-    { id: 11, display_name: "Command R+", description: "Cohere's powerful reasoning model", provider: "Cohere", model: 'command-r-plus' },
-    { id: 12, display_name: "Mixtral 8x7B", description: "High-quality mixture of experts model", provider: "Mistral AI", model: 'mixtral-8x7b' }
+    { id: 1, display_name: "Mistral Nemo", description: "A powerful, open-source model for complex tasks", provider: "Mistral AI", model: 'mistral-nemo', model_path: 'mistral-nemo.gguf', is_default: true },
   ]
   await Promise.all(llms.map(llmData => (
     database()

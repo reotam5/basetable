@@ -14,6 +14,7 @@ import { useParams } from "@tanstack/react-router";
 import debounce from "lodash.debounce";
 import { ArrowDown, Bot, Clock, Paperclip, Send, Server, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatedText } from "./animated-text";
 import { MessageContent } from "./message-content";
 import { Textarea } from "./ui/textarea";
 
@@ -31,13 +32,15 @@ interface UIMessage {
 }
 
 // Helper function to convert backend messages to UI messages
-function backendToUIMessage(backendMsg: NonNullable<ReturnType<typeof useChat>['messages']>[number]): UIMessage {
+function backendToUIMessage(
+  backendMsg: NonNullable<ReturnType<typeof useChat>["messages"]>[number]
+): UIMessage {
   return {
     id: backendMsg?.id?.toString(),
-    type: backendMsg?.type as 'user' | 'assistant' | 'system',
+    type: backendMsg?.type as "user" | "assistant" | "system",
     content: backendMsg?.content ?? "",
     timestamp: new Date(backendMsg.created_at!),
-    status: backendMsg?.status as 'success' | 'pending' | 'error',
+    status: backendMsg?.status as "success" | "pending" | "error",
     // These would be populated from  metadata
     agents: undefined,
     mcpServers: undefined,
@@ -69,12 +72,14 @@ export function ChatInterface() {
   const { data: llms } = use({ fetcher: llmsFetcher });
   const {
     chatTitle,
+    newChatIds,
     messages: backendMessages,
     selectedLLM,
     setSelectedLLM,
     error,
     isLoading,
     isSending,
+    isWaitingAI,
     sendMessage,
     isAgentResponding,
     cancel,
@@ -267,11 +272,11 @@ export function ChatInterface() {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !isSending) {
+    if (e.key === "Enter" && !e.shiftKey && !isSending && !isWaitingAI) {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend, isSending]);
+  }, [handleSend, isSending, isWaitingAI]);
 
 
   const handleAttachClick = useCallback(() => {
@@ -399,9 +404,20 @@ export function ChatInterface() {
             </div>
           </div>
         ))}
+        {isWaitingAI && (
+          <div className="text-left">
+            <div className="ml-3 py-2">
+              <div className="typing-ellipsis">
+                <div className="dot"></div>
+                <div className="dot"></div>
+                <div className="dot"></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
-  }, [messages, expandedMessages, toggleMessageExpansion, filePreviews]);
+  }, [messages, isWaitingAI, filePreviews, expandedMessages, toggleMessageExpansion]);
 
   return (
     <div className="flex-1 flex flex-col pt-[-5px] min-h-[calc(100vh-3.5rem-1px)]">
@@ -409,7 +425,15 @@ export function ChatInterface() {
       <div className="sticky top-[57px] z-20 bg-gradient-to-b from-white via-white/80 to-transparent dark:from-neutral-950 dark:via-neutral-950/80 dark:to-transparent p-3">
         <div className="grid grid-cols-1 justify-items-center">
           <div className="w-full max-w-4xl px-3 grid">
-            <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100 truncate col-span-1 min-w-0">{chatTitle}</h1>
+            <h1 className="text-lg font-medium text-gray-900 dark:text-gray-100 truncate col-span-1 min-w-0">
+              {
+                newChatIds.includes(Number(chatId)) ? (
+                  <AnimatedText text={chatTitle!} />
+                ) : (
+                  chatTitle
+                )
+              }
+            </h1>
           </div>
         </div>
       </div>
@@ -433,17 +457,6 @@ export function ChatInterface() {
           )}
 
           {!isLoading && !error && renderedMessages}
-
-          {isSending && (
-            <div className="text-left">
-              <div className="flex gap-1 ml-3">
-                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce"></div>
-              </div>
-            </div>
-          )}
-
           <div ref={messagesEndRef}></div>
         </div>
       </div>
@@ -569,11 +582,11 @@ export function ChatInterface() {
                   ) : (
                     <Button
                       onClick={handleSend}
-                      disabled={!inputValue.trim() || isSending}
+                      disabled={!inputValue.trim() || isSending || isWaitingAI}
                       size="icon"
                       variant="ghost"
                     >
-                      {isSending ? (
+                      {(isSending || isWaitingAI) ? (
                         <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
                       ) : (
                         <Send className="w-3.5 h-3.5" />

@@ -2,6 +2,7 @@ import { useChatSearch } from "@/hooks/use-chat-search";
 import { useMatches, useNavigate } from "@tanstack/react-router";
 import { Check, Edit, MoreHorizontal, Trash, X } from "lucide-react";
 import * as React from "react";
+import { AnimatedText } from "./animated-text";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -23,6 +24,7 @@ export function ChatMenuItems() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [chatToDelete, setChatToDelete] = React.useState<{ id: number; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [loadingChatId, setLoadingChatId] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const onChatCreated = () => refetch();
@@ -30,6 +32,15 @@ export function ChatMenuItems() {
     return () => {
       window.removeEventListener("sidebar.refresh", onChatCreated);
     }
+  }, [refetch])
+
+  React.useEffect(() => {
+    const cleanup = window.electronAPI.chat.onTitleUpdate((chatId: number) => {
+      refetch();
+      setLoadingChatId(chatId)
+    });
+
+    return () => cleanup()
   }, [refetch])
 
   // Handle starting edit mode
@@ -168,11 +179,23 @@ export function ChatMenuItems() {
                 </Button>
               </div>
             ) : (
-              <span className="truncate">{item.title}</span>
+              item.title ? (
+                <span className="truncate">
+                  {
+                    loadingChatId === item.id ? (
+                      <AnimatedText text={item.title} />
+                    ) : (
+                      item.title
+                    )
+                  }
+                </span>
+              ) : (
+                <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
+              )
             )}
           </SidebarMenuButton>
 
-          {editingChatId !== item.id && (
+          {editingChatId !== item.id && item.title && (
             <SidebarMenuAction showOnHover>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
