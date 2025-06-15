@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
-import { mcp, user_mcp } from "./mcp.js";
+import { user_mcp } from "./mcp.js";
 import { user } from "./user.js";
 
 export const api_key = sqliteTable("api_key", {
@@ -9,7 +9,7 @@ export const api_key = sqliteTable("api_key", {
   value: text().notNull(),
   last_used: integer({ mode: 'timestamp' }),
   user_id: text().notNull().references(() => user.id, { onDelete: 'cascade' }),
-  user_mcp_id: integer().notNull().references(() => mcp.id, { onDelete: 'cascade' }),
+  user_mcp_id: integer().notNull().references(() => user_mcp.id, { onDelete: 'cascade' }),
 }, (table) => [
   unique().on(table.user_id, table.name)
 ])
