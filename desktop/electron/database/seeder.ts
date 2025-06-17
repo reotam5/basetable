@@ -101,7 +101,7 @@ export async function seedDatabase() {
 
   // local llm
   const llms: typeof llm.$inferInsert[] = [
-    { id: 1, display_name: "Mistral Nemo", description: "A powerful, open-source model for complex tasks", provider: "Mistral AI", model: 'mistral-nemo', model_path: 'mistral-nemo.gguf', is_default: true },
+    { id: 1, display_name: "Mistral Nemo", description: "A powerful, open-source model for complex tasks", provider: "Mistral AI", model: 'mistral-nemo', model_path: 'mistral-nemo.gguf', is_default: true, download_url: 'hf:mradermacher/Mistral-Nemo-Instruct-2407-GGUF:Q4_K_M' },
   ]
   await Promise.all(llms.map(llmData => (
     database()
@@ -113,7 +113,11 @@ export async function seedDatabase() {
           display_name: llmData.display_name,
           description: llmData.description,
           provider: llmData.provider,
-          model: llmData.model
+          model: llmData.model,
+          download_url: llmData.download_url,
+          model_path: llmData.model_path,
+          is_default: llmData.is_default,
+          config: llmData.config || {},
         }
       })
   )))

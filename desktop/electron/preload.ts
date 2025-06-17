@@ -4,6 +4,7 @@ import Store from "electron-store";
 import { AuthAccessToken, AuthLogin, AuthProfile } from "./events/auth-events";
 import { DatabaseGetEncryption } from "./events/database-events";
 import { PaymentPurchase } from "./events/payment-events";
+import { WindowScreenChange } from "./events/window-events";
 import { AgentService, AgentStyleService, APIKeyService, ChatService, LLMService, MCPService, MessageService, SettingService } from "./services";
 
 console.log("Preload script loading...");
@@ -81,9 +82,9 @@ const electronAPI = {
     onLogoutComplete: (callback: () => void) => handler.on("auth.logout.complete", callback),
   },
   window: {
-    resize: {
-      onboarding: () => handler.send("window.resize.onboarding"),
-    },
+    initialized: () => handler.send("window.initialized"),
+    onNavigate: (callback: (url: string) => void) => handler.on("window.navigate", callback),
+    screenChange: (screen: string) => handler.invoke('window.screenChange', screen) as ReturnType<typeof WindowScreenChange.prototype.execute>,
   },
   payment: {
     purchase: (amount: number) => handler.invoke("payment.purchase", amount) as ReturnType<typeof PaymentPurchase.prototype.execute>,
@@ -136,6 +137,20 @@ const electronAPI = {
   },
   llm: {
     getAll: () => handler.invoke("llm.getAll") as ReturnType<typeof LLMService.getLLMs>,
+    getAllLocal: () => handler.invoke("llm.getAllLocal") as ReturnType<typeof LLMService.getLocalLLMs>,
+    download: (data: Parameters<typeof LLMService.downloadLLM>[0]) => handler.invoke("llm.download", data) as ReturnType<typeof LLMService.downloadLLM>,
+    cancelDownload: (data: Parameters<typeof LLMService.cancelDownload>[0]) => handler.invoke("llm.cancelDownload", data) as ReturnType<typeof LLMService.cancelDownload>,
+    onStatusUpdate: (callback: (status: {
+      progress: number;
+      totalSize: number;
+      downloadedSize: number;
+      elapsedTime: number;
+      speed: number;
+      eta: number;
+      url: string;
+      isComplete: boolean;
+    }) => void) => handler.on("llm.statusUpdate", callback),
+    delete: (data: Parameters<typeof LLMService.deleteLLM>[0]) => handler.invoke("llm.delete", data) as ReturnType<typeof LLMService.deleteLLM>,
   },
   db: {
     encryption: {

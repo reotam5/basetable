@@ -67,7 +67,7 @@ function getFilePreviews(messages: UIMessage[]) {
 }
 
 export function ChatInterface() {
-  const { chatId } = useParams({ from: '/chat/$chatId' });
+  const { chatId } = useParams({ from: '/__app_layout/chat/$chatId' });
   const llmsFetcher = useCallback(async () => await window.electronAPI.llm.getAll(), []);
   const { data: llms } = use({ fetcher: llmsFetcher });
   const {

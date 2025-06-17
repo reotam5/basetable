@@ -10,15 +10,15 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/auth-context"
 import { useMatches, useNavigate } from "@tanstack/react-router"
-import { Bell, LogOut, User } from "lucide-react"
+import { Bell, LogOut } from "lucide-react"
 import { Fragment, useState } from "react"
 import { CommandMenu } from "./command-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet"
 
 const ROUTE_BREADCRUMB_MAP: Record<string, string[]> = {
-  "/": ["Home", "New Chat"],
-  "/chats": ["Home", "Chat History"],
+  "/chats": ["Home", "New Chat"],
+  "/chats/search": ["Home", "Chat History"],
   "/chat/$chatId": ["Home", "Chat"],
   "/agent": ["Home", "Main Agent"],
   "/agents": ["Home", "New Agent"],
@@ -151,11 +151,6 @@ export function SiteHeader() {
                   </p>
                 </div>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />

@@ -11,27 +11,35 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as _app_layoutRouteImport } from './routes/__app_layout'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as McpServersIndexRouteImport } from './routes/mcp-servers/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as ChatsIndexRouteImport } from './routes/chats/index'
-import { Route as AgentsIndexRouteImport } from './routes/agents/index'
-import { Route as AgentIndexRouteImport } from './routes/agent/index'
-import { Route as SettingsLayoutRouteImport } from './routes/settings/_layout'
-import { Route as ChatChatIdRouteImport } from './routes/chat/$chatId'
-import { Route as AgentAgentIdRouteImport } from './routes/agent/$agentId'
-import { Route as SettingsLayoutSecurityRouteImport } from './routes/settings/_layout.security'
-import { Route as SettingsLayoutPrivacyRouteImport } from './routes/settings/_layout.privacy'
-import { Route as SettingsLayoutDataRouteImport } from './routes/settings/_layout.data'
-import { Route as SettingsLayoutBillingRouteImport } from './routes/settings/_layout.billing'
-import { Route as SettingsLayoutAppearanceRouteImport } from './routes/settings/_layout.appearance'
-import { Route as SettingsLayoutAccountRouteImport } from './routes/settings/_layout.account'
+import { Route as SigninIndexRouteImport } from './routes/signin/index'
+import { Route as ModelDownloadIndexRouteImport } from './routes/model-download/index'
+import { Route as LoadingPostLoginRouteImport } from './routes/loading/post-login'
+import { Route as LoadingModelDownloadRouteImport } from './routes/loading/model-download'
+import { Route as _app_layoutMcpServersIndexRouteImport } from './routes/__app_layout/mcp-servers/index'
+import { Route as _app_layoutDashboardIndexRouteImport } from './routes/__app_layout/dashboard/index'
+import { Route as _app_layoutChatsIndexRouteImport } from './routes/__app_layout/chats/index'
+import { Route as _app_layoutAgentsIndexRouteImport } from './routes/__app_layout/agents/index'
+import { Route as _app_layoutAgentIndexRouteImport } from './routes/__app_layout/agent/index'
+import { Route as _app_layoutSettingsLayoutRouteImport } from './routes/__app_layout/settings/_layout'
+import { Route as _app_layoutChatsSearchRouteImport } from './routes/__app_layout/chats/search'
+import { Route as _app_layoutChatChatIdRouteImport } from './routes/__app_layout/chat/$chatId'
+import { Route as _app_layoutAgentAgentIdRouteImport } from './routes/__app_layout/agent/$agentId'
+import { Route as _app_layoutSettingsLayoutSecurityRouteImport } from './routes/__app_layout/settings/_layout.security'
+import { Route as _app_layoutSettingsLayoutPrivacyRouteImport } from './routes/__app_layout/settings/_layout.privacy'
+import { Route as _app_layoutSettingsLayoutLlmRouteImport } from './routes/__app_layout/settings/_layout.llm'
+import { Route as _app_layoutSettingsLayoutDataRouteImport } from './routes/__app_layout/settings/_layout.data'
+import { Route as _app_layoutSettingsLayoutBillingRouteImport } from './routes/__app_layout/settings/_layout.billing'
+import { Route as _app_layoutSettingsLayoutAppearanceRouteImport } from './routes/__app_layout/settings/_layout.appearance'
+import { Route as _app_layoutSettingsLayoutAccountRouteImport } from './routes/__app_layout/settings/_layout.account'
 
-const SettingsRouteImport = createFileRoute('/settings')()
+const _app_layoutSettingsRouteImport = createFileRoute(
+  '/__app_layout/settings',
+)()
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const _app_layoutRoute = _app_layoutRouteImport.update({
+  id: '/__app_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -39,136 +47,204 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const McpServersIndexRoute = McpServersIndexRouteImport.update({
-  id: '/mcp-servers/',
-  path: '/mcp-servers/',
+const _app_layoutSettingsRoute = _app_layoutSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => _app_layoutRoute,
+} as any)
+const SigninIndexRoute = SigninIndexRouteImport.update({
+  id: '/signin/',
+  path: '/signin/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/dashboard/',
-  path: '/dashboard/',
+const ModelDownloadIndexRoute = ModelDownloadIndexRouteImport.update({
+  id: '/model-download/',
+  path: '/model-download/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChatsIndexRoute = ChatsIndexRouteImport.update({
+const LoadingPostLoginRoute = LoadingPostLoginRouteImport.update({
+  id: '/loading/post-login',
+  path: '/loading/post-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoadingModelDownloadRoute = LoadingModelDownloadRouteImport.update({
+  id: '/loading/model-download',
+  path: '/loading/model-download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const _app_layoutMcpServersIndexRoute =
+  _app_layoutMcpServersIndexRouteImport.update({
+    id: '/mcp-servers/',
+    path: '/mcp-servers/',
+    getParentRoute: () => _app_layoutRoute,
+  } as any)
+const _app_layoutDashboardIndexRoute =
+  _app_layoutDashboardIndexRouteImport.update({
+    id: '/dashboard/',
+    path: '/dashboard/',
+    getParentRoute: () => _app_layoutRoute,
+  } as any)
+const _app_layoutChatsIndexRoute = _app_layoutChatsIndexRouteImport.update({
   id: '/chats/',
   path: '/chats/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => _app_layoutRoute,
 } as any)
-const AgentsIndexRoute = AgentsIndexRouteImport.update({
+const _app_layoutAgentsIndexRoute = _app_layoutAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => _app_layoutRoute,
 } as any)
-const AgentIndexRoute = AgentIndexRouteImport.update({
+const _app_layoutAgentIndexRoute = _app_layoutAgentIndexRouteImport.update({
   id: '/agent/',
   path: '/agent/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => _app_layoutRoute,
 } as any)
-const SettingsLayoutRoute = SettingsLayoutRouteImport.update({
-  id: '/_layout',
-  getParentRoute: () => SettingsRoute,
+const _app_layoutSettingsLayoutRoute =
+  _app_layoutSettingsLayoutRouteImport.update({
+    id: '/_layout',
+    getParentRoute: () => _app_layoutSettingsRoute,
+  } as any)
+const _app_layoutChatsSearchRoute = _app_layoutChatsSearchRouteImport.update({
+  id: '/chats/search',
+  path: '/chats/search',
+  getParentRoute: () => _app_layoutRoute,
 } as any)
-const ChatChatIdRoute = ChatChatIdRouteImport.update({
+const _app_layoutChatChatIdRoute = _app_layoutChatChatIdRouteImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => _app_layoutRoute,
 } as any)
-const AgentAgentIdRoute = AgentAgentIdRouteImport.update({
+const _app_layoutAgentAgentIdRoute = _app_layoutAgentAgentIdRouteImport.update({
   id: '/agent/$agentId',
   path: '/agent/$agentId',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => _app_layoutRoute,
 } as any)
-const SettingsLayoutSecurityRoute = SettingsLayoutSecurityRouteImport.update({
-  id: '/security',
-  path: '/security',
-  getParentRoute: () => SettingsLayoutRoute,
-} as any)
-const SettingsLayoutPrivacyRoute = SettingsLayoutPrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => SettingsLayoutRoute,
-} as any)
-const SettingsLayoutDataRoute = SettingsLayoutDataRouteImport.update({
-  id: '/data',
-  path: '/data',
-  getParentRoute: () => SettingsLayoutRoute,
-} as any)
-const SettingsLayoutBillingRoute = SettingsLayoutBillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
-  getParentRoute: () => SettingsLayoutRoute,
-} as any)
-const SettingsLayoutAppearanceRoute =
-  SettingsLayoutAppearanceRouteImport.update({
+const _app_layoutSettingsLayoutSecurityRoute =
+  _app_layoutSettingsLayoutSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
+  } as any)
+const _app_layoutSettingsLayoutPrivacyRoute =
+  _app_layoutSettingsLayoutPrivacyRouteImport.update({
+    id: '/privacy',
+    path: '/privacy',
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
+  } as any)
+const _app_layoutSettingsLayoutLlmRoute =
+  _app_layoutSettingsLayoutLlmRouteImport.update({
+    id: '/llm',
+    path: '/llm',
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
+  } as any)
+const _app_layoutSettingsLayoutDataRoute =
+  _app_layoutSettingsLayoutDataRouteImport.update({
+    id: '/data',
+    path: '/data',
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
+  } as any)
+const _app_layoutSettingsLayoutBillingRoute =
+  _app_layoutSettingsLayoutBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
+  } as any)
+const _app_layoutSettingsLayoutAppearanceRoute =
+  _app_layoutSettingsLayoutAppearanceRouteImport.update({
     id: '/appearance',
     path: '/appearance',
-    getParentRoute: () => SettingsLayoutRoute,
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
   } as any)
-const SettingsLayoutAccountRoute = SettingsLayoutAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => SettingsLayoutRoute,
-} as any)
+const _app_layoutSettingsLayoutAccountRoute =
+  _app_layoutSettingsLayoutAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => _app_layoutSettingsLayoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/agent/$agentId': typeof AgentAgentIdRoute
-  '/chat/$chatId': typeof ChatChatIdRoute
-  '/settings': typeof SettingsLayoutRouteWithChildren
-  '/agent': typeof AgentIndexRoute
-  '/agents': typeof AgentsIndexRoute
-  '/chats': typeof ChatsIndexRoute
-  '/dashboard': typeof DashboardIndexRoute
-  '/mcp-servers': typeof McpServersIndexRoute
-  '/settings/account': typeof SettingsLayoutAccountRoute
-  '/settings/appearance': typeof SettingsLayoutAppearanceRoute
-  '/settings/billing': typeof SettingsLayoutBillingRoute
-  '/settings/data': typeof SettingsLayoutDataRoute
-  '/settings/privacy': typeof SettingsLayoutPrivacyRoute
-  '/settings/security': typeof SettingsLayoutSecurityRoute
+  '/loading/model-download': typeof LoadingModelDownloadRoute
+  '/loading/post-login': typeof LoadingPostLoginRoute
+  '/model-download': typeof ModelDownloadIndexRoute
+  '/signin': typeof SigninIndexRoute
+  '/agent/$agentId': typeof _app_layoutAgentAgentIdRoute
+  '/chat/$chatId': typeof _app_layoutChatChatIdRoute
+  '/chats/search': typeof _app_layoutChatsSearchRoute
+  '/settings': typeof _app_layoutSettingsLayoutRouteWithChildren
+  '/agent': typeof _app_layoutAgentIndexRoute
+  '/agents': typeof _app_layoutAgentsIndexRoute
+  '/chats': typeof _app_layoutChatsIndexRoute
+  '/dashboard': typeof _app_layoutDashboardIndexRoute
+  '/mcp-servers': typeof _app_layoutMcpServersIndexRoute
+  '/settings/account': typeof _app_layoutSettingsLayoutAccountRoute
+  '/settings/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
+  '/settings/billing': typeof _app_layoutSettingsLayoutBillingRoute
+  '/settings/data': typeof _app_layoutSettingsLayoutDataRoute
+  '/settings/llm': typeof _app_layoutSettingsLayoutLlmRoute
+  '/settings/privacy': typeof _app_layoutSettingsLayoutPrivacyRoute
+  '/settings/security': typeof _app_layoutSettingsLayoutSecurityRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/agent/$agentId': typeof AgentAgentIdRoute
-  '/chat/$chatId': typeof ChatChatIdRoute
-  '/settings': typeof SettingsLayoutRouteWithChildren
-  '/agent': typeof AgentIndexRoute
-  '/agents': typeof AgentsIndexRoute
-  '/chats': typeof ChatsIndexRoute
-  '/dashboard': typeof DashboardIndexRoute
-  '/mcp-servers': typeof McpServersIndexRoute
-  '/settings/account': typeof SettingsLayoutAccountRoute
-  '/settings/appearance': typeof SettingsLayoutAppearanceRoute
-  '/settings/billing': typeof SettingsLayoutBillingRoute
-  '/settings/data': typeof SettingsLayoutDataRoute
-  '/settings/privacy': typeof SettingsLayoutPrivacyRoute
-  '/settings/security': typeof SettingsLayoutSecurityRoute
+  '/loading/model-download': typeof LoadingModelDownloadRoute
+  '/loading/post-login': typeof LoadingPostLoginRoute
+  '/model-download': typeof ModelDownloadIndexRoute
+  '/signin': typeof SigninIndexRoute
+  '/agent/$agentId': typeof _app_layoutAgentAgentIdRoute
+  '/chat/$chatId': typeof _app_layoutChatChatIdRoute
+  '/chats/search': typeof _app_layoutChatsSearchRoute
+  '/settings': typeof _app_layoutSettingsLayoutRouteWithChildren
+  '/agent': typeof _app_layoutAgentIndexRoute
+  '/agents': typeof _app_layoutAgentsIndexRoute
+  '/chats': typeof _app_layoutChatsIndexRoute
+  '/dashboard': typeof _app_layoutDashboardIndexRoute
+  '/mcp-servers': typeof _app_layoutMcpServersIndexRoute
+  '/settings/account': typeof _app_layoutSettingsLayoutAccountRoute
+  '/settings/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
+  '/settings/billing': typeof _app_layoutSettingsLayoutBillingRoute
+  '/settings/data': typeof _app_layoutSettingsLayoutDataRoute
+  '/settings/llm': typeof _app_layoutSettingsLayoutLlmRoute
+  '/settings/privacy': typeof _app_layoutSettingsLayoutPrivacyRoute
+  '/settings/security': typeof _app_layoutSettingsLayoutSecurityRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/agent/$agentId': typeof AgentAgentIdRoute
-  '/chat/$chatId': typeof ChatChatIdRoute
-  '/settings': typeof SettingsRouteWithChildren
-  '/settings/_layout': typeof SettingsLayoutRouteWithChildren
-  '/agent/': typeof AgentIndexRoute
-  '/agents/': typeof AgentsIndexRoute
-  '/chats/': typeof ChatsIndexRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/mcp-servers/': typeof McpServersIndexRoute
-  '/settings/_layout/account': typeof SettingsLayoutAccountRoute
-  '/settings/_layout/appearance': typeof SettingsLayoutAppearanceRoute
-  '/settings/_layout/billing': typeof SettingsLayoutBillingRoute
-  '/settings/_layout/data': typeof SettingsLayoutDataRoute
-  '/settings/_layout/privacy': typeof SettingsLayoutPrivacyRoute
-  '/settings/_layout/security': typeof SettingsLayoutSecurityRoute
+  '/__app_layout': typeof _app_layoutRouteWithChildren
+  '/loading/model-download': typeof LoadingModelDownloadRoute
+  '/loading/post-login': typeof LoadingPostLoginRoute
+  '/model-download/': typeof ModelDownloadIndexRoute
+  '/signin/': typeof SigninIndexRoute
+  '/__app_layout/agent/$agentId': typeof _app_layoutAgentAgentIdRoute
+  '/__app_layout/chat/$chatId': typeof _app_layoutChatChatIdRoute
+  '/__app_layout/chats/search': typeof _app_layoutChatsSearchRoute
+  '/__app_layout/settings': typeof _app_layoutSettingsRouteWithChildren
+  '/__app_layout/settings/_layout': typeof _app_layoutSettingsLayoutRouteWithChildren
+  '/__app_layout/agent/': typeof _app_layoutAgentIndexRoute
+  '/__app_layout/agents/': typeof _app_layoutAgentsIndexRoute
+  '/__app_layout/chats/': typeof _app_layoutChatsIndexRoute
+  '/__app_layout/dashboard/': typeof _app_layoutDashboardIndexRoute
+  '/__app_layout/mcp-servers/': typeof _app_layoutMcpServersIndexRoute
+  '/__app_layout/settings/_layout/account': typeof _app_layoutSettingsLayoutAccountRoute
+  '/__app_layout/settings/_layout/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
+  '/__app_layout/settings/_layout/billing': typeof _app_layoutSettingsLayoutBillingRoute
+  '/__app_layout/settings/_layout/data': typeof _app_layoutSettingsLayoutDataRoute
+  '/__app_layout/settings/_layout/llm': typeof _app_layoutSettingsLayoutLlmRoute
+  '/__app_layout/settings/_layout/privacy': typeof _app_layoutSettingsLayoutPrivacyRoute
+  '/__app_layout/settings/_layout/security': typeof _app_layoutSettingsLayoutSecurityRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/loading/model-download'
+    | '/loading/post-login'
+    | '/model-download'
+    | '/signin'
     | '/agent/$agentId'
     | '/chat/$chatId'
+    | '/chats/search'
     | '/settings'
     | '/agent'
     | '/agents'
@@ -179,13 +255,19 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/billing'
     | '/settings/data'
+    | '/settings/llm'
     | '/settings/privacy'
     | '/settings/security'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/loading/model-download'
+    | '/loading/post-login'
+    | '/model-download'
+    | '/signin'
     | '/agent/$agentId'
     | '/chat/$chatId'
+    | '/chats/search'
     | '/settings'
     | '/agent'
     | '/agents'
@@ -196,47 +278,52 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/billing'
     | '/settings/data'
+    | '/settings/llm'
     | '/settings/privacy'
     | '/settings/security'
   id:
     | '__root__'
     | '/'
-    | '/agent/$agentId'
-    | '/chat/$chatId'
-    | '/settings'
-    | '/settings/_layout'
-    | '/agent/'
-    | '/agents/'
-    | '/chats/'
-    | '/dashboard/'
-    | '/mcp-servers/'
-    | '/settings/_layout/account'
-    | '/settings/_layout/appearance'
-    | '/settings/_layout/billing'
-    | '/settings/_layout/data'
-    | '/settings/_layout/privacy'
-    | '/settings/_layout/security'
+    | '/__app_layout'
+    | '/loading/model-download'
+    | '/loading/post-login'
+    | '/model-download/'
+    | '/signin/'
+    | '/__app_layout/agent/$agentId'
+    | '/__app_layout/chat/$chatId'
+    | '/__app_layout/chats/search'
+    | '/__app_layout/settings'
+    | '/__app_layout/settings/_layout'
+    | '/__app_layout/agent/'
+    | '/__app_layout/agents/'
+    | '/__app_layout/chats/'
+    | '/__app_layout/dashboard/'
+    | '/__app_layout/mcp-servers/'
+    | '/__app_layout/settings/_layout/account'
+    | '/__app_layout/settings/_layout/appearance'
+    | '/__app_layout/settings/_layout/billing'
+    | '/__app_layout/settings/_layout/data'
+    | '/__app_layout/settings/_layout/llm'
+    | '/__app_layout/settings/_layout/privacy'
+    | '/__app_layout/settings/_layout/security'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AgentAgentIdRoute: typeof AgentAgentIdRoute
-  ChatChatIdRoute: typeof ChatChatIdRoute
-  SettingsRoute: typeof SettingsRouteWithChildren
-  AgentIndexRoute: typeof AgentIndexRoute
-  AgentsIndexRoute: typeof AgentsIndexRoute
-  ChatsIndexRoute: typeof ChatsIndexRoute
-  DashboardIndexRoute: typeof DashboardIndexRoute
-  McpServersIndexRoute: typeof McpServersIndexRoute
+  _app_layoutRoute: typeof _app_layoutRouteWithChildren
+  LoadingModelDownloadRoute: typeof LoadingModelDownloadRoute
+  LoadingPostLoginRoute: typeof LoadingPostLoginRoute
+  ModelDownloadIndexRoute: typeof ModelDownloadIndexRoute
+  SigninIndexRoute: typeof SigninIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/__app_layout': {
+      id: '/__app_layout'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof _app_layoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -246,151 +333,233 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/mcp-servers/': {
-      id: '/mcp-servers/'
-      path: '/mcp-servers'
-      fullPath: '/mcp-servers'
-      preLoaderRoute: typeof McpServersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chats/': {
-      id: '/chats/'
-      path: '/chats'
-      fullPath: '/chats'
-      preLoaderRoute: typeof ChatsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agents/': {
-      id: '/agents/'
-      path: '/agents'
-      fullPath: '/agents'
-      preLoaderRoute: typeof AgentsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agent/': {
-      id: '/agent/'
-      path: '/agent'
-      fullPath: '/agent'
-      preLoaderRoute: typeof AgentIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings/_layout': {
-      id: '/settings/_layout'
+    '/__app_layout/settings': {
+      id: '/__app_layout/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof SettingsLayoutRouteImport
-      parentRoute: typeof SettingsRoute
+      preLoaderRoute: typeof _app_layoutSettingsRouteImport
+      parentRoute: typeof _app_layoutRoute
     }
-    '/chat/$chatId': {
-      id: '/chat/$chatId'
+    '/signin/': {
+      id: '/signin/'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/model-download/': {
+      id: '/model-download/'
+      path: '/model-download'
+      fullPath: '/model-download'
+      preLoaderRoute: typeof ModelDownloadIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loading/post-login': {
+      id: '/loading/post-login'
+      path: '/loading/post-login'
+      fullPath: '/loading/post-login'
+      preLoaderRoute: typeof LoadingPostLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loading/model-download': {
+      id: '/loading/model-download'
+      path: '/loading/model-download'
+      fullPath: '/loading/model-download'
+      preLoaderRoute: typeof LoadingModelDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/__app_layout/mcp-servers/': {
+      id: '/__app_layout/mcp-servers/'
+      path: '/mcp-servers'
+      fullPath: '/mcp-servers'
+      preLoaderRoute: typeof _app_layoutMcpServersIndexRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/dashboard/': {
+      id: '/__app_layout/dashboard/'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof _app_layoutDashboardIndexRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/chats/': {
+      id: '/__app_layout/chats/'
+      path: '/chats'
+      fullPath: '/chats'
+      preLoaderRoute: typeof _app_layoutChatsIndexRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/agents/': {
+      id: '/__app_layout/agents/'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof _app_layoutAgentsIndexRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/agent/': {
+      id: '/__app_layout/agent/'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof _app_layoutAgentIndexRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/settings/_layout': {
+      id: '/__app_layout/settings/_layout'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof _app_layoutSettingsLayoutRouteImport
+      parentRoute: typeof _app_layoutSettingsRoute
+    }
+    '/__app_layout/chats/search': {
+      id: '/__app_layout/chats/search'
+      path: '/chats/search'
+      fullPath: '/chats/search'
+      preLoaderRoute: typeof _app_layoutChatsSearchRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/chat/$chatId': {
+      id: '/__app_layout/chat/$chatId'
       path: '/chat/$chatId'
       fullPath: '/chat/$chatId'
-      preLoaderRoute: typeof ChatChatIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof _app_layoutChatChatIdRouteImport
+      parentRoute: typeof _app_layoutRoute
     }
-    '/agent/$agentId': {
-      id: '/agent/$agentId'
+    '/__app_layout/agent/$agentId': {
+      id: '/__app_layout/agent/$agentId'
       path: '/agent/$agentId'
       fullPath: '/agent/$agentId'
-      preLoaderRoute: typeof AgentAgentIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof _app_layoutAgentAgentIdRouteImport
+      parentRoute: typeof _app_layoutRoute
     }
-    '/settings/_layout/security': {
-      id: '/settings/_layout/security'
+    '/__app_layout/settings/_layout/security': {
+      id: '/__app_layout/settings/_layout/security'
       path: '/security'
       fullPath: '/settings/security'
-      preLoaderRoute: typeof SettingsLayoutSecurityRouteImport
-      parentRoute: typeof SettingsLayoutRoute
+      preLoaderRoute: typeof _app_layoutSettingsLayoutSecurityRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
-    '/settings/_layout/privacy': {
-      id: '/settings/_layout/privacy'
+    '/__app_layout/settings/_layout/privacy': {
+      id: '/__app_layout/settings/_layout/privacy'
       path: '/privacy'
       fullPath: '/settings/privacy'
-      preLoaderRoute: typeof SettingsLayoutPrivacyRouteImport
-      parentRoute: typeof SettingsLayoutRoute
+      preLoaderRoute: typeof _app_layoutSettingsLayoutPrivacyRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
-    '/settings/_layout/data': {
-      id: '/settings/_layout/data'
+    '/__app_layout/settings/_layout/llm': {
+      id: '/__app_layout/settings/_layout/llm'
+      path: '/llm'
+      fullPath: '/settings/llm'
+      preLoaderRoute: typeof _app_layoutSettingsLayoutLlmRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
+    }
+    '/__app_layout/settings/_layout/data': {
+      id: '/__app_layout/settings/_layout/data'
       path: '/data'
       fullPath: '/settings/data'
-      preLoaderRoute: typeof SettingsLayoutDataRouteImport
-      parentRoute: typeof SettingsLayoutRoute
+      preLoaderRoute: typeof _app_layoutSettingsLayoutDataRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
-    '/settings/_layout/billing': {
-      id: '/settings/_layout/billing'
+    '/__app_layout/settings/_layout/billing': {
+      id: '/__app_layout/settings/_layout/billing'
       path: '/billing'
       fullPath: '/settings/billing'
-      preLoaderRoute: typeof SettingsLayoutBillingRouteImport
-      parentRoute: typeof SettingsLayoutRoute
+      preLoaderRoute: typeof _app_layoutSettingsLayoutBillingRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
-    '/settings/_layout/appearance': {
-      id: '/settings/_layout/appearance'
+    '/__app_layout/settings/_layout/appearance': {
+      id: '/__app_layout/settings/_layout/appearance'
       path: '/appearance'
       fullPath: '/settings/appearance'
-      preLoaderRoute: typeof SettingsLayoutAppearanceRouteImport
-      parentRoute: typeof SettingsLayoutRoute
+      preLoaderRoute: typeof _app_layoutSettingsLayoutAppearanceRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
-    '/settings/_layout/account': {
-      id: '/settings/_layout/account'
+    '/__app_layout/settings/_layout/account': {
+      id: '/__app_layout/settings/_layout/account'
       path: '/account'
       fullPath: '/settings/account'
-      preLoaderRoute: typeof SettingsLayoutAccountRouteImport
-      parentRoute: typeof SettingsLayoutRoute
+      preLoaderRoute: typeof _app_layoutSettingsLayoutAccountRouteImport
+      parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
   }
 }
 
-interface SettingsLayoutRouteChildren {
-  SettingsLayoutAccountRoute: typeof SettingsLayoutAccountRoute
-  SettingsLayoutAppearanceRoute: typeof SettingsLayoutAppearanceRoute
-  SettingsLayoutBillingRoute: typeof SettingsLayoutBillingRoute
-  SettingsLayoutDataRoute: typeof SettingsLayoutDataRoute
-  SettingsLayoutPrivacyRoute: typeof SettingsLayoutPrivacyRoute
-  SettingsLayoutSecurityRoute: typeof SettingsLayoutSecurityRoute
+interface _app_layoutSettingsLayoutRouteChildren {
+  _app_layoutSettingsLayoutAccountRoute: typeof _app_layoutSettingsLayoutAccountRoute
+  _app_layoutSettingsLayoutAppearanceRoute: typeof _app_layoutSettingsLayoutAppearanceRoute
+  _app_layoutSettingsLayoutBillingRoute: typeof _app_layoutSettingsLayoutBillingRoute
+  _app_layoutSettingsLayoutDataRoute: typeof _app_layoutSettingsLayoutDataRoute
+  _app_layoutSettingsLayoutLlmRoute: typeof _app_layoutSettingsLayoutLlmRoute
+  _app_layoutSettingsLayoutPrivacyRoute: typeof _app_layoutSettingsLayoutPrivacyRoute
+  _app_layoutSettingsLayoutSecurityRoute: typeof _app_layoutSettingsLayoutSecurityRoute
 }
 
-const SettingsLayoutRouteChildren: SettingsLayoutRouteChildren = {
-  SettingsLayoutAccountRoute: SettingsLayoutAccountRoute,
-  SettingsLayoutAppearanceRoute: SettingsLayoutAppearanceRoute,
-  SettingsLayoutBillingRoute: SettingsLayoutBillingRoute,
-  SettingsLayoutDataRoute: SettingsLayoutDataRoute,
-  SettingsLayoutPrivacyRoute: SettingsLayoutPrivacyRoute,
-  SettingsLayoutSecurityRoute: SettingsLayoutSecurityRoute,
+const _app_layoutSettingsLayoutRouteChildren: _app_layoutSettingsLayoutRouteChildren =
+  {
+    _app_layoutSettingsLayoutAccountRoute:
+      _app_layoutSettingsLayoutAccountRoute,
+    _app_layoutSettingsLayoutAppearanceRoute:
+      _app_layoutSettingsLayoutAppearanceRoute,
+    _app_layoutSettingsLayoutBillingRoute:
+      _app_layoutSettingsLayoutBillingRoute,
+    _app_layoutSettingsLayoutDataRoute: _app_layoutSettingsLayoutDataRoute,
+    _app_layoutSettingsLayoutLlmRoute: _app_layoutSettingsLayoutLlmRoute,
+    _app_layoutSettingsLayoutPrivacyRoute:
+      _app_layoutSettingsLayoutPrivacyRoute,
+    _app_layoutSettingsLayoutSecurityRoute:
+      _app_layoutSettingsLayoutSecurityRoute,
+  }
+
+const _app_layoutSettingsLayoutRouteWithChildren =
+  _app_layoutSettingsLayoutRoute._addFileChildren(
+    _app_layoutSettingsLayoutRouteChildren,
+  )
+
+interface _app_layoutSettingsRouteChildren {
+  _app_layoutSettingsLayoutRoute: typeof _app_layoutSettingsLayoutRouteWithChildren
 }
 
-const SettingsLayoutRouteWithChildren = SettingsLayoutRoute._addFileChildren(
-  SettingsLayoutRouteChildren,
-)
-
-interface SettingsRouteChildren {
-  SettingsLayoutRoute: typeof SettingsLayoutRouteWithChildren
+const _app_layoutSettingsRouteChildren: _app_layoutSettingsRouteChildren = {
+  _app_layoutSettingsLayoutRoute: _app_layoutSettingsLayoutRouteWithChildren,
 }
 
-const SettingsRouteChildren: SettingsRouteChildren = {
-  SettingsLayoutRoute: SettingsLayoutRouteWithChildren,
+const _app_layoutSettingsRouteWithChildren =
+  _app_layoutSettingsRoute._addFileChildren(_app_layoutSettingsRouteChildren)
+
+interface _app_layoutRouteChildren {
+  _app_layoutAgentAgentIdRoute: typeof _app_layoutAgentAgentIdRoute
+  _app_layoutChatChatIdRoute: typeof _app_layoutChatChatIdRoute
+  _app_layoutChatsSearchRoute: typeof _app_layoutChatsSearchRoute
+  _app_layoutSettingsRoute: typeof _app_layoutSettingsRouteWithChildren
+  _app_layoutAgentIndexRoute: typeof _app_layoutAgentIndexRoute
+  _app_layoutAgentsIndexRoute: typeof _app_layoutAgentsIndexRoute
+  _app_layoutChatsIndexRoute: typeof _app_layoutChatsIndexRoute
+  _app_layoutDashboardIndexRoute: typeof _app_layoutDashboardIndexRoute
+  _app_layoutMcpServersIndexRoute: typeof _app_layoutMcpServersIndexRoute
 }
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
+const _app_layoutRouteChildren: _app_layoutRouteChildren = {
+  _app_layoutAgentAgentIdRoute: _app_layoutAgentAgentIdRoute,
+  _app_layoutChatChatIdRoute: _app_layoutChatChatIdRoute,
+  _app_layoutChatsSearchRoute: _app_layoutChatsSearchRoute,
+  _app_layoutSettingsRoute: _app_layoutSettingsRouteWithChildren,
+  _app_layoutAgentIndexRoute: _app_layoutAgentIndexRoute,
+  _app_layoutAgentsIndexRoute: _app_layoutAgentsIndexRoute,
+  _app_layoutChatsIndexRoute: _app_layoutChatsIndexRoute,
+  _app_layoutDashboardIndexRoute: _app_layoutDashboardIndexRoute,
+  _app_layoutMcpServersIndexRoute: _app_layoutMcpServersIndexRoute,
+}
+
+const _app_layoutRouteWithChildren = _app_layoutRoute._addFileChildren(
+  _app_layoutRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AgentAgentIdRoute: AgentAgentIdRoute,
-  ChatChatIdRoute: ChatChatIdRoute,
-  SettingsRoute: SettingsRouteWithChildren,
-  AgentIndexRoute: AgentIndexRoute,
-  AgentsIndexRoute: AgentsIndexRoute,
-  ChatsIndexRoute: ChatsIndexRoute,
-  DashboardIndexRoute: DashboardIndexRoute,
-  McpServersIndexRoute: McpServersIndexRoute,
+  _app_layoutRoute: _app_layoutRouteWithChildren,
+  LoadingModelDownloadRoute: LoadingModelDownloadRoute,
+  LoadingPostLoginRoute: LoadingPostLoginRoute,
+  ModelDownloadIndexRoute: ModelDownloadIndexRoute,
+  SigninIndexRoute: SigninIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

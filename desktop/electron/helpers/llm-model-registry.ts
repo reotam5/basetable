@@ -4,7 +4,7 @@ import { LLMModelFactory } from "./llm-model-factory.js";
 
 class LLMModelRegistry {
   private models: Map<string, BaseLLMModel> = new Map();
-  private defaultModel!: BaseLLMModel;
+  private defaultModel: BaseLLMModel | null = null;
 
   async sync(): Promise<void> {
     const llms = await LLMService.getLLMs()
@@ -18,11 +18,19 @@ class LLMModelRegistry {
         await model.initialize();
         this.models.set(llm.id.toString(), model);
 
-        if (llm.is_default) {
+        if (llm.is_default && await model.isAvailable()) {
           this.defaultModel = model;
         }
       }
     }))
+    if (!this.defaultModel) {
+      for (const model of this.models.values()) {
+        if (await model.isAvailable()) {
+          this.defaultModel = model;
+          break;
+        }
+      }
+    }
   }
 
   getDefaultModel() {
@@ -31,19 +39,6 @@ class LLMModelRegistry {
 
   getModel(modelId: string): BaseLLMModel | undefined {
     return this.models.get(modelId);
-  }
-
-  getAllModels(): BaseLLMModel[] {
-    return Array.from(this.models.values());
-  }
-
-  async getAvailableModels(): Promise<BaseLLMModel[]> {
-    return Promise.all(
-      Array.from(this.models.values()).map(async (model) => {
-        const available = await model.isAvailable();
-        return available ? model : null;
-      })
-    ).then(models => models.filter(Boolean) as BaseLLMModel[]);
   }
 }
 

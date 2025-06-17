@@ -3,13 +3,12 @@ import { shell } from "electron";
 import Store from "electron-store";
 import { jwtDecode } from "jwt-decode";
 import { electronConfig } from "../config.js";
-import { seedDatabase } from "../database/seeder.js";
 import { UserService } from "../services/user-service.js";
-import { chatOrchestrator } from "./chat-orchestrator.js";
 import { Logger } from "./custom-logger.js";
 import { Window } from "./custom-window.js";
 import { KeyManager } from "./key-manager.js";
 import { PaymentHandler } from "./payment-handler.js";
+import { Screen, screenManager } from "./screen-manager.js";
 
 export interface UserProfile {
   given_name: string;
@@ -59,12 +58,30 @@ export class AuthHandler {
     AuthHandler.window = window;
   }
 
+  public async checkInitialAuth() {
+    screenManager.setScreen(Screen.PRE_LOGIN_LOADING);
+
+    const storedRefreshToken = await KeyManager.getKey(KeyManager.KEYS.REFRESH_TOKEN)
+    if (storedRefreshToken) {
+      await AuthHandler.getInstance().requestTokens({ refresh_token: storedRefreshToken, loginOnError: false, logoutOnError: true });
+
+      if (AuthHandler.profile) {
+        screenManager.setScreen(Screen.POST_LOGIN_LOADING)
+        return
+      }
+    }
+
+    await AuthHandler.getInstance().logout();
+    screenManager.setScreen(Screen.LOGIN);
+  }
+
   public async logout() {
     await KeyManager.deleteKey(KeyManager.KEYS.REFRESH_TOKEN)
     AuthHandler.appStateStore.set("onboarding-complete", false);
     AuthHandler.accessToken = null;
     AuthHandler.profile = null;
     AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGOUT_CALLBACK_EVENT)
+    screenManager.setScreen(Screen.LOGIN);
   }
 
   public async login(): Promise<void> {
@@ -116,9 +133,6 @@ export class AuthHandler {
           picture: AuthHandler.profile?.picture,
         })
       }
-      await seedDatabase();
-      await chatOrchestrator.loadLLMModels();
-      await chatOrchestrator.loadAgents();
 
       AuthHandler.window?.windowInstance.webContents.send(AuthHandler.LOGIN_CALLBACK_EVENT, {
         accessToken: AuthHandler.accessToken,
@@ -174,7 +188,7 @@ export class AuthHandler {
     await this.requestTokens({ code: code });
 
     AuthHandler.appStateStore.set("onboarding-complete", true);
-    AuthHandler.window?.moveToDefaults();
+    screenManager.setScreen(Screen.POST_LOGIN_LOADING);
   }
 
   public async getAccessToken(): Promise<string | null> {

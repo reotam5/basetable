@@ -15,6 +15,13 @@
       "when": 1749960112493,
       "tag": "0001_wild_warbird",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1750198267878,
+      "tag": "0002_freezing_outlaw_kid",
+      "breakpoints": true
     }
   ]
 }

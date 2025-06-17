@@ -205,8 +205,10 @@ class AgentService {
 
     const existing_agent = await this.getAgentById(id);
 
+    let name = 'New Agent'
     const defaultModel = LLMModelRegistry.getDefaultModel();
-    const { name } = await defaultModel.structuredResponse<{ name: string }>(`
+    if (defaultModel) {
+      const data = await defaultModel.structuredResponse<{ name: string }>(`
         <|system|>
         Given the agent's instruction and its available tools, generate a descriptive name for the agent. (Title Case 5 - 10 Words, Ending With Agent)
 
@@ -218,14 +220,16 @@ class AgentService {
 
         <|agent title|>
         `,
-      {
-        type: 'object',
-        properties: {
-          name: { type: 'string' }
-        },
-        required: ['name']
-      }
-    )
+        {
+          type: 'object',
+          properties: {
+            name: { type: 'string' }
+          },
+          required: ['name']
+        }
+      )
+      name = data.name;
+    }
 
     const [updatedAgent] = await database()
       .update(agent)

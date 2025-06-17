@@ -11,6 +11,7 @@ export const llm = sqliteTable("llm", {
   model_path: text().notNull(), // Path to the model file
   config: blob({ mode: "json" }).$type<Record<string, any>>(),
   is_default: integer({ mode: 'boolean' }).notNull().default(false), // default llm will be used for tasks like creating chat room names
+  download_url: text(),
 })
 
 export const llm_relations = relations(llm, ({ many }) => ({

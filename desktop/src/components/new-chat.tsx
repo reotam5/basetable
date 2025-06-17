@@ -202,7 +202,7 @@ export function NewChat() {
                 <DialogTrigger asChild>
                   <Button variant="ghost" className="h-8 px-3 text-xs border-0 flex items-center gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-700">
                     <span className="text-sm font-medium truncate max-w-[100px]">
-                      {selectedModelDetails?.display_name || "Claude Sonnet 4"}
+                      {selectedModelDetails?.display_name}
                     </span>
                     <ChevronDown className="h-3 w-3 opacity-70" />
                   </Button>

@@ -8,7 +8,6 @@ import {
 import Store from "electron-store";
 import path from "path";
 import { fileURLToPath } from "url";
-import { WindowResizeOnboarding } from "../events/window-events.js";
 import { Logger } from "./custom-logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,25 +16,20 @@ const __dirname = path.dirname(__filename);
 export class Window {
     private key = "window-state";
     private name: string;
-    private options: BrowserWindowConstructorOptions;
     private store: Store;
     private state: Rectangle | null = null;
     private window: BrowserWindow;
     public static readonly DEAFAULT_WIDTH = 1800;
     public static readonly DEFAULT_HEIGHT = 1000;
     public static appStateStore = new Store({ name: "app-state" });
+    private saveOnClose: boolean = false;
 
     constructor(
         windowName: string,
         options: BrowserWindowConstructorOptions,
     ) {
-        this.options = options;
         this.name = `window-state-${windowName}`;
-        this.resetToDefaults();
         this.store = new Store({ name: this.name });
-
-        this.restore();
-        this.ensureVisibleOnSomeDisplay();
 
         const browserOptions: BrowserWindowConstructorOptions = {
             ...options,
@@ -52,7 +46,9 @@ export class Window {
         this.window = new BrowserWindow(browserOptions);
 
         this.window.on("close", () => {
-            this.saveState();
+            if (this.saveOnClose) {
+                this.saveState();
+            }
         });
         this.window.on("blur", () => {
             this.window.webContents.send("window.state.blur");
@@ -73,15 +69,61 @@ export class Window {
         );
     }
 
-    public setResizable(resizable: boolean): void {
-        this.window.setResizable(resizable);
+    public setWindowPosition(data: {
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+        center?: boolean;
+        resizable?: boolean;
+        save?: boolean;
+        animated?: boolean;
+    }) {
+        const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+
+        const width = data.width ?? this.getCurrentPosition().width ?? Window.DEAFAULT_WIDTH;
+        const height = data.height ?? this.getCurrentPosition().height ?? Window.DEFAULT_HEIGHT;
+
+        const targetX = (screenWidth - width) / 2;
+        const targetY = (screenHeight - height) / 2;
+
+        this.window.setBounds({
+            x: data.center ? targetX : data.x ?? this.getCurrentPosition().x,
+            y: data.center ? targetY : data.y ?? this.getCurrentPosition().y,
+            width: width,
+            height: height,
+        }, data.animated);
+        if (data.resizable !== undefined) {
+            this.window.setResizable(data.resizable);
+        }
+        if (data.save) {
+            const { x, y, height, width } = this.getCurrentPosition();
+            this.state = {
+                x: x ?? 0,
+                y: y ?? 0,
+                width: width ?? Window.DEAFAULT_WIDTH,
+                height: height ?? Window.DEFAULT_HEIGHT,
+            };
+            this.saveState();
+        }
+        this.saveOnClose = data.save ?? false;
     }
 
     public restore(): void {
         this.state = this.store.get(this.key, this.state) as Rectangle;
+        this.setWindowPosition({
+            x: this.state?.x,
+            y: this.state?.y,
+            width: this.state?.width ?? Window.DEAFAULT_WIDTH,
+            height: this.state?.height ?? Window.DEFAULT_HEIGHT,
+            center: (this.state?.x || this.state?.y) ? false : true,
+            resizable: true,
+            save: true,
+            animated: true,
+        });
     }
 
-    public getCurrentPosition(): Rectangle {
+    private getCurrentPosition(): Rectangle {
         const position = this.window.getPosition();
         const size = this.window.getSize();
         return {
@@ -92,58 +134,11 @@ export class Window {
         };
     }
 
-    public windowWithinBounds(bounds: Rectangle): boolean {
-        return (
-            this.state!.x >= bounds.x &&
-            this.state!.y >= bounds.y &&
-            this.state!.x + this.state!.width <= bounds.x + bounds.width &&
-            this.state!.y + this.state!.height <= bounds.y + bounds.height
-        );
-    }
-
-    public moveToDefaults(): void {
-        this.resetToDefaults();
-        this.ensureVisibleOnSomeDisplay();
-        this.setBounds(this.state!);
-        this.setResizable(true);
-        this.saveState();
-    }
-
-    public resetToDefaults(): void {
-        const isOnboardingComplete = Window.appStateStore.get("onboarding-complete", false);
-        this.window?.setMinimumSize(600, 245)
-
-        const width = isOnboardingComplete ? Window.DEAFAULT_WIDTH : WindowResizeOnboarding.WINDOW_WIDTH;
-        const height = isOnboardingComplete ? Window.DEFAULT_HEIGHT : WindowResizeOnboarding.WINDOW_HEIGHT;
-
-        const bounds = screen.getPrimaryDisplay().bounds;
-        this.state = {
-            x: (bounds.width - (this.options.width ?? width)) / 2,
-            y: (bounds.height - (this.options.height ?? height)) / 2,
-            width: Math.min(this.options.width ?? width, bounds.width),
-            height: Math.min(this.options.height ?? height, bounds.height),
-        };
-    }
-
-    public ensureVisibleOnSomeDisplay(): void {
-        const visible = screen.getAllDisplays().some((display: any) => {
-            return this.windowWithinBounds(display.bounds);
-        });
-        if (!visible) {
-            return this.resetToDefaults();
-        }
-    }
-
-    public saveState(): void {
+    private saveState(): void {
         if (!this.window.isMinimized() && !this.window.isMaximized()) {
             Object.assign(this.state!, this.getCurrentPosition());
         }
         return this.store.set(this.key, this.state);
-    }
-
-    public setBounds(bounds: Rectangle, animated: boolean = true): void {
-        this.state = bounds;
-        this.window.setBounds(bounds, animated);
     }
 
     get windowInstance(): BrowserWindow {

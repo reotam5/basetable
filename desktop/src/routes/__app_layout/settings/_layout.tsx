@@ -1,8 +1,8 @@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createFileRoute, Outlet, useMatches, useNavigate } from '@tanstack/react-router'
-import { Database, DollarSign, FileText, Palette, Shield, User } from 'lucide-react'
+import { Brain, Database, DollarSign, FileText, Palette, Shield, User } from 'lucide-react'
 
-export const Route = createFileRoute('/settings/_layout')({
+export const Route = createFileRoute('/__app_layout/settings/_layout')({
   component: RouteComponent,
 })
 
@@ -19,11 +19,16 @@ function RouteComponent() {
       </div>
 
       <Tabs value={currentTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-0.5 h-auto p-0.5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-0.5 h-auto p-0.5">
           <TabsTrigger value="/settings/appearance" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm h-8 px-1.5 sm:px-3" onClick={() => navigate({ to: '/settings/appearance' })}>
             <Palette className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Appearance</span>
             <span className="sm:hidden">Style</span>
+          </TabsTrigger>
+          <TabsTrigger value="/settings/llm" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm h-8 px-1.5 sm:px-3" onClick={() => navigate({ to: '/settings/llm' })}>
+            <Brain className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">LLM</span>
+            <span className="sm:hidden">LLM Models</span>
           </TabsTrigger>
           <TabsTrigger value="/settings/account" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm h-8 px-1.5 sm:px-3" onClick={() => navigate({ to: '/settings/account' })}>
             <User className="w-3 h-3 sm:w-4 sm:h-4" />

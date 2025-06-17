@@ -15,7 +15,6 @@ export function SignIn({ ...props }: React.ComponentPropsWithoutRef<"div">) {
   useEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
-    window.electronAPI.window.resize.onboarding();
   });
 
   return (

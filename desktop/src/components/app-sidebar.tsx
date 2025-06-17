@@ -43,17 +43,17 @@ const data: {
 }[] = [
         {
             title: "Chat",
-            url: ["/", "/chats", "/chat/$chatId"],
+            url: ["/chats", "/chats/search", "/chat/$chatId"],
             icon: MessageSquare,
             items: [
                 {
                     title: "New Chat",
-                    url: ["/"],
+                    url: ["/chats"],
                     icon: Plus,
                 },
                 {
                     title: "Chats",
-                    url: ["/chats"],
+                    url: ["/chats/search"],
                     icon: MessagesSquare,
                 },
                 {
@@ -73,7 +73,7 @@ const data: {
         },
         {
             title: "Admin",
-            url: ["/dashboard", "/mcp-servers", "/settings/appearance", "/settings/account", "/settings/security", "/settings/billing", "/settings/data", "/settings/privacy"],
+            url: ["/dashboard", "/mcp-servers", "/settings/appearance", "/settings/llm", "/settings/account", "/settings/security", "/settings/billing", "/settings/data", "/settings/privacy"],
             icon: ShieldUser,
             items: [
                 {
@@ -88,7 +88,7 @@ const data: {
                 },
                 {
                     title: "Settings",
-                    url: ["/settings/appearance", "/settings/account", "/settings/security", "/settings/billing", "/settings/data", "/settings/privacy"],
+                    url: ["/settings/appearance", "/settings/llm", "/settings/account", "/settings/security", "/settings/billing", "/settings/data", "/settings/privacy"],
                     icon: SettingsIcon,
                 },
             ]
@@ -146,8 +146,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 className={`w-[75px] z-50 fixed`}
                 collapsible="none"
             >
-                <SidebarHeader className="mb-3 mt-2">
-                    <a className="flex items-center justify-center cursor-pointer" onClick={() => navigate({ to: '/' })}>
+                <SidebarHeader className="-mb-2 -mt-1">
+                    <a className="flex items-center justify-center cursor-pointer" onClick={() => navigate({ to: '/chats' })}>
                         <img src={logo} className="rounded-2xl size-15" />
                     </a>
                 </SidebarHeader>

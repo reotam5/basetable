@@ -153,7 +153,10 @@ class ChatOrchestrator {
 
   private async generateTitle(prompt: string, chatId: number) {
     const defaultModel = this.llmModelRegistry.getDefaultModel();
-    const { title } = await defaultModel.structuredResponse<{ title: string }>(`
+
+    let title = 'New Chat';
+    if (defaultModel) {
+      const data = await defaultModel.structuredResponse<{ title: string }>(`
           <|system|>
           summarize user request into a short descriptive title. (sentence of 5-10 words)
 
@@ -162,14 +165,16 @@ class ChatOrchestrator {
 
           <|title|>
         `,
-      {
-        type: 'object',
-        properties: {
-          title: { type: 'string' }
-        },
-        required: ['title']
-      }
-    ) ?? {}
+        {
+          type: 'object',
+          properties: {
+            title: { type: 'string' }
+          },
+          required: ['title']
+        }
+      ) ?? {}
+      title = data.title || title;
+    }
 
     await database()
       .update(chat)

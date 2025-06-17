@@ -12,7 +12,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Check, Edit, Eye, EyeOff, Trash2 } from "lucide-react"
 import { useState } from "react"
 
-export const Route = createFileRoute('/settings/_layout/security')({
+export const Route = createFileRoute('/__app_layout/settings/_layout/security')({
   component: RouteComponent,
 })
 
@@ -186,9 +186,7 @@ export function RouteComponent() {
           </div>
         </div>
       </div>
-
       <Separator />
-
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

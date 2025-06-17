@@ -128,13 +128,13 @@ export function CommandMenu({ ...props }: DialogProps) {
                     <CommandGroup heading="Navigation">
                         <CommandGroup heading="Chat">
                             <CommandItem
-                                onSelect={() => runCommand(() => navigate({ to: "/" }))}
+                                onSelect={() => runCommand(() => navigate({ to: "/chats" }))}
                             >
                                 <Plus className="mr-2 h-4 w-4" />
                                 <span>New Chat</span>
                             </CommandItem>
                             <CommandItem
-                                onSelect={() => runCommand(() => navigate({ to: "/chats" }))}
+                                onSelect={() => runCommand(() => navigate({ to: "/chats/search" }))}
                             >
                                 <MessagesSquare className="mr-2 h-4 w-4" />
                                 <span>Chat History</span>

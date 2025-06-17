@@ -7,7 +7,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { CreditCard, Loader2 } from "lucide-react"
 import { useState } from "react"
 
-export const Route = createFileRoute('/settings/_layout/billing')({
+export const Route = createFileRoute('/__app_layout/settings/_layout/billing')({
   component: RouteComponent,
 })
 

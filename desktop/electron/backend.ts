@@ -1,17 +1,18 @@
 import { app, ipcMain, IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import { join } from "path";
-import database from "./database/database.js";
+import Database from "./database/database.js";
+import { seedDatabase } from "./database/seeder.js";
 import { BaseEvent } from "./events/base-events.js";
 import { events } from "./events/index.js";
 import { AuthHandler } from "./helpers/auth-handler.js";
+import { chatOrchestrator } from "./helpers/chat-orchestrator.js";
 import { Logger } from "./helpers/custom-logger.js";
 import { Window } from "./helpers/custom-window.js";
-import { KeyManager } from "./helpers/key-manager.js";
 import { PaymentHandler } from "./helpers/payment-handler.js";
+import { Screen, screenManager } from "./helpers/screen-manager.js";
 import { StreamManager } from "./helpers/stream-manager.js";
 import "./services/index.js";
-
-let once = false;
+import { UserService } from "./services/index.js";
 
 class Backend {
   private readonly isProd: boolean = app.isPackaged;
@@ -61,12 +62,12 @@ class Backend {
       this.mainWindow = new Window("controller", {
         titleBarStyle: "hiddenInset",
         trafficLightPosition: { x: 17, y: 20 },
-        minHeight: 245,
-        minWidth: 600,
+        width: 0,
+        height: 0,
         autoHideMenuBar: true,
         show: false,
       });
-      await database.initialize();
+      await Database.initialize();
       AuthHandler.getInstance().setWindow(this.mainWindow);
 
       // Initialize StreamManager to register IPC handlers
@@ -78,19 +79,28 @@ class Backend {
         this.mainWindow?.windowInstance.loadURL("http://localhost:3001");
       }
 
-      this.mainWindow?.windowInstance.webContents.on('did-finish-load', async () => {
-        // if there is a stored refresh token, login before starting the main window
-        const storedRefreshToken = await KeyManager.getKey(KeyManager.KEYS.REFRESH_TOKEN)
-        if (storedRefreshToken) {
-          await AuthHandler.getInstance().requestTokens({ refresh_token: storedRefreshToken, loginOnError: false, logoutOnError: true });
-        } else {
-          await AuthHandler.getInstance().logout();
-        }
+      this.mainWindow.windowInstance.on("ready-to-show", () => {
+        this.mainWindow?.windowInstance.show();
+      })
 
-        // added here to prevent electron getting focused on every code save
-        if (!once) {
-          once = true;
-          this.mainWindow?.windowInstance.show();
+      ipcMain.on('window.initialized', async () => {
+        await AuthHandler.getInstance().checkInitialAuth();
+      })
+
+      screenManager.onScreenChange(async (screen) => {
+        if (screen === Screen.POST_LOGIN_LOADING) {
+          await seedDatabase();
+
+          if ((await UserService.getMe()).saw_model_download) {
+            screenManager.setScreen(Screen.POST_MODEL_DOWNLOAD_LOADING);
+          } else {
+            screenManager.setScreen(Screen.MODEL_DOWNLOAD);
+            await UserService.updateMe({ saw_model_download: true });
+          }
+        } else if (screen === Screen.POST_MODEL_DOWNLOAD_LOADING) {
+          await chatOrchestrator.loadLLMModels();
+          await chatOrchestrator.loadAgents();
+          screenManager.setScreen(Screen.APP);
         }
       })
     });
@@ -98,12 +108,8 @@ class Backend {
     app.on('before-quit', async () => {
       // Cleanup streams before closing
       StreamManager.getInstance().cleanup();
-      await database.close();
+      await Database.close();
     })
-  }
-
-  public isProduction(): boolean {
-    return this.isProd;
   }
 
   public getMainWindow(): Window | null {

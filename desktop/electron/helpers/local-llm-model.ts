@@ -1,5 +1,6 @@
 import { app } from "electron";
 import { getLlama, LlamaChatSession } from 'node-llama-cpp';
+import { join } from "path";
 import { BaseLLMModel, LLMModelResponseChunk } from "./base-llm-model.js";
 import { createStreamIterator } from "./createStreamIterator.js";
 
@@ -16,9 +17,7 @@ export class LocalLLMModel extends BaseLLMModel {
   async initialize(): Promise<void> {
     this.llama = await getLlama();
     const model = await this.llama.loadModel({
-      modelPath: app.isPackaged ?
-        process.resourcesPath + `/models/${this.modelPath}` :
-        `../resources/models/${this.modelPath}`,
+      modelPath: join(app.getPath('userData'), 'models', this.modelPath),
     })
     const context = await model.createContext()
     this.session = new LlamaChatSession({
@@ -55,7 +54,6 @@ export class LocalLLMModel extends BaseLLMModel {
   async structuredResponse<R>(prompt: string, grammar: Parameters<typeof this.llama.createGrammarForJsonSchema>[0]) {
     const structure = await this.llama.createGrammarForJsonSchema(grammar);
     const res = await this.session.prompt(prompt, { grammar: structure });
-    this.session.resetChatHistory();
     return structure.parse(res) as R
   }
 

@@ -5,7 +5,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { createFileRoute } from '@tanstack/react-router'
 import { CodeXml, Monitor, Moon, Sun, Type } from "lucide-react"
 
-export const Route = createFileRoute('/settings/_layout/appearance')({
+export const Route = createFileRoute('/__app_layout/settings/_layout/appearance')({
   component: RouteComponent,
 })
 

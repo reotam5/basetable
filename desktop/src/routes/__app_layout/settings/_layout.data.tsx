@@ -6,7 +6,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Download, Upload } from "lucide-react"
 import { useState } from "react"
 
-export const Route = createFileRoute('/settings/_layout/data')({
+export const Route = createFileRoute('/__app_layout/settings/_layout/data')({
   component: RouteComponent,
 })
 

@@ -1,6 +1,6 @@
 import { AgentPage } from '@/components/agent-page'
 import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/agents/')({
+export const Route = createFileRoute('/__app_layout/agents/')({
   component: AgentPage,
 })

@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/hooks/use-settings"
 import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/settings/_layout/account')({
+export const Route = createFileRoute('/__app_layout/settings/_layout/account')({
   component: RouteComponent,
 })
 

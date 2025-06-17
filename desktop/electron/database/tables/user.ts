@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { agent } from "./agent.js";
 import { api_key } from "./api-key.js";
 import { chat } from "./chat.js";
@@ -11,6 +11,7 @@ export const user = sqliteTable("user", {
   name: text().notNull(),
   email: text().notNull(),
   picture: text().notNull(),
+  saw_model_download: integer({ mode: 'boolean' }).default(false),
 })
 
 export const user_relations = relations(user, ({ many }) => ({

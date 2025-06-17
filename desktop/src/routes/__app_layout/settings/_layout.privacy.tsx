@@ -3,7 +3,7 @@ import { Separator } from "@/components/ui/separator"
 import { createFileRoute } from '@tanstack/react-router'
 import { FileText } from "lucide-react"
 
-export const Route = createFileRoute('/settings/_layout/privacy')({
+export const Route = createFileRoute('/__app_layout/settings/_layout/privacy')({
   component: RouteComponent,
 })
 
