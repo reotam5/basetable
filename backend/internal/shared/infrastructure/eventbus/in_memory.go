@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	eb "github.com/basetable/basetable/backend/internal/shared/application/eventbus"
+	"github.com/basetable/basetable/backend/internal/shared/domain"
 	"github.com/basetable/basetable/backend/internal/shared/log"
 )
 
@@ -24,8 +25,8 @@ type InMemoryBusConfig struct {
 
 type InMemoryBus struct {
 	mu                 sync.RWMutex
-	subscribers        map[eb.EventType][]*eb.Subscription
-	asyncQueue         chan eb.Event
+	subscribers        map[domain.EventType][]*eb.Subscription
+	asyncQueue         chan domain.Event
 	asyncTimeout       time.Duration
 	maxRetries         int
 	retryDelay         time.Duration
@@ -81,8 +82,8 @@ func NewInMemoryBus(ctx context.Context, cfg InMemoryBusConfig) *InMemoryBus {
 	}
 
 	bus := &InMemoryBus{
-		subscribers:        make(map[eb.EventType][]*eb.Subscription),
-		asyncQueue:         make(chan eb.Event, queueSize),
+		subscribers:        make(map[domain.EventType][]*eb.Subscription),
+		asyncQueue:         make(chan domain.Event, queueSize),
 		asyncTimeout:       cfg.AsyncTimeout,
 		maxRetries:         cfg.MaxRetries,
 		retryDelay:         cfg.RetryDelay,
@@ -102,7 +103,7 @@ func NewInMemoryBus(ctx context.Context, cfg InMemoryBusConfig) *InMemoryBus {
 	return bus
 }
 
-func (b *InMemoryBus) Publish(ctx context.Context, event eb.Event) error {
+func (b *InMemoryBus) Publish(ctx context.Context, event domain.Event) error {
 	b.mu.RLock()
 	if b.closed {
 		b.mu.RUnlock()
@@ -138,15 +139,15 @@ func (b *InMemoryBus) Publish(ctx context.Context, event eb.Event) error {
 	return nil
 }
 
-func (b *InMemoryBus) PublishAsync(event eb.Event) {
+func (b *InMemoryBus) PublishAsync(event domain.Event) {
 	b.publishAsyncWithTimeout(event, b.asyncTimeout)
 }
 
-func (b *InMemoryBus) PublishAsyncWithTimeout(event eb.Event, timeout time.Duration) {
+func (b *InMemoryBus) PublishAsyncWithTimeout(event domain.Event, timeout time.Duration) {
 	b.publishAsyncWithTimeout(event, timeout)
 }
 
-func (b *InMemoryBus) publishAsyncWithTimeout(event eb.Event, timeout time.Duration) {
+func (b *InMemoryBus) publishAsyncWithTimeout(event domain.Event, timeout time.Duration) {
 	b.mu.RLock()
 	if b.closed {
 		b.mu.RUnlock()
@@ -165,7 +166,7 @@ func (b *InMemoryBus) publishAsyncWithTimeout(event eb.Event, timeout time.Durat
 	}
 }
 
-func (b *InMemoryBus) Subscribe(eventType eb.EventType, handler eb.EventHandler) (eb.SubscriptionID, error) {
+func (b *InMemoryBus) Subscribe(eventType domain.EventType, handler eb.EventHandler) (eb.SubscriptionID, error) {
 	if eventType == "" {
 		return "", fmt.Errorf("eventType cannot be empty")
 	}
@@ -242,7 +243,7 @@ func (b *InMemoryBus) Close() error {
 	// Wait for async processor to finish
 	b.wg.Wait()
 	b.mu.Lock()
-	b.subscribers = make(map[eb.EventType][]*eb.Subscription)
+	b.subscribers = make(map[domain.EventType][]*eb.Subscription)
 	b.mu.Unlock()
 
 	return nil
@@ -275,7 +276,7 @@ func (b *InMemoryBus) startWorker() {
 	}
 }
 
-func (b *InMemoryBus) publishWithRetry(event eb.Event) {
+func (b *InMemoryBus) publishWithRetry(event domain.Event) {
 	maxRetries, retryDelay, backoffFactor := b.maxRetries, b.retryDelay, b.retryBackoffFactor
 	currentDelay := retryDelay
 	for attempt := 0; attempt <= maxRetries; attempt++ {

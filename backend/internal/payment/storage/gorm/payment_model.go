@@ -8,7 +8,7 @@ import (
 
 type PaymentModel struct {
 	ID          string    `gorm:"primaryKey;column:id"`
-	UserID      string    `gorm:"column:user_id"`
+	AccountID   string    `gorm:"column:account_id"`
 	Amount      int64     `gorm:"column:amount"`
 	Currency    string    `gorm:"column:currency"`
 	Status      string    `gorm:"column:status"`
@@ -25,7 +25,7 @@ func (m *PaymentModel) TableName() string {
 func (m *PaymentModel) mapToDomain() *domain.Payment {
 	return domain.RehydratePayment(
 		m.ID,
-		m.UserID,
+		m.AccountID,
 		m.Amount,
 		m.Currency,
 		m.Status,
@@ -39,7 +39,7 @@ func (m *PaymentModel) mapToDomain() *domain.Payment {
 func mapFromDomain(p *domain.Payment) *PaymentModel {
 	return &PaymentModel{
 		ID:          p.ID().String(),
-		UserID:      p.UserID(),
+		AccountID:   p.AccountID(),
 		Amount:      p.Amount().Value(),
 		Currency:    p.Amount().Currency().String(),
 		Status:      p.PaymentStatus().String(),

@@ -3,6 +3,8 @@ package domain
 import (
 	"testing"
 	"time"
+
+	"github.com/basetable/basetable/backend/internal/shared/domain"
 )
 
 func TestNewPaymentID(t *testing.T) {
@@ -17,12 +19,12 @@ func TestNewPaymentID(t *testing.T) {
 
 func TestNewPayment(t *testing.T) {
 	h := NewTestHelpers(t)
-	userID := "user_123"
+	AccountID := "user_123"
 	amount := NewAmountBuilder().WithValue(15000).MustBuild()
 
-	payment := NewPayment(userID, amount)
+	payment := NewPayment(AccountID, amount)
 
-	h.AssertEqual(payment.UserID(), userID)
+	h.AssertEqual(payment.AccountID(), AccountID)
 	h.AssertAmountEquals(payment.Amount(), amount)
 	h.AssertPaymentPending(payment)
 	h.AssertEqual(payment.ExternalID(), "")
@@ -43,7 +45,7 @@ func TestRehydratePayment(t *testing.T) {
 		WithExternalURL("https://checkout.stripe.com/session_789").
 		Build()
 
-	h.AssertEqual(payment.UserID(), "user_456")
+	h.AssertEqual(payment.AccountID(), "user_456")
 	h.AssertEqual(payment.Amount().Value(), int64(20000))
 	h.AssertPaymentCompleted(payment)
 	h.AssertEqual(payment.ExternalID(), "stripe_session_789")
@@ -89,8 +91,9 @@ func TestPaymentStatusTransitions(t *testing.T) {
 	tests := []struct {
 		name           string
 		initialStatus  PaymentStatus
-		action         func(*Payment) error
+		action         func(*Payment) (domain.Event, error)
 		expectedStatus PaymentStatus
+		expectedEvent  domain.EventType
 		shouldFail     bool
 	}{
 		{
@@ -98,6 +101,7 @@ func TestPaymentStatusTransitions(t *testing.T) {
 			initialStatus:  PaymentStatusPending,
 			action:         (*Payment).MarkAsCompleted,
 			expectedStatus: PaymentStatusCompleted,
+			expectedEvent:  PaymentCompletedEvent,
 			shouldFail:     false,
 		},
 		{
@@ -105,6 +109,7 @@ func TestPaymentStatusTransitions(t *testing.T) {
 			initialStatus:  PaymentStatusPending,
 			action:         (*Payment).MarkAsFailed,
 			expectedStatus: PaymentStatusFailed,
+			expectedEvent:  PaymentFailedEvent,
 			shouldFail:     false,
 		},
 		{
@@ -112,6 +117,7 @@ func TestPaymentStatusTransitions(t *testing.T) {
 			initialStatus:  PaymentStatusPending,
 			action:         (*Payment).MarkAsCancelled,
 			expectedStatus: PaymentStatusCancelled,
+			expectedEvent:  PaymentCancelledEvent,
 			shouldFail:     false,
 		},
 		{
@@ -142,7 +148,7 @@ func TestPaymentStatusTransitions(t *testing.T) {
 
 			time.Sleep(time.Millisecond) // Ensure time difference
 
-			err := tt.action(payment)
+			event, err := tt.action(payment)
 
 			if tt.shouldFail {
 				h.AssertSessionFinalizedError(err)
@@ -152,6 +158,15 @@ func TestPaymentStatusTransitions(t *testing.T) {
 			h.AssertNoError(err)
 			h.AssertPaymentStatus(payment, tt.expectedStatus)
 			h.AssertTimeAfter(payment.UpdatedAt(), originalUpdatedAt, "UpdatedAt should be updated")
+
+			// Test event emission
+			h.AssertEqual(event.Type, tt.expectedEvent)
+			payload, ok := event.Payload.(PaymentEventPayload)
+			h.AssertTrue(ok, "Event payload should be PaymentEventPayload")
+			h.AssertEqual(payload.PaymentID, payment.ID().String())
+			h.AssertEqual(payload.AccountID, payment.AccountID())
+			h.AssertEqual(payload.Amount, payment.Amount().Value())
+			h.AssertFalse(event.Timestamp.IsZero(), "Event timestamp should be set")
 		})
 	}
 }
@@ -236,7 +251,7 @@ func TestPaymentString(t *testing.T) {
 	expectedParts := []string{
 		"PaymentSession(",
 		"ID: payment_123",
-		"UserID: user_456",
+		"AccountID: user_456",
 		"Amount: 150.00 USD",
 		"Status: completed",
 		"ExternalID: stripe_session_789",
@@ -265,13 +280,19 @@ func TestPaymentCompleteWorkflow(t *testing.T) {
 	h.AssertEqual(payment.ExternalID(), "stripe_session_123")
 
 	// Mark as completed
-	err = payment.MarkAsCompleted()
+	event, err := payment.MarkAsCompleted()
 	h.AssertNoError(err)
 	h.AssertPaymentCompleted(payment)
 	h.AssertTrue(payment.IsFinalized())
 
+	// Verify event
+	h.AssertEqual(event.Type, PaymentCompletedEvent)
+	payload, ok := event.Payload.(PaymentEventPayload)
+	h.AssertTrue(ok, "Event payload should be PaymentEventPayload")
+	h.AssertEqual(payload.PaymentID, payment.ID().String())
+
 	// Try to change status again (should fail)
-	err = payment.MarkAsFailed()
+	_, err = payment.MarkAsFailed()
 	h.AssertSessionFinalizedError(err)
 }
 
@@ -284,13 +305,19 @@ func TestPaymentFailureWorkflow(t *testing.T) {
 	h.AssertNoError(err)
 
 	// Mark as failed
-	err = payment.MarkAsFailed()
+	event, err := payment.MarkAsFailed()
 	h.AssertNoError(err)
 	h.AssertPaymentFailed(payment)
 	h.AssertTrue(payment.IsFinalized())
 
+	// Verify event
+	h.AssertEqual(event.Type, PaymentFailedEvent)
+	payload, ok := event.Payload.(PaymentEventPayload)
+	h.AssertTrue(ok, "Event payload should be PaymentEventPayload")
+	h.AssertEqual(payload.PaymentID, payment.ID().String())
+
 	// Try to complete failed payment (should fail)
-	err = payment.MarkAsCompleted()
+	_, err = payment.MarkAsCompleted()
 	h.AssertSessionFinalizedError(err)
 }
 
@@ -299,10 +326,16 @@ func TestPaymentCancellationWorkflow(t *testing.T) {
 
 	// Create and cancel payment
 	payment := NewPaymentBuilder().AsPending().Build()
-	err := payment.MarkAsCancelled()
+	event, err := payment.MarkAsCancelled()
 	h.AssertNoError(err)
 	h.AssertPaymentCancelled(payment)
 	h.AssertTrue(payment.IsFinalized())
+
+	// Verify event
+	h.AssertEqual(event.Type, PaymentCancelledEvent)
+	payload, ok := event.Payload.(PaymentEventPayload)
+	h.AssertTrue(ok, "Event payload should be PaymentEventPayload")
+	h.AssertEqual(payload.PaymentID, payment.ID().String())
 
 	// Try to attach external reference to cancelled payment (should fail)
 	err = payment.AttachExternalReference("stripe_123", "https://checkout.stripe.com/123")
@@ -314,7 +347,7 @@ func TestPaymentBuilder(t *testing.T) {
 
 	// Test builder with defaults
 	payment := NewPaymentBuilder().Build()
-	h.AssertEqual(payment.UserID(), "test_user_123")
+	h.AssertEqual(payment.AccountID(), "test_user_123")
 	h.AssertEqual(payment.Amount().Value(), int64(15000))
 	h.AssertPaymentPending(payment)
 
@@ -328,7 +361,7 @@ func TestPaymentBuilder(t *testing.T) {
 		WithExternalURL("https://example.com").
 		Build()
 
-	h.AssertEqual(payment.UserID(), "custom_user")
+	h.AssertEqual(payment.AccountID(), "custom_user")
 	h.AssertAmountEquals(payment.Amount(), customAmount)
 	h.AssertPaymentCompleted(payment)
 	h.AssertEqual(payment.ExternalID(), "external_123")

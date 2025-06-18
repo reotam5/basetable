@@ -62,8 +62,21 @@ export function ChatSearch() {
 
   const handleDeleteClick = (chat: { id: number; title: string }, e: React.MouseEvent) => {
     e.stopPropagation();
-    setChatToDelete(chat);
-    setDeleteDialogOpen(true);
+    
+    // Check if Shift key is held down
+    if (e.shiftKey) {
+      // Skip confirmation dialog and delete immediately
+      confirmDeleteWithoutDialog(chat);
+    } else {
+      setChatToDelete(chat);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  // Delete without confirmation dialog (when Shift+Click)
+  const confirmDeleteWithoutDialog = (chat: { id: number; title: string }) => {
+    deleteChat(chat.id);
+    window.dispatchEvent(new CustomEvent("sidebar.refresh"));
   };
 
   const confirmDelete = () => {
@@ -227,6 +240,10 @@ export function ChatSearch() {
             <DialogTitle>Delete Conversation?</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete "{chatToDelete?.title}"? This action cannot be undone.
+              <br />
+              <span className="text-xs text-muted-foreground mt-2 block">
+                Tip: Hold Shift while clicking delete to skip this confirmation.
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

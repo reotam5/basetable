@@ -14,71 +14,77 @@ import (
 	"github.com/basetable/basetable/backend/internal/payment/api"
 )
 
-func WebhookMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const MaxBodyBytes = int64(65536)
-		r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			fmt.Fprintf(w, "Failed to read request body: %v", err)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
+func WebhookMiddleware() func(http.Handler) http.Handler {
+	endpointSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
+	if endpointSecret == "" {
+		panic("Missing STRIPE_WEBHOOK_SECRET environment variable")
+	}
 
-		event := stripev82.Event{}
-		if err := json.Unmarshal(payload, &event); err != nil {
-			fmt.Fprintf(os.Stderr, "Stripe Webhook failed to parse request: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			const MaxBodyBytes = int64(65536)
+			r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+			payload, err := io.ReadAll(r.Body)
+			if err != nil {
+				fmt.Fprintf(w, "Failed to read request body: %v", err)
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
 
-		endpointSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
-		signatureHeader := r.Header.Get("Stripe-Signature")
-		event, err = webhook.ConstructEvent(payload, signatureHeader, endpointSecret)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Stripe Webhook signature verification failed: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+			event := stripev82.Event{}
+			if err := json.Unmarshal(payload, &event); err != nil {
+				fmt.Fprintf(os.Stderr, "Stripe Webhook failed to parse request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-		var session stripev82.CheckoutSession
-		if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
-			fmt.Fprintf(os.Stderr, "Stripe Webhook failed to parse CheckoutSession: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+			endpointSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
+			signatureHeader := r.Header.Get("Stripe-Signature")
+			event, err = webhook.ConstructEvent(payload, signatureHeader, endpointSecret)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Stripe Webhook signature verification failed: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-		paymentStatus := determinePaymentStatus(event.Type, &session)
-		if paymentStatus == "unknown" {
-			fmt.Fprintf(os.Stderr, "Stripe Webhook received unknown event type: %s", event.Type)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+			var session stripev82.CheckoutSession
+			if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
+				fmt.Fprintf(os.Stderr, "Stripe Webhook failed to parse CheckoutSession: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-		if paymentStatus == "pending" {
-			// If the payment is pending, we do not need to update the status
-			return
-		}
+			paymentStatus := determinePaymentStatus(event.Type, &session)
+			if paymentStatus == "unknown" {
+				fmt.Fprintf(os.Stderr, "Stripe Webhook received unknown event type: %s", event.Type)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
-		paymentStatusUpdate := &api.UpdatePaymentStatusRequest{
-			PaymentID: session.ClientReferenceID,
-			Status:    paymentStatus,
-		}
+			if paymentStatus == "pending" {
+				// If the payment is pending, we do not need to update the status
+				return
+			}
 
-		jsonData, err := json.Marshal(paymentStatusUpdate)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to marshal payment status update: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+			paymentStatusUpdate := &api.UpdatePaymentStatusRequest{
+				PaymentID: session.ClientReferenceID,
+				Status:    paymentStatus,
+			}
 
-		r.Body = io.NopCloser(bytes.NewReader(jsonData))
-		r.ContentLength = int64(len(jsonData))
-		r.Header.Set("Content-Type", "application/json")
-		r.Method = "PUT"
-		next.ServeHTTP(w, r)
-	})
+			jsonData, err := json.Marshal(paymentStatusUpdate)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to marshal payment status update: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 
+			r.Body = io.NopCloser(bytes.NewReader(jsonData))
+			r.ContentLength = int64(len(jsonData))
+			r.Header.Set("Content-Type", "application/json")
+			r.Method = "PUT"
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func determinePaymentStatus(eventType stripev82.EventType, session *stripev82.CheckoutSession) string {

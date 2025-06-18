@@ -81,6 +81,9 @@ const electronAPI = {
     onLoginComplete: (callback: (...args: any[]) => void) => handler.on("auth.login.complete", callback),
     onLogoutComplete: (callback: () => void) => handler.on("auth.logout.complete", callback),
   },
+  shell: {
+    openExternal: (url: string) => handler.invoke("shell.openExternal", url),
+  },
   window: {
     initialized: () => handler.send("window.initialized"),
     onNavigate: (callback: (url: string) => void) => handler.on("window.navigate", callback),

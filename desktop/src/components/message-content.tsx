@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Button } from "./ui/button";
@@ -9,9 +10,13 @@ import { Button } from "./ui/button";
 interface MessageContentProps {
   content: string;
   className?: string;
+  search_results?: Array<{
+    title: string;
+    url: string;
+  }>;
 }
 
-export const MessageContent = memo(function MessageContent({ content, className }: MessageContentProps) {
+export const MessageContent = memo(function MessageContent({ content, className, search_results }: MessageContentProps) {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string, id: string, event: React.MouseEvent) => {
@@ -32,17 +37,114 @@ export const MessageContent = memo(function MessageContent({ content, className 
     }
   };
 
-  // Detect if content contains markdown-like patterns
+  // Process content to replace citations with clickable components
+  const renderContentWithCitations = (text: string) => {
+    if (!search_results) return text;
+    
+    const parts = text.split(/(\[\d+\])/g);
+    return parts.map((part, index) => {
+      const match = part.match(/\[(\d+)\]/);
+      if (match) {
+        const citationNum = parseInt(match[1]) - 1;
+        const result = search_results[citationNum];
+        if (result) {
+          return (
+            <button
+              key={index}
+              onClick={() => window.electronAPI.shell.openExternal(result.url)}
+              className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 text-xs font-mono font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded border border-primary/20 hover:border-primary/40 transition-all duration-200 mx-0.5 align-baseline"
+              title={result.title}
+            >
+              {match[1]}
+            </button>
+          );
+        }
+      }
+      return part;
+    });
+  };
+
+  // Process content to make citations clickable as buttons in markdown
+  const processedContent = search_results ? content.replace(/\[(\d+)\]/g, (match, num) => {
+    const index = parseInt(num) - 1;
+    const result = search_results[index];
+    if (result) {
+      // Use markdown link syntax but we'll override the styling
+      return `[${num}](${result.url})`;
+    }
+    return match;
+  }) : content;
+  
+  // Detect if content contains markdown-like patterns (exclude simple citations)
   const hasMarkdownElements = /```|`|[*_#]|\[.*\]\(.*\)|^\s*[-*+]\s/m.test(content);
 
   if (!hasMarkdownElements && !content.includes('```')) {
     // Plain text content
-    return <div className={cn("whitespace-pre-wrap leading-relaxed", className)}>{content}</div>;
+    return (
+      <div className={className}>
+        {search_results && search_results.length > 0 && (
+          <div className="mb-4 pb-3 border-b border-border">
+            <h4 className="text-xs font-medium mb-3 text-muted-foreground uppercase tracking-wider">Sources</h4>
+            <div className="grid gap-2">
+              {search_results.map((result, index) => (
+                <button
+                  key={index}
+                  onClick={() => window.electronAPI.shell.openExternal(result.url)}
+                  className="group flex items-start gap-3 p-3 rounded-md border border-border bg-card hover:bg-accent transition-all duration-200 text-left w-full"
+                >
+                  <span className="flex-shrink-0 text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-mono font-medium">
+                    [{index + 1}]
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                      {result.title}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 truncate">
+                      {new URL(result.url).hostname}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="whitespace-pre-wrap leading-relaxed">{renderContentWithCitations(content)}</div>
+      </div>
+    );
   }
 
   return (
-    <div className={cn("prose prose-sm dark:prose-invert max-w-none", className)}>
-      <ReactMarkdown
+    <div className={className}>
+      {search_results && search_results.length > 0 && (
+        <div className="mb-4 pb-3 border-b border-border">
+          <h4 className="text-xs font-medium mb-3 text-muted-foreground uppercase tracking-wider">Sources</h4>
+          <div className="grid gap-2">
+            {search_results.map((result, index) => (
+              <button
+                key={index}
+                onClick={() => window.electronAPI.shell.openExternal(result.url)}
+                className="group flex items-start gap-3 p-3 rounded-md border border-border bg-card hover:bg-accent transition-all duration-200 text-left w-full"
+              >
+                <span className="flex-shrink-0 text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-mono font-medium">
+                  [{index + 1}]
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                    {result.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 truncate">
+                    {new URL(result.url).hostname}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      <div className={cn("prose prose-sm dark:prose-invert max-w-none")}>
+        <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
@@ -119,16 +221,32 @@ export const MessageContent = memo(function MessageContent({ content, className 
               {children}
             </blockquote>
           ),
-          a: ({ children, href }) => (
-            <a
-              href={href}
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ children, href }) => {
+            // Check if this is a citation link (single number)
+            const isCitation = typeof children === 'string' && /^\d+$/.test(children);
+            
+            if (isCitation && search_results) {
+              return (
+                <button
+                  onClick={() => window.electronAPI.shell.openExternal(href!)}
+                  className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 text-xs font-mono font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded border border-primary/20 hover:border-primary/40 transition-all duration-200 mx-0.5 align-baseline"
+                  title={`Open source ${children}`}
+                >
+                  {children}
+                </button>
+              );
+            }
+            
+            // Regular links
+            return (
+              <button
+                onClick={() => window.electronAPI.shell.openExternal(href!)}
+                className="text-blue-600 dark:text-blue-400 hover:underline bg-transparent border-none p-0 font-inherit cursor-pointer"
+              >
+                {children}
+              </button>
+            );
+          },
           table: ({ children }) => (
             <div className="overflow-x-auto my-2">
               <table className="min-w-full border border-gray-300 dark:border-gray-600">
@@ -148,8 +266,9 @@ export const MessageContent = memo(function MessageContent({ content, className 
           ),
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
+      </div>
     </div>
   );
 });

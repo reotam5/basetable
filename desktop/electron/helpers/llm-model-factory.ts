@@ -1,7 +1,7 @@
 import { LLamaChatPromptOptions } from "node-llama-cpp";
 import { BaseLLMModel } from "./base-llm-model.js";
 import { LocalLLMModel } from "./local-llm-model.js";
-import { RemoteLLMModel } from "./remote-llm-model.js";
+import { RemoteLLMModel, RemoteLLMConfig } from "./remote-llm-model.js";
 
 type LLMModelConfig = {
   type: 'local'
@@ -9,6 +9,7 @@ type LLMModelConfig = {
   config?: LLamaChatPromptOptions
 } | {
   type: 'remote'
+  config: RemoteLLMConfig
 } | {
   type: 'unknown'
 }
@@ -21,7 +22,7 @@ export class LLMModelFactory {
       case 'local':
         return new LocalLLMModel(config.modelPath, config.config);
       case 'remote':
-        return new RemoteLLMModel(config)
+        return new RemoteLLMModel(config.config)
       default:
         throw new Error(`Unknown LLM model type: ${config.type}`);
     }

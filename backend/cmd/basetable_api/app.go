@@ -17,17 +17,26 @@ import (
 	"github.com/basetable/basetable/backend/internal/billing/application/service"
 	gmodel "github.com/basetable/basetable/backend/internal/billing/storage/gorm/model"
 	grepo "github.com/basetable/basetable/backend/internal/billing/storage/gorm/repository"
-	"github.com/basetable/basetable/backend/internal/billing/storage/gorm/unitofwork"
 
 	paymentapi "github.com/basetable/basetable/backend/internal/payment/api"
 	paymentapp "github.com/basetable/basetable/backend/internal/payment/application"
+	"github.com/basetable/basetable/backend/internal/payment/domain"
 	"github.com/basetable/basetable/backend/internal/payment/gateway/stripe"
 	"github.com/basetable/basetable/backend/internal/payment/storage/gorm"
 
+	proxyapi "github.com/basetable/basetable/backend/internal/proxy/api/controller"
+	proxyapp "github.com/basetable/basetable/backend/internal/proxy/application/repository"
+	proxyservice "github.com/basetable/basetable/backend/internal/proxy/application/service"
+	proxyclient "github.com/basetable/basetable/backend/internal/proxy/client"
+	proxygmodel "github.com/basetable/basetable/backend/internal/proxy/storage/gorm/model"
+	proxygrepo "github.com/basetable/basetable/backend/internal/proxy/storage/gorm/repository"
+
 	"github.com/basetable/basetable/backend/internal/shared/application/eventbus"
-	"github.com/basetable/basetable/backend/internal/shared/application/events"
+	"github.com/basetable/basetable/backend/internal/shared/application/unitofwork"
+	"github.com/basetable/basetable/backend/internal/shared/infrastructure/auth0"
 	"github.com/basetable/basetable/backend/internal/shared/infrastructure/chi"
 	ebImpl "github.com/basetable/basetable/backend/internal/shared/infrastructure/eventbus"
+	guow "github.com/basetable/basetable/backend/internal/shared/infrastructure/gorm/unitofwork"
 	"github.com/basetable/basetable/backend/internal/shared/infrastructure/httpserver"
 	"github.com/basetable/basetable/backend/internal/shared/infrastructure/zap"
 	"github.com/basetable/basetable/backend/internal/shared/log"
@@ -38,7 +47,7 @@ func Run(ctx context.Context) {
 	defer cancel()
 
 	// Build infrastructure
-	logger := builLogger()
+	logger := buildLogger()
 	db := setupDatabase(logger)
 	httpServer := setupHTTPServer(logger)
 	paymentGateway := setupPaymentGateway(logger)
@@ -57,7 +66,7 @@ func Run(ctx context.Context) {
 	startHTTPServer(ctx, httpServer, logger)
 }
 
-func builLogger() log.Logger {
+func buildLogger() log.Logger {
 	return zap.NewLogger(zap.Config{
 		ServiceName: os.Getenv("SERVICE_NAME"),
 		ServiceID:   os.Getenv("SERVICE_ID"),
@@ -91,6 +100,9 @@ func runMigrations(db *gormsdk.DB, logger log.Logger) {
 		&gmodel.LedgerEntryModel{},
 		&gmodel.AccountModel{},
 		&gmodel.ReservationModel{},
+		&proxygmodel.ProviderModel{},
+		&proxygmodel.ModelModel{},
+		&proxygmodel.EndpointModel{},
 	}
 
 	for _, model := range models {
@@ -102,7 +114,7 @@ func runMigrations(db *gormsdk.DB, logger log.Logger) {
 
 func setupHTTPServer(logger log.Logger) *httpserver.Server {
 	return httpserver.New(
-		chi.NewChiRouter(logger),
+		chi.NewRouter(logger),
 		logger,
 	)
 }
@@ -124,28 +136,34 @@ func setupEventBus(ctx context.Context, logger log.Logger) eventbus.EventBus {
 }
 
 type Repositories struct {
-	Payment     paymentapp.PaymentRepository
-	Ledger      repository.LedgerRepository
-	Account     repository.AccountRepository
-	Reservation repository.ReservationRepository
-	UnitOfWork  service.UnitOfWork
+	Payment            paymentapp.PaymentRepository
+	Ledger             repository.LedgerRepository
+	Account            repository.AccountRepository
+	Reservation        repository.ReservationRepository
+	BillingUnitOfWork  unitofwork.UnitOfWork[repository.RepositoryProvider]
+	Provider           proxyapp.ProviderRepository
+	ProviderUnitOfWork unitofwork.UnitOfWork[proxyapp.RepositoryProvider]
 }
 
 func setupRepositories(db *gormsdk.DB) *Repositories {
 	return &Repositories{
-		Payment:     gorm.NewPaymentRepository(db),
-		Ledger:      grepo.NewLedgerRepository(db),
-		Account:     grepo.NewAccountRepository(db),
-		Reservation: grepo.NewReservationRepository(db),
-		UnitOfWork:  unitofwork.NewUnitOfWork(db),
+		Payment:            gorm.NewPaymentRepository(db),
+		Ledger:             grepo.NewLedgerRepository(db),
+		Account:            grepo.NewAccountRepository(db),
+		Reservation:        grepo.NewReservationRepository(db),
+		BillingUnitOfWork:  guow.NewUnitOfWork(db, grepo.NewRepositoryProvider),
+		Provider:           proxygrepo.NewProviderRepository(db),
+		ProviderUnitOfWork: guow.NewUnitOfWork(db, proxygrepo.NewRepositoryProvider),
 	}
 }
 
 type Services struct {
-	Payment paymentapp.PaymentService
-	Account service.AccountService
-	Billing service.BillingService
-	Ledger  service.LedgerService
+	Payment  paymentapp.PaymentService
+	Account  service.AccountService
+	Billing  service.BillingService
+	Ledger   service.LedgerService
+	Provider proxyservice.ProviderService
+	Proxy    proxyservice.ProxyService
 }
 
 func setupServices(
@@ -160,35 +178,48 @@ func setupServices(
 	)
 
 	accountService := service.NewAccountService(repo.Account)
-	billingService := service.NewBillingService(repo.UnitOfWork)
+	billingService := service.NewBillingService(repo.BillingUnitOfWork)
 	ledgerService := service.NewLedgerService(repo.Ledger)
 
+	// Create HTTP client for proxy requests
+	proxyClient := proxyclient.NewDefaultHTTPProxyClient()
+
+	providerService := proxyservice.NewProviderService(repo.Provider, repo.ProviderUnitOfWork)
+	proxyService := proxyservice.NewProxyService(providerService, proxyClient)
+
 	return &Services{
-		Payment: paymentService,
-		Account: accountService,
-		Billing: billingService,
-		Ledger:  ledgerService,
+		Payment:  paymentService,
+		Account:  accountService,
+		Billing:  billingService,
+		Ledger:   ledgerService,
+		Provider: providerService,
+		Proxy:    proxyService,
 	}
 }
 
 type Controllers struct {
-	Payment paymentapi.PaymentController
-	Account controller.AccountController
+	Payment  paymentapi.PaymentController
+	Account  controller.AccountController
+	Provider proxyapi.ProviderController
+	Proxy    proxyapi.ProxyController
 }
 
 func setupControllers(services *Services, logger log.Logger) *Controllers {
 	paymentController := paymentapi.NewPaymentController(services.Payment, logger)
-
 	accountController := controller.NewAccountController(services.Account, logger)
+	providerController := proxyapi.NewProviderController(services.Provider)
+	proxyController := proxyapi.NewProxyController(services.Proxy)
 
 	return &Controllers{
-		Payment: paymentController,
-		Account: accountController,
+		Payment:  paymentController,
+		Account:  accountController,
+		Provider: providerController,
+		Proxy:    proxyController,
 	}
 }
 
 func setupEventSubscriptions(evenBus eventbus.EventBus, service *Services) {
-	evenBus.Subscribe(events.PaymentCompletedEvent, service.Billing.HandlePaymentCompleted)
+	evenBus.Subscribe(domain.PaymentCompletedEvent, service.Billing.HandlePaymentCompleted)
 }
 
 func setupRoutes(httpServer *httpserver.Server, controllers *Controllers) {
@@ -209,27 +240,63 @@ func setupRoutes(httpServer *httpserver.Server, controllers *Controllers) {
 		})
 	})
 
-	// Public API endpointss
-	router.Route("/api/v1", func(router httpserver.Router) {
+	// Public API endpoints
+	router.Route("/v1", func(router httpserver.Router) {
 		// Apply Auth0 middleware to all user-facing API routes
-		// router.Use(auth0Middleware)
+		router.Use(auth0.Middleware())
 
 		// Payment routes
 		router.Route("/payments", func(router httpserver.Router) {
-			router.Post("/", http.HandlerFunc(controllers.Payment.CreatePayment))
+			router.Post("/", controllers.Payment.CreatePayment)
 			//router.Get("/{payment_id}", http.HandlerFunc(controllers.Payment.GetPayment))
 		})
 
 		// Credit routes
-		router.Route("/accounts", func(router httpserver.Router) {
-			router.Get("/{account_id}", controllers.Account.GetAccount)
+		router.Route("/account", func(router httpserver.Router) {
+			router.Get("/", controllers.Account.GetAccount)
 		})
+
+		// Proxy routes
+		router.Route("/proxy", func(router httpserver.Router) {
+			router.Post("/request", controllers.Proxy.ProxyRequest)
+		})
+
+	})
+
+	// We'll move this into admin API later
+	// Provider management routes
+	router.Route("/v1/providers", func(router httpserver.Router) {
+		router.Post("/", controllers.Provider.CreateProvider)
+		router.Get("/", controllers.Provider.ListProviders)
+		router.Get("/{providerID}", controllers.Provider.GetProvider)
+		router.Delete("/{providerID}", controllers.Provider.RemoveProvider)
+
+		// Model management
+		router.Post("/{providerID}/models", controllers.Provider.AddModels)
+		router.Delete("/{providerID}/models/{modelID}", controllers.Provider.RemoveModel)
+
+		// Endpoint management
+		router.Post("/{providerID}/endpoints", controllers.Provider.AddEndpoints)
+		router.Delete("/{providerID}/endpoints/{endpointURL}", controllers.Provider.RemoveEndpoint)
+		router.Post("/{providerID}/endpoints/activate", controllers.Provider.ActivateEndpoint)
+		router.Post("/{providerID}/endpoints/deactivate", controllers.Provider.DeactivateEndpoint)
 	})
 
 	// Webhook routes (Stripe, Auth0, etc.)
 	router.Route("/webhook", func(router httpserver.Router) {
 		// Stripe webhook route
-		router.With(stripe.WebhookMiddleware).Post("/stripe", controllers.Payment.UpdatePaymentStatus)
+		router.With(stripe.WebhookMiddleware()).Post("/stripe", controllers.Payment.UpdatePaymentStatus)
+
+		// Auth0 webhook route
+		router.With(auth0.OnSignUpMiddleware()).Post("/auth0/onsignup", controllers.Account.CreateAccount)
+		// router.Post("/auth0/onsignup", func(w http.ResponseWriter, r *http.Request) {
+		// 	fmt.Println("HIIII")
+		// })
+	})
+
+	// Admin API endpoints
+	router.Route("/admin/api/v1", func(router httpserver.Router) {
+		router.Use(auth0.Middleware())
 	})
 }
 

@@ -5,6 +5,7 @@ export * from './chat-service.js';
 export * from './llm-service.js';
 export * from './mcp-service.js';
 export * from './message-service.js';
+export * from './provider-service.js';
 export * from './setting-service.js';
 export * from './user-service.js';
 

@@ -86,8 +86,39 @@ export function ChatMenuItems() {
   // Handle delete click
   const handleDeleteClick = (chat: { id: number; title: string }, e: React.MouseEvent) => {
     e.stopPropagation();
-    setChatToDelete(chat);
-    setDeleteDialogOpen(true);
+
+    // Check if Shift key is held down
+    if (e.shiftKey) {
+      // Skip confirmation dialog and delete immediately
+      confirmDeleteWithoutDialog(chat);
+    } else {
+      setChatToDelete(chat);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  // Delete without confirmation dialog (when Shift+Click)
+  const confirmDeleteWithoutDialog = async (chat: { id: number; title: string }) => {
+    setIsDeleting(true);
+    try {
+      // Check if we're currently viewing the chat being deleted
+      const currentChatId = matches?.[matches.length - 1]?.params?.chatId;
+      const isCurrentChat = currentChatId && Number(currentChatId) === chat.id;
+
+      await deleteChat(chat.id);
+
+      // If we're deleting the currently viewed chat, navigate to home
+      if (isCurrentChat) {
+        navigate({ to: "/" as any });
+      }
+
+      // Refresh sidebar
+      window.dispatchEvent(new CustomEvent("sidebar.refresh"));
+    } catch (error) {
+      console.error("Failed to delete chat:", error);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Confirm delete
@@ -104,7 +135,7 @@ export function ChatMenuItems() {
 
       // If we're deleting the currently viewed chat, navigate to home
       if (isCurrentChat) {
-        navigate({ to: "/" as any });
+        navigate({ to: "/chats" as any });
       }
 
       // Refresh sidebar
@@ -232,6 +263,10 @@ export function ChatMenuItems() {
             <DialogTitle>Delete Conversation?</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete "{chatToDelete?.title}"? This action cannot be undone.
+              <br />
+              <span className="text-xs text-muted-foreground mt-2 block">
+                Tip: Hold Shift while clicking delete to skip this confirmation.
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

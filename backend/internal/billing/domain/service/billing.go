@@ -10,7 +10,8 @@ import (
 type BillingService struct{}
 
 func (s *BillingService) ReserveCredits(
-	acc *account.Account, amount account.Amount,
+	acc *account.Account,
+	amount account.Amount,
 ) (*reservation.Reservation, *ledger.LedgerEntry, error) {
 	rsvt := reservation.New(acc.ID(), acc.UserID(), amount)
 	ledgerEnt, err := s.deductCredits(acc, amount, rsvt.ID().String(), ledger.EntryTypeReservation, map[string]any{})
@@ -22,7 +23,9 @@ func (s *BillingService) ReserveCredits(
 }
 
 func (s *BillingService) CommitReservation(
-	acc *account.Account, rsvt *reservation.Reservation, actualAmount account.Amount,
+	acc *account.Account,
+	rsvt *reservation.Reservation,
+	actualAmount account.Amount,
 ) (*ledger.LedgerEntry, error) {
 	if err := s.checkMatchingAccountID(acc, rsvt); err != nil {
 		return nil, err
@@ -68,7 +71,8 @@ func (s *BillingService) CommitReservation(
 }
 
 func (s *BillingService) ReleaseReservation(
-	acc *account.Account, rsvt *reservation.Reservation,
+	acc *account.Account,
+	rsvt *reservation.Reservation,
 ) (*ledger.LedgerEntry, error) {
 	if err := s.checkMatchingAccountID(acc, rsvt); err != nil {
 		return nil, err
@@ -94,7 +98,8 @@ func (s *BillingService) ReleaseReservation(
 }
 
 func (s *BillingService) checkMatchingAccountID(
-	acc *account.Account, rsvt *reservation.Reservation,
+	acc *account.Account,
+	rsvt *reservation.Reservation,
 ) error {
 	if rsvt.AccountID() != acc.ID() {
 		return errors.NewAccountIDMismatchError(rsvt.AccountID().String(), acc.ID().String())

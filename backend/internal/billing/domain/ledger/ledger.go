@@ -5,14 +5,14 @@ import (
 	"time"
 
 	"github.com/basetable/basetable/backend/internal/billing/domain/account"
-	"github.com/basetable/basetable/backend/internal/shared/identity"
+	"github.com/basetable/basetable/backend/internal/shared/domain"
 )
 
-type ID = identity.ID[LedgerEntry]
+type ID = domain.ID[LedgerEntry]
 
 var (
-	NewID     = identity.NewID[LedgerEntry]
-	HydrateID = identity.HydrateID[LedgerEntry]
+	NewID     = domain.NewID[LedgerEntry]
+	HydrateID = domain.HydrateID[LedgerEntry]
 )
 
 type EntryType struct {

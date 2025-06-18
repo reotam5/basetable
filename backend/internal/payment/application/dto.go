@@ -1,9 +1,9 @@
 package application
 
 type CreatePaymentRequest struct {
-	UserID   string
-	Amount   int64
-	Currency string
+	AccountID string
+	Amount    int64
+	Currency  string
 }
 
 type CreatePaymentResponse struct {
@@ -23,6 +23,7 @@ type UpdatePaymentStatusRequest struct {
 
 type UpdatePaymentStatusResponse struct {
 	PaymentID  string
+	AccountID  string
 	ExternalID string
 	Status     string
 	UpdatedAt  string

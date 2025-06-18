@@ -1,13 +1,10 @@
 import { app } from "electron";
-import { getLlama, LlamaChatSession } from 'node-llama-cpp';
 import { join } from "path";
+import { subprocessManager } from "../subprocess/subprocess-manager.js";
 import { BaseLLMModel, LLMModelResponseChunk } from "./base-llm-model.js";
-import { createStreamIterator } from "./createStreamIterator.js";
 
 export class LocalLLMModel extends BaseLLMModel {
   private modelPath: string;
-  private session!: LlamaChatSession;
-  private llama!: Awaited<ReturnType<typeof getLlama>>;
 
   constructor(modelPath: string, config: typeof LocalLLMModel.prototype.config = {}) {
     super(config)
@@ -15,46 +12,41 @@ export class LocalLLMModel extends BaseLLMModel {
   }
 
   async initialize(): Promise<void> {
-    this.llama = await getLlama();
-    const model = await this.llama.loadModel({
-      modelPath: join(app.getPath('userData'), 'models', this.modelPath),
+    subprocessManager.startProcess({
+      modulePath: 'llm-subprocess.js',
+      serviceName: this.modelPath,
+      args: [join(app.getPath('userData'), 'models', this.modelPath)],
     })
-    const context = await model.createContext()
-    this.session = new LlamaChatSession({
-      contextSequence: context.getSequence(),
-    });
   }
 
   async *streamResponse(prompt: string, abortController?: AbortController) {
-    const streamIterator = createStreamIterator<LLMModelResponseChunk>();
-    let fullContent = '';
+    const randomId = Math.random().toString(36).substring(2, 15);
+    const onAort = () => {
+      subprocessManager.sendMessage(this.modelPath, {
+        type: 'abort',
+        id: randomId,
+      })
+    }
+    abortController?.signal.addEventListener('abort', onAort)
 
-    this.session.prompt(prompt, {
-      ...this.config,
-      signal: abortController?.signal,
-      onResponseChunk: (chunk) => {
-        if (chunk.text) {
-          fullContent += chunk.text;
-          streamIterator.push({
-            type: 'content_chunk',
-            delta: chunk.text,
-            content: fullContent,
-          })
-        } else {
-          streamIterator.complete()
-        }
-      }
+    const data = subprocessManager.sendMessageGenerator<LLMModelResponseChunk>(this.modelPath, {
+      type: 'prompt',
+      prompt: prompt,
+      id: randomId,
     })
-
-    for await (const chunk of streamIterator) {
+    for await (const chunk of data) {
       yield chunk;
     }
+
+    abortController?.signal.removeEventListener('abort', onAort);
   }
 
-  async structuredResponse<R>(prompt: string, grammar: Parameters<typeof this.llama.createGrammarForJsonSchema>[0]) {
-    const structure = await this.llama.createGrammarForJsonSchema(grammar);
-    const res = await this.session.prompt(prompt, { grammar: structure });
-    return structure.parse(res) as R
+  async structuredResponse(prompt: string, grammar: any) {
+    return await subprocessManager.sendMessage(this.modelPath, {
+      type: 'structuredResponse',
+      prompt: prompt,
+      grammar: grammar
+    })
   }
 
 

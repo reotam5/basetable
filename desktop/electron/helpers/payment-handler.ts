@@ -5,7 +5,7 @@ import { Window } from "./custom-window.js";
 
 class PaymentHandler {
   static #instance: PaymentHandler;
-  static readonly PAYMENT_URL = `/api/v1/payments`;
+  static readonly PAYMENT_URL = `/v1/payments`;
   static readonly PAYMENT_CALLBACK_EVENT = "payment.callback";
   private static availableCredit: number = 0;
 
@@ -20,8 +20,22 @@ class PaymentHandler {
   }
 
   private async refreshAvailableCredit(): Promise<void> {
-    // Fetch the available credit from the server
-    PaymentHandler.availableCredit = 10;
+    try {
+      const res = await api.get('/v1/account');
+      if (res.status !== 200) {
+        Logger.error("Failed to fetch account balance", res.status, res.statusText);
+        throw new Error(`Failed to fetch account balance: ${res.status} ${res.statusText}`);
+      }
+
+      if (!res.data) {
+        Logger.error("Refresh available credit error: No balance in response", res.data);
+        throw new Error("Invalid account balance response");
+      }
+
+      PaymentHandler.availableCredit = res.data.balance / 100;
+    } catch (error) {
+      Logger.error("Error refreshing available credit:", error);
+    }
   }
 
   public async getAvailableCredit(): Promise<number> {
@@ -51,7 +65,7 @@ class PaymentHandler {
   public async handlePaymentSuccess(window: Window, url: string): Promise<void> {
     const sessionId = new URL(url).searchParams.get("session_id");
     Logger.info("Payment successful for session:", sessionId);
-    this.refreshAvailableCredit();
+    await this.refreshAvailableCredit();
     window.windowInstance.webContents.send(PaymentHandler.PAYMENT_CALLBACK_EVENT, {
       sessionId: sessionId,
       credits: PaymentHandler.availableCredit,

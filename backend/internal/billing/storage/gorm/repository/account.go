@@ -41,9 +41,9 @@ func (r *AccountRepository) GetByUserID(ctx context.Context, userID string) (*ac
 	return acc.MapToDomain(), nil
 }
 
-func (r *AccountRepository) GetByIDForUpdate(ctx context.Context, userID string) (*account.Account, error) {
+func (r *AccountRepository) GetByIDForUpdate(ctx context.Context, id string) (*account.Account, error) {
 	acc := &model.AccountModel{}
-	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(acc).Error; err != nil {
+	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(acc).Error; err != nil {
 		return nil, err
 	}
 	return acc.MapToDomain(), nil

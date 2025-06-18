@@ -20,7 +20,9 @@ class LocalModelDownloadSubprocess extends BaseSubprocess {
     this.downloaders = new Map();
   }
 
-  handleMessage(message: IStartDownloadMessage | ICancelDownloadMessage): void {
+  async *handleMessageGenerator() { }
+
+  async handleMessage(message: IStartDownloadMessage | ICancelDownloadMessage) {
     // Handle incoming messages specific to file downloads
     switch (message.type) {
       case 'startDownload':

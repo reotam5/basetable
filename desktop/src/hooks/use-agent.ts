@@ -179,6 +179,51 @@ const useAgent = (id?: number): IUseAgent => {
   };
 }
 
+// Hook to get all agents for autocomplete
+export const useAgents = () => {
+  const [agents, setAgents] = useState<IAgent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAgents = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const agentsData = await window.electronAPI.agent.getAll();
+      
+      setAgents(agentsData.map((agent: any) => ({
+        id: agent.id,
+        is_main: agent.is_main,
+        name: agent.name,
+        llmId: agent.llm_id,
+        instruction: agent.instruction,
+        mcpTools: agent.mcpTools ?? {},
+        styles: agent.styles ?? []
+      })));
+    } catch (err) {
+      console.error('Error fetching agents:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch agents');
+      setAgents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAgents();
+  }, [fetchAgents]);
+
+  useEffect(() => {
+    const onSidebarRefresh = () => fetchAgents();
+    window.addEventListener('sidebar.refresh', onSidebarRefresh);
+    return () => {
+      window.removeEventListener('sidebar.refresh', onSidebarRefresh);
+    }
+  }, [fetchAgents]);
+
+  return { agents, loading, error, refetch: fetchAgents };
+};
+
 export default useAgent;
 export { useAgent };
 export type { IAgent, IUseAgent };

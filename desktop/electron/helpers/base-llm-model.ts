@@ -6,6 +6,10 @@ export interface LLMModelResponseChunk {
   type: 'content_chunk';
   content: string;
   delta: string;
+  search_results?: Array<{
+    title: string;
+    url: string;
+  }>;
 }
 
 /**

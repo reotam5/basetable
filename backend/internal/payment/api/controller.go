@@ -8,6 +8,7 @@ import (
 
 	app "github.com/basetable/basetable/backend/internal/payment/application"
 	"github.com/basetable/basetable/backend/internal/payment/domain"
+	authctx "github.com/basetable/basetable/backend/internal/shared/api/authcontext"
 	hutil "github.com/basetable/basetable/backend/internal/shared/api/httputil"
 	"github.com/basetable/basetable/backend/internal/shared/log"
 )
@@ -30,14 +31,7 @@ func NewPaymentController(paymentService app.PaymentService, logger log.Logger) 
 }
 
 func (c *paymentController) CreatePayment(w http.ResponseWriter, r *http.Request) {
-	// userID, ok := actx.GetUserID(r.Context())
-	// if !ok {
-	// 	c.logger.Warnf("User ID not found in context for topup payment request")
-	// 	hutil.WriteJSONErrorResponse(w, r, hutil.NewUnauthorizedError(fmt.Errorf("Authentication required")))
-	// 	return
-	// }
-	userID := "testuserid"
-
+	accountID := authctx.GetAccountID(r.Context())
 	var req CreatePaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		c.logger.Errorf("failed to decode request %v", err)
@@ -59,16 +53,16 @@ func (c *paymentController) CreatePayment(w http.ResponseWriter, r *http.Request
 
 	// Validate request
 	if err := validateRequest(); err != nil {
-		c.logger.Warnf("Validation failed for topup payment request for user %s: %v", userID, err)
+		c.logger.Warnf("Validation failed for topup payment request for account %s: %v", accountID, err)
 		hutil.WriteJSONErrorResponse(w, r, hutil.NewBadRequestError(err))
 		return
 	}
 
 	// Call application service
 	responseDTO, err := c.paymentService.CreatePayment(r.Context(), app.CreatePaymentRequest{
-		UserID:   userID,
-		Amount:   req.Amount,
-		Currency: req.Currency,
+		AccountID: accountID,
+		Amount:    req.Amount,
+		Currency:  req.Currency,
 	})
 	if err != nil {
 		c.logger.Errorf("Failed to create payment %v", err)
@@ -136,8 +130,9 @@ func (c *paymentController) UpdatePaymentStatus(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	c.logger.Infof("Payment status updated successfully: payment_id=%s, external_id=%s, status=%s, updated_at=%s",
+	c.logger.Infof("Payment status updated successfully: payment_id=%s, account_id=%s, external_id=%s, status=%s, updated_at=%s",
 		responseDTO.PaymentID,
+		responseDTO.AccountID,
 		responseDTO.ExternalID,
 		responseDTO.Status,
 		responseDTO.UpdatedAt,

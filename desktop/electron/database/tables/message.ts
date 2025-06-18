@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { chat } from "./chat.js";
 
 export const message = sqliteTable("message", {
@@ -10,7 +10,7 @@ export const message = sqliteTable("message", {
   chat_id: integer().notNull().references(() => chat.id, { onDelete: 'cascade' }),
   created_at: integer({ mode: 'timestamp_ms' }).default(sql`(CURRENT_TIMESTAMP)`),
   updated_at: integer({ mode: 'timestamp_ms' }).default(sql`(CURRENT_TIMESTAMP)`),
-  metadata: text().$type<Record<string, any>>(),
+  metadata: blob({ mode: 'json' }).$type<Record<string, any>>(),
 })
 
 export const message_relations = relations(message, ({ one }) => ({

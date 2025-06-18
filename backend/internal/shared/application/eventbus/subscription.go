@@ -1,6 +1,10 @@
 package eventbus
 
-import "context"
+import (
+	"context"
+
+	"github.com/basetable/basetable/backend/internal/shared/domain"
+)
 
 type Subscription struct {
 	ID      SubscriptionID
@@ -9,4 +13,4 @@ type Subscription struct {
 
 type SubscriptionID string
 
-type EventHandler func(ctx context.Context, event Event) error
+type EventHandler func(ctx context.Context, event domain.Event) error

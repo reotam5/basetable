@@ -3,7 +3,7 @@ import { backend } from "../backend.js";
 import { database } from "../database/database.js";
 import { chat } from "../database/tables/chat.js";
 import { message } from "../database/tables/message.js";
-import { AgentService, MessageService } from "../services/index.js";
+import { AgentService, MessageService, SettingService } from "../services/index.js";
 import { LLMModelRegistry } from "./llm-model-registry.js";
 
 class ChatOrchestrator {
@@ -31,7 +31,28 @@ class ChatOrchestrator {
   /**
    * main agent's llm model will determine the appropriate agent based on message data
    */
-  async getAppropriateAgent(prompt: string): Promise<typeof this.mainAgent> {
+  async getAppropriateAgent(prompt: string, mentionedAgentId?: number): Promise<typeof this.mainAgent> {
+    console.log('getAppropriateAgent called with mentionedAgentId:', mentionedAgentId);
+
+    // If an agent is mentioned via @ syntax, use that agent directly
+    if (mentionedAgentId) {
+      const selectedAgent = this.agents.find(agent => agent.id === mentionedAgentId) || this.mainAgent;
+      console.log('Using mentioned agent:', selectedAgent.name, 'ID:', selectedAgent.id);
+      return selectedAgent;
+    }
+
+    // Check if auto-routing is enabled
+    const autoRouteSetting = await SettingService.getSetting("agent.autoRoute");
+    const isAutoRouteEnabled = autoRouteSetting === "true";
+
+    console.log('Auto-routing enabled:', isAutoRouteEnabled);
+
+    // If auto-routing is disabled, always return the main agent
+    if (!isAutoRouteEnabled) {
+      console.log('Using main agent (auto-routing disabled)');
+      return this.mainAgent;
+    }
+
     const llmModel = this.llmModelRegistry.getModel(this.mainAgent.llm_id.toString());
 
     const res = await llmModel?.structuredResponse<{ agentId: number }>(
@@ -60,7 +81,68 @@ class ChatOrchestrator {
     return this.agents.find(agent => agent.id === res?.agentId) || this.mainAgent;
   }
 
-  async *processMessage(chatId: number, next_prompt: string, abortController?: AbortController) {
+  /**
+   * Parse @ mentions from the user prompt
+   */
+  private parseAgentMentions(prompt: string): { cleanedPrompt: string; mentionedAgentId?: number } {
+    let mentionedAgentId: number | undefined;
+    let cleanedPrompt = prompt;
+
+    console.log('Parsing mentions from prompt:', prompt);
+    console.log('Available agents:', this.agents.map(a => ({ id: a.id, name: a.name })));
+
+    // Try to find agent mentions anywhere in the prompt
+    if (prompt.includes('@')) {
+      // Find the best matching agent name (check both original and dashed versions)
+      let bestMatch: typeof this.agents[0] | null = null;
+      let longestMatch = 0;
+      let matchedPattern = '';
+
+      for (const agent of this.agents) {
+        if (agent.is_main) continue; // Skip main agent
+
+        // Check dashed version first (preferred format)
+        const dashedName = agent.name.replace(/\s+/g, '-');
+        const dashedPattern = `@${dashedName}`;
+        console.log(`Checking dashed pattern: ${dashedPattern} against prompt: ${prompt}`);
+        if (prompt.toLowerCase().includes(dashedPattern.toLowerCase())) {
+          if (dashedName.length > longestMatch) {
+            bestMatch = agent;
+            longestMatch = dashedName.length;
+            matchedPattern = dashedPattern;
+            console.log(`Found match with dashed pattern: ${dashedPattern}`);
+          }
+        }
+
+        // Also check original name as fallback
+        const originalPattern = `@${agent.name}`;
+        console.log(`Checking original pattern: ${originalPattern} against prompt: ${prompt}`);
+        if (prompt.toLowerCase().includes(originalPattern.toLowerCase())) {
+          if (agent.name.length > longestMatch) {
+            bestMatch = agent;
+            longestMatch = agent.name.length;
+            matchedPattern = originalPattern;
+            console.log(`Found match with original pattern: ${originalPattern}`);
+          }
+        }
+      }
+
+      if (bestMatch) {
+        mentionedAgentId = bestMatch.id;
+        // Remove the @ mention from wherever it appears in the prompt
+        cleanedPrompt = prompt.replace(matchedPattern, '').trim();
+        console.log('Found mention:', matchedPattern);
+        console.log('Matched agent:', bestMatch);
+        console.log('Using agent ID:', mentionedAgentId, 'Cleaned prompt:', cleanedPrompt);
+      } else {
+        console.log('No matching agent found for mention');
+      }
+    }
+
+    return { cleanedPrompt, mentionedAgentId };
+  }
+
+  async *processMessage(chatId: number, next_prompt: string, attachedFiles?: any[], longTextDocuments?: Array<{ id: string, content: string, title: string }>, abortController?: AbortController) {
     // if we don't have chat messages cached, fetch them. this only happens once per chat session
     if (!this.chatSessions.has(chatId)) {
       const messages = await MessageService.getMessagesByChatId(chatId);
@@ -73,23 +155,47 @@ class ChatOrchestrator {
       this.generateTitle(next_prompt, chatId)
     }
 
-    // create a new message in the database
+    // Parse @ mentions from the message
+    console.log('Original prompt for mention parsing:', next_prompt);
+    const { cleanedPrompt, mentionedAgentId } = this.parseAgentMentions(next_prompt);
+    console.log('Parsed mentionedAgentId:', mentionedAgentId);
+
+    // create a new message in the database (store the original prompt with @ mentions)
     const created_message = await MessageService.createMessage({
       chat_id: chatId,
       content: next_prompt,
       type: 'user',
       status: 'success',
+      metadata: {
+        longTextDocuments
+      }
     });
 
     accumulatedMessages.push(created_message);
 
-    // format messages into a prompt
+    // format messages into a prompt (use cleaned prompt for LLM)
     const prompt =
-      `${accumulatedMessages.map(message => `\n<|${message.type}|>\n ${message.content}`).join('\n')}\n\n` +
+      `${accumulatedMessages.slice(0, -1).map(message =>
+        `\n<|${message.type}|>\n` +
+          `${message.content}` +
+          message.metadata?.longTextDocuments?.length ? message.metadata?.longTextDocuments?.map((doc: any) =>
+            `\n<|attached document|>\n` +
+            `${doc.title ? `${doc.title}\n` : ""}` +
+            `${doc?.content}\n`
+          )?.join("\n") : ""
+      ).join('\n')}\n` +
+      `<|user|>\n` +
+      `${cleanedPrompt}\n\n` +
+      `${created_message.metadata?.longTextDocuments?.map((t: any) =>
+        `<|attached document|>\n` +
+        `${t.title ? `${t.title}\n` : ""}` +
+        `${t?.content}\n`
+      ).join("\n") ?? ""}` +
       `<|assistant|>`;
 
-    // select the appropriate agent based on the prompt
-    const agent = await this.getAppropriateAgent(prompt)
+
+    // select the appropriate agent based on the prompt and mentions
+    const agent = await this.getAppropriateAgent(prompt, mentionedAgentId)
     const llmModel = this.llmModelRegistry.getModel(agent.llm_id.toString())!;
 
     // prompt with agent instruction
@@ -117,16 +223,23 @@ class ChatOrchestrator {
     const iterator = llmModel.streamResponse(promptWithAgentInstruction, abortController);
 
     let fullContent = '';
+    let searchResults: any[] = [];
 
     try {
       for await (const chunk of iterator) {
         fullContent = chunk.content;
 
+        // Capture search results from the first chunk that has them
+        if (chunk.search_results && chunk.search_results.length > 0 && searchResults.length === 0) {
+          searchResults = chunk.search_results;
+        }
+
         // yield along with agent that was responsible for this response
         yield {
           ...chunk,
           metadata: {
-            agent
+            agent,
+            search_results: searchResults.length > 0 ? searchResults : undefined
           }
         };
       }
@@ -136,15 +249,14 @@ class ChatOrchestrator {
         .insert(message)
         .values({
           chat_id: chatId,
-          type: 'assistant',
           content: fullContent,
+          type: 'assistant',
           status: 'success',
-          metadata: null,
+          metadata: searchResults.length > 0 ? JSON.stringify({ search_results: searchResults }) as any : null,
           created_at: new Date(),
           updated_at: new Date(),
         })
         .returning();
-
       this.chatSessions.get(chatId)?.push(assistantMessage);
 
 

@@ -1,5 +1,6 @@
 import { LLMService } from "../services/index.js";
 import { BaseLLMModel } from "./base-llm-model.js";
+import { Logger } from "./custom-logger.js";
 import { LLMModelFactory } from "./llm-model-factory.js";
 
 class LLMModelRegistry {
@@ -10,16 +11,30 @@ class LLMModelRegistry {
     const llms = await LLMService.getLLMs()
     await Promise.all(llms.map(async (llm) => {
       if (!this.models.has(llm.id.toString())) {
-        const model = LLMModelFactory.createModel({
-          type: llm.type as any,
-          modelPath: llm.model_path,
-          config: llm.config || {}
-        });
-        await model.initialize();
-        this.models.set(llm.id.toString(), model);
+        try {
+          const model = LLMModelFactory.createModel(
+            llm.type === 'local' ? {
+              type: 'local',
+              modelPath: llm.model_path,
+              config: llm.config as any
+            } : {
+              type: 'remote',
+              config: llm.config as any
+            }
+          );
 
-        if (llm.is_default && await model.isAvailable()) {
-          this.defaultModel = model;
+          Logger.info(`Initializing ${llm.type} model: ${llm.display_name} (ID: ${llm.id})`);
+          await model.initialize();
+          this.models.set(llm.id.toString(), model);
+
+          if (llm.is_default && await model.isAvailable()) {
+            this.defaultModel = model;
+
+            Logger.info(`Successfully initialized ${llm.type} model: ${llm.display_name}`);
+          }
+        } catch (error) {
+          Logger.error(`Failed to initialize ${llm.type} model ${llm.display_name}:`, error);
+          // Don't let one model failure block others
         }
       }
     }))

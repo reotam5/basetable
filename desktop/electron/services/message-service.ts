@@ -22,7 +22,18 @@ class MessageService {
           asc(message.type)
         );
 
-      return rows;
+      // Parse metadata from JSON string to object
+      return rows.map(row => ({
+        ...row,
+        metadata: row.metadata ? (() => {
+          try {
+            return JSON.parse(row.metadata as unknown as string);
+          } catch (error) {
+            Logger.error("Error parsing message metadata:", error);
+            return null;
+          }
+        })() : null
+      }));
     } catch (error) {
       Logger.error("Error fetching messages:", error);
       return [];
@@ -40,6 +51,7 @@ class MessageService {
           status: data.status,
           created_at: new Date(),
           updated_at: new Date(),
+          metadata: data.metadata ? JSON.stringify(data.metadata) as any : null,
         })
         .returning();
 
@@ -49,7 +61,17 @@ class MessageService {
         .set({ updated_at: new Date().toISOString() })
         .where(eq(chat.id, data.chat_id));
 
-      return newMessage;
+      return {
+        ...newMessage,
+        metadata: newMessage.metadata ? (() => {
+          try {
+            return JSON.parse(newMessage.metadata as unknown as string);
+          } catch (error) {
+            Logger.error("Error parsing new message metadata:", error);
+            return null;
+          }
+        })() : null
+      };
     } catch (error) {
       Logger.error("Error creating message:", error);
       throw error;

@@ -151,6 +151,7 @@ export async function seedDefaultSettings() {
     { key: "account.notifications.delivery.email", value: "true", type: "boolean", user_id: AuthHandler.profile!.sub },
     { key: "account.notifications.delivery.inApp", value: "true", type: "boolean", user_id: AuthHandler.profile!.sub },
     { key: "security.autoKeyRotation", value: "true", type: "boolean", user_id: AuthHandler.profile!.sub },
+    { key: "agent.autoRoute", value: "true", type: "boolean", user_id: AuthHandler.profile!.sub },
   ]
   await Promise.all(settings.map(settingData => (
     database()

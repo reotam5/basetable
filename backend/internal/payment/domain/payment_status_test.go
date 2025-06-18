@@ -5,6 +5,8 @@ import (
 )
 
 func TestNewPaymentStatusFromString(t *testing.T) {
+	h := NewTestHelpers(t)
+
 	tests := []struct {
 		name     string
 		input    string
@@ -80,23 +82,12 @@ func TestNewPaymentStatusFromString(t *testing.T) {
 			result, err := NewPaymentStatusFromString(tt.input)
 			
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("NewPaymentStatusFromString() expected error but got none")
-				}
-				if !IsInvalidStatusError(err) {
-					t.Errorf("NewPaymentStatusFromString() expected InvalidStatusError but got %T", err)
-				}
+				h.AssertInvalidStatusError(err)
 				return
 			}
 			
-			if err != nil {
-				t.Errorf("NewPaymentStatusFromString() unexpected error: %v", err)
-				return
-			}
-			
-			if !result.Equals(tt.expected) {
-				t.Errorf("NewPaymentStatusFromString() = %v, want %v", result, tt.expected)
-			}
+			h.AssertNoError(err)
+			h.AssertTrue(result.Equals(tt.expected))
 		})
 	}
 }

@@ -9,7 +9,7 @@ type RepositoryProvider struct {
 	tx *gorm.DB
 }
 
-func NewRepositoryProvider(tx *gorm.DB) *RepositoryProvider {
+func NewRepositoryProvider(tx *gorm.DB) repository.RepositoryProvider {
 	return &RepositoryProvider{tx: tx}
 }
 

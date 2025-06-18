@@ -6,6 +6,7 @@ type LedgerEntry struct {
 	AccountID string
 	UserID    string
 	Type      string
+	Operation string
 	SourceID  string
 	Amount    int64
 	Metadata  map[string]any

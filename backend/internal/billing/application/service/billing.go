@@ -10,12 +10,13 @@ import (
 	"github.com/basetable/basetable/backend/internal/billing/domain/ledger"
 	"github.com/basetable/basetable/backend/internal/billing/domain/reservation"
 	"github.com/basetable/basetable/backend/internal/billing/domain/service"
-	"github.com/basetable/basetable/backend/internal/shared/application/eventbus"
-	"github.com/basetable/basetable/backend/internal/shared/application/events"
+	"github.com/basetable/basetable/backend/internal/payment/domain"
+	"github.com/basetable/basetable/backend/internal/shared/application/unitofwork"
+	shared "github.com/basetable/basetable/backend/internal/shared/domain"
 )
 
 type BillingService interface {
-	HandlePaymentCompleted(ctx context.Context, event eventbus.Event) error
+	HandlePaymentCompleted(ctx context.Context, event shared.Event) error
 	ReserveCredits(ctx context.Context, request dto.ReserveCreditRequest) (*dto.ReserveCreditResponse, error)
 	CommitReservation(ctx context.Context, request dto.CommitReservationRequest) (*dto.CommitReservationResponse, error)
 	ReleaseReservation(ctx context.Context, request dto.ReleaseReservationRequest) (*dto.ReleaseReservationResponse, error)
@@ -23,29 +24,29 @@ type BillingService interface {
 
 type billingService struct {
 	domainService service.BillingService
-	uow           UnitOfWork
+	uow           unitofwork.UnitOfWork[repository.RepositoryProvider]
 }
 
 var _ BillingService = (*billingService)(nil)
 
-func NewBillingService(uow UnitOfWork) BillingService {
+func NewBillingService(uow unitofwork.UnitOfWork[repository.RepositoryProvider]) BillingService {
 	return &billingService{
 		uow: uow,
 	}
 }
 
-func (s *billingService) HandlePaymentCompleted(ctx context.Context, event eventbus.Event) error {
-	if event.Type != events.PaymentCompletedEvent {
+func (s *billingService) HandlePaymentCompleted(ctx context.Context, event shared.Event) error {
+	if event.Type != domain.PaymentCompletedEvent {
 		return nil
 	}
 
-	payload, ok := event.Payload.(events.PaymentCompletedPayload)
+	payload, ok := event.Payload.(domain.PaymentEventPayload)
 	if !ok {
 		return nil
 	}
 
 	return s.uow.Do(ctx, func(ctx context.Context, provider repository.RepositoryProvider) error {
-		acc, err := provider.AccountRepository().GetByIDForUpdate(ctx, payload.UserID)
+		acc, err := provider.AccountRepository().GetByIDForUpdate(ctx, payload.AccountID)
 		if err != nil {
 			return err
 		}

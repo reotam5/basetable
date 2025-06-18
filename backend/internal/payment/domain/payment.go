@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/basetable/basetable/backend/internal/shared/identity"
+	"github.com/basetable/basetable/backend/internal/shared/domain"
 )
 
-type ID = identity.ID[Payment]
+type ID = domain.ID[Payment]
 
 var (
-	NewID     = identity.NewID[Payment]
-	HydrateID = identity.HydrateID[Payment]
+	NewID     = domain.NewID[Payment]
+	HydrateID = domain.HydrateID[Payment]
 )
 
 type Payment struct {
 	id          ID
-	userID      string
+	accountID   string
 	amount      Amount
 	status      PaymentStatus
 	externalID  string
@@ -27,13 +27,13 @@ type Payment struct {
 
 // NewPaymentSession creates a new payment session for initial creation
 func NewPayment(
-	userID string,
+	accountID string,
 	amount Amount,
 ) *Payment {
 	now := time.Now()
 	return &Payment{
 		id:        NewID(),
-		userID:    userID,
+		accountID: accountID,
 		amount:    amount,
 		status:    PaymentStatusPending,
 		createdAt: now,
@@ -44,7 +44,7 @@ func NewPayment(
 // RehydratePayment reconstructs a payment session
 func RehydratePayment(
 	id string,
-	userID string,
+	accountID string,
 	amountValue int64,
 	amountCurrency string,
 	paymentStatus string,
@@ -55,8 +55,8 @@ func RehydratePayment(
 ) *Payment {
 
 	return &Payment{
-		id:     HydrateID(id),
-		userID: userID,
+		id:        HydrateID(id),
+		accountID: accountID,
 		amount: Amount{
 			value:    amountValue,
 			currency: Currency{amountCurrency},
@@ -73,8 +73,8 @@ func (p *Payment) ID() ID {
 	return p.id
 }
 
-func (p *Payment) UserID() string {
-	return p.userID
+func (p *Payment) AccountID() string {
+	return p.accountID
 }
 
 func (p *Payment) Amount() Amount {
@@ -111,31 +111,31 @@ func (p *Payment) AttachExternalReference(externalID, externalURL string) error 
 	return nil
 }
 
-func (p *Payment) MarkAsCompleted() error {
+func (p *Payment) MarkAsCompleted() (domain.Event, error) {
 	if p.status.IsFinal() {
-		return NewPaymentAlreadyFinalizedError(p.id.String(), p.status)
+		return domain.Event{}, NewPaymentAlreadyFinalizedError(p.id.String(), p.status)
 	}
 	p.status = PaymentStatusCompleted
 	p.updatedAt = time.Now()
-	return nil
+	return p.emitEvent(PaymentCompletedEvent), nil
 }
 
-func (p *Payment) MarkAsFailed() error {
+func (p *Payment) MarkAsFailed() (domain.Event, error) {
 	if p.status.IsFinal() {
-		return NewPaymentAlreadyFinalizedError(p.id.String(), p.status)
+		return domain.Event{}, NewPaymentAlreadyFinalizedError(p.id.String(), p.status)
 	}
 	p.status = PaymentStatusFailed
 	p.updatedAt = time.Now()
-	return nil
+	return p.emitEvent(PaymentFailedEvent), nil
 }
 
-func (p *Payment) MarkAsCancelled() error {
+func (p *Payment) MarkAsCancelled() (domain.Event, error) {
 	if p.status.IsFinal() {
-		return NewPaymentAlreadyFinalizedError(p.id.String(), p.status)
+		return domain.Event{}, NewPaymentAlreadyFinalizedError(p.id.String(), p.status)
 	}
 	p.status = PaymentStatusCancelled
 	p.updatedAt = time.Now()
-	return nil
+	return p.emitEvent(PaymentCancelledEvent), nil
 }
 
 func (p *Payment) IsFinalized() bool {
@@ -160,9 +160,9 @@ func (p *Payment) IsCancelled() bool {
 
 func (p *Payment) String() string {
 	return fmt.Sprintf(
-		"PaymentSession(ID: %s, UserID: %s, Amount: %s, Status: %s, ExternalID: %s, ExternalURL: %s, CreatedAt: %s, UpdatedAt: %s)",
+		"Payment(ID: %s, AccountID: %s, Amount: %s, Status: %s, ExternalID: %s, ExternalURL: %s, CreatedAt: %s, UpdatedAt: %s)",
 		p.id,
-		p.userID,
+		p.accountID,
 		p.amount.String(),
 		p.status.String(),
 		p.externalID,
@@ -170,4 +170,12 @@ func (p *Payment) String() string {
 		p.createdAt.Format(time.RFC3339),
 		p.updatedAt.Format(time.RFC3339),
 	)
+}
+
+func (p *Payment) emitEvent(eventType domain.EventType) domain.Event {
+	return domain.NewEvent(eventType, PaymentEventPayload{
+		PaymentID: p.id.String(),
+		AccountID: p.accountID,
+		Amount:    p.amount.Value(),
+	})
 }

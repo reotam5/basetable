@@ -15,3 +15,11 @@ type GetAccountResponse struct {
 type ListAccountsResponse struct {
 	Accounts []Account
 }
+
+type CreateAccountRequest struct {
+	UserID string
+}
+
+type CreateAccountResponse struct {
+	Account Account
+}

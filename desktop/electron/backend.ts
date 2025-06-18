@@ -14,6 +14,8 @@ import { StreamManager } from "./helpers/stream-manager.js";
 import "./services/index.js";
 import { UserService } from "./services/index.js";
 
+let once = true;
+
 class Backend {
   private readonly isProd: boolean = app.isPackaged;
   public mainWindow!: Window;
@@ -80,7 +82,10 @@ class Backend {
       }
 
       this.mainWindow.windowInstance.on("ready-to-show", () => {
-        this.mainWindow?.windowInstance.show();
+        if (once) {
+          once = false;
+          this.mainWindow?.windowInstance.show();
+        }
       })
 
       ipcMain.on('window.initialized', async () => {

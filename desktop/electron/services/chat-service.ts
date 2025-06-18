@@ -14,7 +14,7 @@ class ChatService {
   async handleChatStream(data: ChatStreamData, stream: StreamContext) {
     try {
       const abortController = new AbortController();
-      const iterator = chatOrchestrator.processMessage(data.chatId, data.message, abortController);
+      const iterator = chatOrchestrator.processMessage(data.chatId, data.message, data.attachedFiles, data.longTextDocuments, abortController);
 
       // send message start notification
       stream.write({
@@ -23,6 +23,9 @@ class ChatService {
           chatId: data.chatId,
           userMessage: {
             content: data.message,
+            metadata: {
+              longTextDocuments: data.longTextDocuments || []
+            }
           }
         }
       } as ChatResponseChunk);
@@ -39,6 +42,7 @@ class ChatService {
           data: {
             chunk: chunk.delta,
             fullContent: chunk.content,
+            metadata: chunk.metadata,
           }
         })
       }
@@ -180,6 +184,12 @@ export { instance as ChatService };
 interface ChatStreamData {
   chatId: number;
   message: string;
+  attachedFiles?: File[];
+  longTextDocuments?: Array<{
+    id: string;
+    content: string;
+    title: string;
+  }>;
 }
 
 interface ChatResponseChunk_MessageStart {
@@ -190,6 +200,13 @@ interface ChatResponseChunk_MessageStart {
     userMessageId: number;
     userMessage: {
       content: string;
+      metadata?: {
+        longTextDocuments?: Array<{
+          id: string;
+          content: string;
+          title: string;
+        }>;
+      }
     }
   }
 }

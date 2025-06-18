@@ -1,7 +1,9 @@
 import { ChildProcess, fork, ForkOptions } from "child_process";
 import { app } from "electron";
+import EventEmitter from "events";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createStreamIterator } from "../helpers/createStreamIterator.js";
 import { Logger } from "../helpers/custom-logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,9 +27,11 @@ interface ISubprocessInfo {
 // this class is intented to run in main process, managing subprocesses
 class SubprocessManager {
   private processInfo: Map<string, ISubprocessInfo>;
+  private responseEvent: EventEmitter;
 
   constructor() {
     this.processInfo = new Map();
+    this.responseEvent = new EventEmitter();
 
     app.on('before-quit', () => this.killAllProcesses());
   }
@@ -56,6 +60,8 @@ class SubprocessManager {
           if (message?.type === 'log') {
             const { level, message: logMessage } = message;
             (Logger as any)[level](`${processInfo.serviceName}: ${logMessage}`);
+          } else if (message?.type === 'response') {
+            this.responseEvent.emit(message.id, message.result, message.isLast);
           }
         });
 
@@ -92,17 +98,65 @@ class SubprocessManager {
     });
   }
 
-  sendMessage(serviceName: string, message: any): void {
+  async sendMessage(serviceName: string, message: any): Promise<any> {
     const processInfo = this.processInfo.get(serviceName);
     if (!processInfo) {
       throw new Error(`Process with service name ${serviceName} does not exist.`);
     }
+    const randomId = Math.random().toString(36).substring(2, 15);
 
-    if (processInfo.isReady) {
-      processInfo.process.send(message);
-    } else {
-      processInfo.messageQueue.push(message);
+    const data = {
+      data: message,
+      id: randomId,
+      isStreaming: false,
     }
+    if (processInfo.isReady) {
+      processInfo.process.send(data);
+    } else {
+      processInfo.messageQueue.push(data);
+    }
+
+    return new Promise((resolve) => {
+      this.responseEvent.once(randomId, (result: any) => {
+        resolve(result);
+        this.responseEvent.removeAllListeners(randomId);
+      });
+    })
+  }
+
+  async *sendMessageGenerator<T>(serviceName: string, message: any): AsyncGenerator<T> {
+    const processInfo = this.processInfo.get(serviceName);
+    if (!processInfo) {
+      throw new Error(`Process with service name ${serviceName} does not exist.`);
+    }
+    const randomId = Math.random().toString(36).substring(2, 15);
+
+    const data = {
+      data: message,
+      id: randomId,
+      isStreaming: true,
+    }
+    if (processInfo.isReady) {
+      processInfo.process.send(data);
+    } else {
+      processInfo.messageQueue.push(data);
+    }
+
+    const streamIterator = createStreamIterator();
+
+    this.responseEvent.on(randomId, (result: any, isLast: boolean) => {
+      if (isLast) {
+        streamIterator.complete();
+      } else {
+        streamIterator.push(result);
+      }
+    })
+
+    for await (const chunk of streamIterator) {
+      yield chunk as T;
+    }
+
+    this.responseEvent.removeAllListeners(randomId);
   }
 
   killProcess(serviceName: string): void {

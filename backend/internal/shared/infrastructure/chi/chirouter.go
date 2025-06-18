@@ -14,7 +14,7 @@ type ChiRouter struct {
 	logger log.Logger
 }
 
-func NewChiRouter(logger log.Logger) *ChiRouter {
+func NewRouter(logger log.Logger) *ChiRouter {
 	return &ChiRouter{
 		mux:    chi.NewRouter(),
 		logger: logger,

@@ -1,22 +1,15 @@
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { use } from "@/hooks/use";
+import { useAuth } from "@/contexts/auth-context";
 import { useChat } from "@/hooks/use-chat";
 import { useParams } from "@tanstack/react-router";
 import debounce from "lodash.debounce";
-import { ArrowDown, Bot, Clock, Paperclip, Send, Server, X } from "lucide-react";
+import { ArrowDown, Bot, Clock, Paperclip, Send, Server } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedText } from "./animated-text";
+import { ChatInput } from "./chat-input";
+import { DocumentCard } from "./document-card";
 import { MessageContent } from "./message-content";
-import { Textarea } from "./ui/textarea";
 
 // UI message interface for display
 interface UIMessage {
@@ -29,6 +22,15 @@ interface UIMessage {
   mcpServers?: string[];
   systemPrompt?: string;
   attachedFiles?: File[];
+  search_results?: Array<{
+    title: string;
+    url: string;
+  }>;
+  longTextDocuments?: Array<{
+    id: string;
+    content: string;
+    title: string;
+  }>;
 }
 
 // Helper function to convert backend messages to UI messages
@@ -46,6 +48,8 @@ function backendToUIMessage(
     mcpServers: undefined,
     systemPrompt: undefined,
     attachedFiles: undefined,
+    search_results: backendMsg?.metadata?.search_results,
+    longTextDocuments: backendMsg?.metadata?.longTextDocuments || [],
   };
 }
 
@@ -68,14 +72,11 @@ function getFilePreviews(messages: UIMessage[]) {
 
 export function ChatInterface() {
   const { chatId } = useParams({ from: '/__app_layout/chat/$chatId' });
-  const llmsFetcher = useCallback(async () => await window.electronAPI.llm.getAll(), []);
-  const { data: llms } = use({ fetcher: llmsFetcher });
+  const { user } = useAuth();
   const {
     chatTitle,
     newChatIds,
     messages: backendMessages,
-    selectedLLM,
-    setSelectedLLM,
     error,
     isLoading,
     isSending,
@@ -93,17 +94,23 @@ export function ChatInterface() {
 
   const [inputValue, setInputValue] = useState("");
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
-  const [showCharacterError, setShowCharacterError] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [showLoading, setShowLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isInitialLoad = useRef(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previousMessageCount = useRef(0);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
+
+  // Text selection context state
+  const [selectedTextContext, setSelectedTextContext] = useState<{
+    messageId: string;
+    selectedText: string;
+    wordCount: number;
+    messageType: 'user' | 'assistant' | 'system';
+    timestamp: Date;
+  } | null>(null);
+
 
   const scrollToBottom = useMemo(() => debounce((smooth = true) => {
     messagesEndRef.current?.scrollIntoView({
@@ -152,6 +159,36 @@ export function ChatInterface() {
     };
   }, [isLoading]);
 
+  // Helper function to clean display content by removing context tags
+  const cleanDisplayContent = useCallback((content: string) => {
+    return content.replace(/<selected_context[^>]*>[\s\S]*?<\/selected_context>\s*/g, '').trim();
+  }, []);
+
+  // Handle text selection within messages
+  const handleTextSelection = useCallback((messageId: string, messageType: 'user' | 'assistant' | 'system', timestamp: Date) => {
+    setTimeout(() => { // Small delay to ensure selection is complete
+      const selection = window.getSelection();
+      if (selection && selection.toString().trim().length > 0) {
+        const selectedText = selection.toString().trim();
+
+        // Only capture meaningful selections (more than 3 characters)
+        if (selectedText.length > 3) {
+          const wordCount = selectedText.split(/\s+/).filter(word => word.length > 0).length;
+          setSelectedTextContext({
+            messageId,
+            selectedText,
+            wordCount,
+            messageType,
+            timestamp
+          });
+        }
+      }
+      // Don't clear context when no text is selected - let it persist until sent or manually cleared
+    }, 10);
+  }, []);
+
+  // Don't auto-clear on deselection - let users keep context until they send or manually clear
+
   const toggleMessageExpansion = useCallback((messageId: string) => {
     setExpandedMessages(prev => {
       const newSet = new Set(prev);
@@ -164,27 +201,23 @@ export function ChatInterface() {
     });
   }, []);
 
-  const handleSend = useCallback(async () => {
-    if (!inputValue.trim() || isSending) return;
+  const handleSend = useCallback(async (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
+    const { content, attachedFiles, longTextDocuments } = data;
+    if (isSending || (!content.trim() && !attachedFiles?.length && !longTextDocuments?.length)) return;
 
-    const content = inputValue.trim();
     setInputValue("");
-    setAttachedFiles([]); // Clear attached files after sending
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
 
     try {
       await sendMessage({
         content,
+        attachedFiles: data.attachedFiles,
+        longTextDocuments: data.longTextDocuments,
       });
     } catch (error) {
       console.error('Error sending message:', error);
       // Could add a toast notification here
     }
-  }, [inputValue, isSending, sendMessage]);
+  }, [isSending, sendMessage]);
 
   // when chat is opened, it should start at the bottom.
   const instantScrollDown = useRef(true);
@@ -199,10 +232,13 @@ export function ChatInterface() {
     // after sending a message (it has isSending = false back again after sending)
     if (!isSending && !instantScrollDown.current) {
       if (messagesContainerRef.current) {
-        // get last children that has the class "text-right" (user message)
+        // get last user message by checking for the background class
         const lastUserMessage = Array.from(messagesContainerRef.current.children)
           .reverse()
-          .find(child => child.classList.contains("text-right")) as HTMLElement;
+          .find(child => child.querySelector('.bg-neutral-100, .dark\\:bg-neutral-800')) as HTMLElement;
+
+        if (!lastUserMessage) return;
+
         const currentMessageContainerHeight = messagesContainerRef.current.getBoundingClientRect().height;
         const lastUserMessagePosition = lastUserMessage.offsetTop;
         const remainingHeight = currentMessageContainerHeight - lastUserMessagePosition;
@@ -255,45 +291,6 @@ export function ChatInterface() {
     }
   }, [isAgentResponding, scrollToBottom, showScrollToBottomButton])
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    if (value.length > 2000) {
-      setShowCharacterError(true);
-      setTimeout(() => setShowCharacterError(false), 3000); // Hide error after 3 seconds
-      return;
-    }
-    setShowCharacterError(false);
-    setInputValue(value);
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
-    }
-  }, []);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !isSending && !isWaitingAI) {
-      e.preventDefault();
-      handleSend();
-    }
-  }, [handleSend, isSending, isWaitingAI]);
-
-
-  const handleAttachClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-      e.target.value = ""; // reset for re-uploading same file
-    }
-  }, []);
-
-  const handleRemoveFile = useCallback((index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
   // Memoize the rendered messages to prevent unnecessary re-renders
   const filePreviews = useMemo(() => getFilePreviews(messages ?? []), [messages]);
   useEffect(() => {
@@ -307,25 +304,52 @@ export function ChatInterface() {
 
   const renderedMessages = useMemo(() => {
     return (
-      <div className="space-y-6" ref={messagesContainerRef}>
+      <div className="space-y-2" ref={messagesContainerRef}>
         {messages?.map((message) => (
           <div
             key={message.id}
-            className={`${message.type === "user" ? "text-right" : "text-left"}`}
+            className="text-left"
           >
-            <div className="inline-block">
+            <div className="w-full">
               <div
                 className={`${message.type === "user"
-                  ? "bg-primary py-[6px] px-3 text-primary-foreground rounded-sm max-w-2xl"
-                  : "bg-secondary py-[6px] px-3 text-secondary-foreground rounded-sm"
-                  }`}
+                  ? "bg-neutral-100 dark:bg-neutral-800 py-3 px-4 text-foreground rounded-lg leading-relaxed inline-block max-w-full"
+                  : "py-3 px-4 text-foreground leading-relaxed"
+                  } cursor-text select-text`}
+                onMouseUp={() => handleTextSelection(message.id, message.type, message.timestamp)}
+                onKeyUp={() => handleTextSelection(message.id, message.type, message.timestamp)}
               >
                 {message.type === "user" ? (
-                  <div className="whitespace-pre-wrap leading-relaxed">
-                    {message.content}
+                  <div className="flex items-start gap-3 min-w-0">
+                    <Avatar className="w-6 h-6 flex-shrink-0">
+                      <AvatarImage src={user?.picture} alt={user?.name} />
+                      <AvatarFallback className="text-xs">
+                        {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      {/** Pasted documents */}
+                      {message.longTextDocuments && message.longTextDocuments.length > 0 && (
+                        <div className="space-y-3">
+                          {message.longTextDocuments.map((doc, index) => (
+                            <div key={`doc-${index}`} className="flex-shrink-0 w-64">
+                              <DocumentCard
+                                content={doc.content}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="whitespace-pre-wrap leading-relaxed text-left break-words">
+                        {cleanDisplayContent(message.content)}
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <MessageContent content={message.content ?? ""} />
+                  <MessageContent
+                    content={message.content ?? ""}
+                    search_results={message.search_results}
+                  />
                 )}
 
                 {/* Show attached files if present */}
@@ -417,7 +441,7 @@ export function ChatInterface() {
         )}
       </div>
     );
-  }, [messages, isWaitingAI, filePreviews, expandedMessages, toggleMessageExpansion]);
+  }, [messages, isWaitingAI, user?.picture, user?.name, cleanDisplayContent, filePreviews, expandedMessages, handleTextSelection, toggleMessageExpansion]);
 
   return (
     <div className="flex-1 flex flex-col pt-[-5px] min-h-[calc(100vh-3.5rem-1px)]">
@@ -475,130 +499,26 @@ export function ChatInterface() {
             </Button>
           )
         }
-        <div className="max-w-4xl mx-auto">
-
-          <div className="bg-white dark:bg-neutral-800 rounded-sm  border border-neutral-200 dark:border-neutral-500">
-            <Textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Reply to basetable..."
-              rows={5}
-              className="w-full p-4 resize-none leading-relaxed  focus-visible:ring-transparent border-0 shadow-none min-h-[3rem] max-h-[12rem]"
-            />
-            <div className="flex justify-between items-end p-3" onClick={(e) => { textareaRef.current?.focus(); e.stopPropagation(); }}>
-              {/* Bottom Left Controls */}
-              <div>
-                {/* Attached Files Preview */}
-                {attachedFiles.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {attachedFiles.map((file, idx) => (
-                      <div
-                        key={file.name + file.size + idx}
-                        className="flex items-center border border-neutral-200 dark:border-neutral-500 rounded px-3 py-1 text-sm text-neutral-800 dark:text-neutral-200"
-                      >
-                        <Paperclip className="w-4 h-4 mr-1 opacity-70" />
-                        <span className="truncate max-w-[120px]" title={file.name}>{file.name}</span>
-                        <button
-                          className="ml-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 focus:outline-none"
-                          onClick={() => handleRemoveFile(idx)}
-                          aria-label="Remove file"
-                          type="button"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* Error message for character limit */}
-                {showCharacterError && (
-                  <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 px-2 py-1 rounded">
-                    Maximum 2000 characters allowed
-                  </div>
-                )}
-              </div>
-              {/* Bottom Right Controls */}
-              <div className="flex items-center">
-                {/* Model Selector */}
-                <Select value={selectedLLM?.toString()} onValueChange={(llmId) => setSelectedLLM(parseInt(llmId))}>
-                  <SelectTrigger className="w-36 h-8 text-xs border-0 shadow-none ring-sidebar-accent hover:ring-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(() => {
-                      // Group LLMs by provider
-                      const groupedLLMs = llms?.reduce((acc, llm) => {
-                        if (!acc[llm.provider]) {
-                          acc[llm.provider] = [];
-                        }
-                        acc[llm.provider].push(llm);
-                        return acc;
-                      }, {}) || {};
-
-                      return Object.entries(groupedLLMs).map(([provider, models]) => (
-                        <SelectGroup key={provider}>
-                          <SelectLabel>{provider}</SelectLabel>
-                          {(models as any[]).map((llm: any) => (
-                            <SelectItem key={llm.id} value={llm.id.toString()}>
-                              {llm.display_name}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ));
-                    })()}
-                  </SelectContent>
-                </Select>
-                <div>
-                  {/* Attach File Button (bottom left) */}
-                  <button
-                    type="button"
-                    className="flex items-center justify-center w-8 h-8 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
-                    onClick={handleAttachClick}
-                    aria-label="Attach file"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileChange}
-                    aria-label="File input"
-                  />
-                </div>
-                {/* Send Button */}
-                {
-                  isAgentResponding ? (
-                    <Button
-                      onClick={cancel}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleSend}
-                      disabled={!inputValue.trim() || isSending || isWaitingAI}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      {(isSending || isWaitingAI) ? (
-                        <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                    </Button>
-                  )
-                }
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        <ChatInput
+          setSelectedTextContext={setSelectedTextContext}
+          selectedTextContext={selectedTextContext}
+          containerClassName="max-w-4xl mx-auto"
+          value={inputValue}
+          onChange={setInputValue}
+          onSubmit={handleSend}
+          placeholder="Ask anything 🤔"
+          disabled={isSending || isWaitingAI}
+          sendButtonContent={
+            (isSending || isWaitingAI) ? (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>
+            ) : (
+              <Send className="w-3.5 h-3.5" />
+            )
+          }
+          showCancelButton={isAgentResponding}
+          onCancel={cancel}
+        />
+      </div >
+    </div >
   );
 }

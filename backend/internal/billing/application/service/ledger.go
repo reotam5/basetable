@@ -59,6 +59,7 @@ func (s *ledgerService) mapDomainToDTO(entry *ledger.LedgerEntry) dto.LedgerEntr
 		AccountID: entry.AccountID().String(),
 		UserID:    entry.UserID(),
 		Type:      entry.Type().String(),
+		Operation: entry.Operation().String(),
 		SourceID:  entry.SourceID(),
 		Amount:    entry.Amount().Value(),
 		Metadata:  entry.Metadata(),

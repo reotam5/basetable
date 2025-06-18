@@ -35,6 +35,7 @@ export class AuthHandler {
   private static readonly AUTH_SCOPES = "openid profile email offline_access";
   private static readonly AUTH_CALLBACK_URL = electronConfig.auth_callback_url;
   private static readonly CLIENT_ID = electronConfig.client_id;
+  private static readonly AUDIENCE = electronConfig.audience;
   private static readonly LOGIN_CALLBACK_EVENT = "auth.login.complete";
   private static readonly LOGOUT_CALLBACK_EVENT = "auth.logout.complete";
   private static readonly TOKEN_EXCHANGE_URL = `${electronConfig.auth_provider_url}/oauth/token`;
@@ -99,6 +100,7 @@ export class AuthHandler {
   public async requestTokens({ code, refresh_token, loginOnError = true, logoutOnError = false }: { code?: string; refresh_token?: string, loginOnError?: boolean, logoutOnError?: boolean }): Promise<void> {
     const body = {
       client_id: AuthHandler.CLIENT_ID,
+      audience: AuthHandler.AUDIENCE,
       ...(refresh_token ? {
         grant_type: "refresh_token",
         refresh_token: refresh_token,
@@ -155,6 +157,7 @@ export class AuthHandler {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: AuthHandler.CLIENT_ID,
+      audience: AuthHandler.AUDIENCE,
       redirect_uri: AuthHandler.AUTH_CALLBACK_URL,
       scope: AuthHandler.AUTH_SCOPES,
       prompt: "login",

@@ -1,57 +1,17 @@
 import { useAuth } from "@/contexts/auth-context";
-import { use } from "@/hooks/use";
+import { ChatStreamData } from "@/hooks/use-chat";
 import { useStream } from "@/hooks/use-stream";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronDown, Paperclip, Search, Send, Sparkles, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChatInput } from "./chat-input";
 import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "./ui/dialog";
-import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
 
 export function NewChat() {
   const [message, setMessage] = useState("");
   const [greeting, setGreeting] = useState("Hello");
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const modelsPerPage = 7;
   const navigate = useNavigate();
   const { user } = useAuth();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { data: models } = use({ fetcher: async () => await window.electronAPI.llm.getAll() });
-  const { data: mainAgentData, refetch: refetchMainAgent } = use({ fetcher: async () => await window.electronAPI.agent.getMain() });
-  const selectedModel = mainAgentData?.llm_id ?? null;
-  const setSelectedModel = (llmId: string) => {
-    window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId: parseInt(llmId) }).then(() => {
-      refetchMainAgent();
-    })
-  }
-
-  // Filter models based on search quer  const [selectedModel, setSelectedModel] = useState("4");y
-  const filteredModels = models?.filter(model =>
-    model.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    model.provider.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    model.description.toLowerCase().includes(searchQuery.toLowerCase())
-  ) ?? [];
-
-  // Calculate pagination
-  const totalPages = Math.ceil(filteredModels.length / modelsPerPage);
-  const paginatedModels = filteredModels.slice(
-    (currentPage - 1) * modelsPerPage,
-    currentPage * modelsPerPage
-  );
-
-  // Get selected model details
-  const selectedModelDetails = models?.find(m => m.id === selectedModel);
 
   useEffect(() => {
     // Get user's first name
@@ -69,80 +29,38 @@ export function NewChat() {
       }
     }
   }, [user]);
-  const stream = useStream({ channel: 'chat.stream' });
+  const stream = useStream<ChatStreamData>({ channel: 'chat.stream' });
 
-  const handleSubmit = () => {
-    if (message.trim()) {
-      // Handle sending the message
-      window.electronAPI.chat.create({}).then((chat) => {
-        if (!chat) {
-          console.error("Failed to create chat");
-          return;
-        }
-        stream.startStream(chat.id.toString(), {
-          chatId: chat.id,
-          message: message.trim(),
-          attachments: [],
-        }).then(() => {
-          stream.pauseStream(chat.id.toString()).then(() => {
-            window.dispatchEvent(new CustomEvent("sidebar.refresh"));
-            navigate({ to: `/chat/${chat.id}` });
-            setMessage("");
-          })
-        });
-      })
-      setMessage("");
-      setAttachedFiles([]);
-    }
-  };
+  const handleSubmit = (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
+    const { content, attachedFiles, longTextDocuments } = data;
+    if (!content.trim() && !attachedFiles?.length && !longTextDocuments?.length) return;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
+    // Handle sending the message
+    window.electronAPI.chat.create({}).then((chat) => {
+      if (!chat) {
+        console.error("Failed to create chat");
+        return;
+      }
+      stream.startStream(chat.id.toString(), {
+        chatId: chat.id,
+        message: content,
+        attachedFiles: data.attachedFiles,
+        longTextDocuments: data.longTextDocuments,
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setMessage(value);
-
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
-    }
-  }, []);
-
-  const handleAttachClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-      e.target.value = ""; // reset for re-uploading same file
-    }
-  }, []);
-
-  const handleRemoveFile = useCallback((index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleSelectModel = (modelId: string) => {
-    setSelectedModel(modelId);
-    setDialogOpen(false);
-  };
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-    setCurrentPage(1); // Reset to first page when search changes
+      }).then(() => {
+        stream.pauseStream(chat.id.toString()).then(() => {
+          window.dispatchEvent(new CustomEvent("sidebar.refresh"));
+          navigate({ to: `/chat/${chat.id}` });
+          setMessage("");
+        })
+      });
+    })
+    setMessage("");
   };
 
   return (
     <div className="w-full min-h-[calc(100vh-6rem)] flex flex-col items-center justify-center mx-auto">
       {/* Free plan upgrade banner */}
-
 
       {/* Header Section with personalized greeting */}
       <div className="flex flex-col items-center mb-8 text-center">
@@ -156,162 +74,14 @@ export function NewChat() {
         </div>
       </div>
 
-      {/* Chat Input Section - matching chat-interface.tsx */}
+      {/* Chat Input Section - using shared ChatInput component */}
       <div className="w-full max-w-3xl px-4">
-        <div className="bg-white dark:bg-neutral-800 rounded-sm border border-neutral-200 dark:border-neutral-500">
-          <Textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="How can I help you today?"
-            rows={5}
-            className="w-full p-4 resize-none leading-relaxed focus-visible:ring-transparent border-0 shadow-none min-h-[3rem] max-h-[12rem]"
-          />
-          <div className="flex justify-between items-end p-3" onClick={(e) => { textareaRef.current?.focus(); e.stopPropagation(); }}>
-            {/* Bottom Left Controls */}
-            <div>
-              {/* Attached Files Preview */}
-              {attachedFiles.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {attachedFiles.map((file, idx) => (
-                    <div
-                      key={file.name + file.size + idx}
-                      className="flex items-center border border-neutral-200 dark:border-neutral-500 rounded px-3 py-1 text-sm text-neutral-800 dark:text-neutral-200"
-                    >
-                      <Paperclip className="w-4 h-4 mr-1 opacity-70" />
-                      <span className="truncate max-w-[120px]" title={file.name}>{file.name}</span>
-                      <button
-                        className="ml-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 focus:outline-none"
-                        onClick={() => handleRemoveFile(idx)}
-                        aria-label="Remove file"
-                        type="button"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Right Controls */}
-            <div className="flex items-center">
-              {/* Model Selector Modal */}
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" className="h-8 px-3 text-xs border-0 flex items-center gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-700">
-                    <span className="text-sm font-medium truncate max-w-[100px]">
-                      {selectedModelDetails?.display_name}
-                    </span>
-                    <ChevronDown className="h-3 w-3 opacity-70" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[800px] w-[650px] h-[600px] flex flex-col">
-                  <DialogHeader>
-                    <DialogTitle>Select a model</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2 flex-1 overflow-hidden flex flex-col">
-                    {/* Search input */}
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-neutral-500" />
-                      <Input
-                        type="search"
-                        placeholder="Search models..."
-                        className="pl-9"
-                        value={searchQuery}
-                        onChange={handleSearchChange}
-                      />
-                    </div>
-
-                    {/* Models list */}
-                    <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-                      {paginatedModels.map(model => (
-                        <div
-                          key={model.id}
-                          onClick={() => handleSelectModel(model.id.toString())}
-                          className={`p-3 rounded-md cursor-pointer transition-colors ${selectedModel === model.id
-                            ? 'bg-neutral-100 dark:bg-neutral-700'
-                            : 'hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                            }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="font-medium">{model.display_name}</div>
-                            <div className="text-xs text-neutral-500">{model.provider}</div>
-                          </div>
-                          <div className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                            {model.description}
-                          </div>
-                        </div>
-                      ))}
-
-                      {filteredModels.length === 0 && (
-                        <div className="text-center py-4 text-neutral-500">
-                          No models match your search
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Pagination controls */}
-                    {totalPages > 1 && (
-                      <div className="flex justify-between items-center pt-2 mt-auto">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                          disabled={currentPage === 1}
-                        >
-                          Previous
-                        </Button>
-                        <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                          disabled={currentPage === totalPages}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              {/* Attachment Button */}
-              <div>
-                <button
-                  type="button"
-                  className="flex items-center justify-center w-8 h-8 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
-                  onClick={handleAttachClick}
-                  aria-label="Attach file"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileChange}
-                  aria-label="File input"
-                />
-              </div>
-
-              {/* Send Button */}
-              <Button
-                onClick={handleSubmit}
-                disabled={!message.trim()}
-                size="icon"
-                variant="ghost"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ChatInput
+          value={message}
+          onChange={setMessage}
+          onSubmit={handleSubmit}
+          placeholder="How can I help you today?"
+        />
 
         {/* Shortcut buttons at the bottom */}
         <div className="flex justify-center gap-3 mt-5">

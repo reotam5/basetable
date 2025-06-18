@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/basetable/basetable/backend/internal/shared/identity"
+	"github.com/basetable/basetable/backend/internal/shared/domain"
 )
 
-type ID = identity.ID[Account]
+type ID = domain.ID[Account]
 
 var (
-	NewID     = identity.NewID[Account]
-	HydrateID = identity.HydrateID[Account]
+	NewID     = domain.NewID[Account]
+	HydrateID = domain.HydrateID[Account]
 )
 
 type Account struct {

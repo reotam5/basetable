@@ -4,6 +4,12 @@ import { useStream } from "./use-stream";
 
 export interface SendMessageOptions {
   content?: string;
+  attachedFiles?: File[];
+  longTextDocuments?: Array<{
+    id: string;
+    content: string;
+    title: string;
+  }>;
 }
 
 interface ChatResponseChunk_MessageStart {
@@ -12,6 +18,7 @@ interface ChatResponseChunk_MessageStart {
     chatId: number;
     userMessage: {
       content: string;
+      metadata?: any;
     }
   }
 }
@@ -21,6 +28,13 @@ interface ChatResponseChunk_ContentChunk {
   data: {
     chunk: string;
     fullContent: string;
+    metadata?: {
+      agent?: any;
+      search_results?: Array<{
+        title: string;
+        url: string;
+      }>;
+    };
   };
 }
 
@@ -29,9 +43,15 @@ interface ChatResponseChunk_ContentComplete {
 }
 
 type ChatStreamChunk = ChatResponseChunk_MessageStart | ChatResponseChunk_ContentChunk | ChatResponseChunk_ContentComplete;
-interface ChatStreamData {
+export interface ChatStreamData {
   chatId: number;
-  message: string;
+  message?: string;
+  attachedFiles?: File[];
+  longTextDocuments?: Array<{
+    id: string;
+    content: string;
+    title: string;
+  }>;
 }
 
 export function useChat(chatId: number) {
@@ -44,7 +64,6 @@ export function useChat(chatId: number) {
     dependencies: [chatId]
   });
   const { data: chatRoomData, refetch: refetchChatRoomData } = use({ fetcher: async () => await window.electronAPI.chat.getById(chatId), dependencies: [chatId] });
-  const { data: mainAgentData, refetch: refetchMainAgent } = use({ fetcher: async () => await window.electronAPI.agent.getMain() });
 
   const [messages, setMessages] = useState<typeof initialData>([]);
   const [isSending, setIsSending] = useState(false);
@@ -73,7 +92,7 @@ export function useChat(chatId: number) {
               status: 'success',
               created_at: new Date(),
               updated_at: new Date(),
-              metadata: null,
+              metadata: chunk.data?.userMessage.metadata || null,
             },
             ...(prev ?? []),
           ])
@@ -92,7 +111,7 @@ export function useChat(chatId: number) {
                 status: 'pending',
                 created_at: new Date(),
                 updated_at: new Date(),
-                metadata: null,
+                metadata: chunk.data.metadata || null,
               },
               ...(lastAssistantMessage ? prev?.slice(1) : prev) ?? [],
             ]
@@ -114,6 +133,8 @@ export function useChat(chatId: number) {
             }
             return prev;
           });
+          // Trigger sidebar refresh to update chat order
+          window.dispatchEvent(new CustomEvent('sidebar.refresh'));
           break;
         }
       }
@@ -164,8 +185,8 @@ export function useChat(chatId: number) {
   }, [chatId, messages]);
 
   const sendMessage = useCallback(async (options: SendMessageOptions) => {
-    const { content = '' } = options;
-    if (!content.trim() || isSending || isStreaming) return;
+    const { content = '', attachedFiles, longTextDocuments } = options;
+    if ((!content.trim() && !attachedFiles?.length && !longTextDocuments?.length) || isSending || isStreaming) return;
 
     setIsSending(true);
 
@@ -173,6 +194,8 @@ export function useChat(chatId: number) {
     stream.startStream(chatId.toString(), {
       chatId: chatId,
       message: content.trim(),
+      attachedFiles: attachedFiles || [],
+      longTextDocuments: longTextDocuments || [],
     });
 
   }, [chatId, isSending, isStreaming, stream]);
@@ -180,12 +203,6 @@ export function useChat(chatId: number) {
   return {
     chatTitle: chatRoomData?.title,
     newChatIds,
-    selectedLLM: mainAgentData?.llm_id ?? null,
-    setSelectedLLM: (llmId: number) => {
-      window.electronAPI.agent.update(mainAgentData?.id ?? 0, { llmId }).then(() => {
-        refetchMainAgent();
-      })
-    },
     messages: allMessages,
     error: fetchError,
     isLoading,

@@ -4,14 +4,14 @@ import (
 	"time"
 
 	"github.com/basetable/basetable/backend/internal/billing/domain/account"
-	"github.com/basetable/basetable/backend/internal/shared/identity"
+	"github.com/basetable/basetable/backend/internal/shared/domain"
 )
 
-type ID = identity.ID[Reservation]
+type ID = domain.ID[Reservation]
 
 var (
-	NewID     = identity.NewID[Reservation]
-	HydrateID = identity.HydrateID[Reservation]
+	NewID     = domain.NewID[Reservation]
+	HydrateID = domain.HydrateID[Reservation]
 )
 
 type Reservation struct {
