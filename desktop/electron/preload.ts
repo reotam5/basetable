@@ -154,6 +154,7 @@ const electronAPI = {
       isComplete: boolean;
     }) => void) => handler.on("llm.statusUpdate", callback),
     delete: (data: Parameters<typeof LLMService.deleteLLM>[0]) => handler.invoke("llm.delete", data) as ReturnType<typeof LLMService.deleteLLM>,
+    setDefault: (id: number) => handler.invoke("llm.setDefault", id) as ReturnType<typeof LLMService.setDefault>,
   },
   db: {
     encryption: {

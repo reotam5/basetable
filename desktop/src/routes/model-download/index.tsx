@@ -2,9 +2,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Breadcrumb, BreadcrumbList, BreadcrumbPage } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/auth-context';
 import { use } from '@/hooks/use';
 import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu';
@@ -20,6 +22,7 @@ export const Route = createFileRoute('/model-download/')({
 function RouteComponent() {
   const { user, logout } = useAuth()
   const { data: llms, refetch } = use({ fetcher: window.electronAPI.llm.getAllLocal })
+  const defaultModel = llms?.find((llm) => llm.is_default);
   const startDownload = (llm: (NonNullable<typeof llms>)[number]) => window.electronAPI.llm.download(llm);
   const cancelDownload = (llm: (NonNullable<typeof llms>)[number]) => {
     window.electronAPI.llm.cancelDownload(llm).then(() => {
@@ -47,6 +50,12 @@ function RouteComponent() {
       }))
     });
   };
+
+  const setDefaultModel = (llm: (NonNullable<typeof llms>)[number]) => {
+    window.electronAPI.llm.setDefault(llm.id).then(() => {
+      refetch();
+    });
+  }
 
   const handleContinue = () => window.electronAPI.window.screenChange('POST_MODEL_DOWNLOAD_LOADING' as any);
   const [downloadStatus, setDownloadStatus] = useState<Record<string, {
@@ -128,8 +137,10 @@ function RouteComponent() {
         </header>
         <div className="p-5 pt-3">
           <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-            Download AI models to run locally on your device for enhanced privacy and offline capabilities. You can
-            skip this step and use our cloud-based models, or download models later in settings.
+            Download AI models to run locally on your device for enhanced privacy and offline capabilities.
+            Default model will be used for miscellaneous tasks (eg. generating a title).
+            A default model is required to continue using the app.
+            You can modify later in the settings page.
           </p>
         </div>
 
@@ -140,6 +151,7 @@ function RouteComponent() {
                 <TableHead>Model</TableHead>
                 <TableHead>Provider</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Default</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -153,6 +165,34 @@ function RouteComponent() {
                   </TableCell>
                   <TableCell className="max-w-md">
                     <p className="text-sm text-muted-foreground line-clamp-2">{model.description}</p>
+                  </TableCell>
+                  <TableCell>
+                    {
+                      model.is_default ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Checkbox
+                                checked={model.is_default}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                This model will be used for miscellaneous tasks (eg. generating a title).
+                                <br />
+                                {!model.is_downloaded && "Please download this model before continuing."}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <Checkbox
+                          checked={model.is_default}
+                          disabled={model.is_default}
+                          onClick={() => setDefaultModel(model)}
+                        />
+                      )
+                    }
                   </TableCell>
                   <TableCell>
                     {!model.is_downloaded && !downloadStatus[model.download_url || ""] && <Badge variant="secondary">Not Downloaded</Badge>}
@@ -206,9 +246,32 @@ function RouteComponent() {
           <div className="text-sm text-muted-foreground">
             {hasActiveDownloads && <p>Downloads will continue in the background after you continue.</p>}
           </div>
-          <Button onClick={handleContinue} size="lg">
-            Continue to App
-          </Button>
+          {(downloadStatus?.[defaultModel?.download_url || ""] || !defaultModel?.is_downloaded) ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button size="lg" disabled={true}>
+                      Continue to App
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {
+                    downloadStatus?.[defaultModel?.download_url || ""] ? (
+                      <p>Please wait for the default model to finish downloading</p>
+                    ) : (
+                      <p>Please download the default model</p>
+                    )
+                  }
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Button onClick={handleContinue} size="lg">
+              Continue to App
+            </Button>
+          )}
         </div>
       </div>
     </div>

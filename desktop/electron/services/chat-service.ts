@@ -48,7 +48,9 @@ class ChatService {
       }
 
       // complete the stream
-      stream.end({ type: 'content_complete' } as ChatResponseChunk);
+      stream.end({
+        type: 'content_complete',
+      } as ChatResponseChunk);
 
     } catch (error) {
       Logger.error("Error in chat stream handler:", error);
@@ -216,17 +218,11 @@ interface ChatResponseChunk_ContentChunk {
   data: {
     chunk: string;
     fullContent: string;
-    agentMessageId: number;
-    userMessageId: number;
   };
 }
 
 interface ChatResponseChunk_ContentComplete {
   type: 'content_complete';
-  data: {
-    agentMessageId: number;
-    userMessageId: number;
-  }
 }
 
 interface ChatResponseChunk_Error {

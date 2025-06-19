@@ -12,25 +12,23 @@ class LLMModelRegistry {
     await Promise.all(llms.map(async (llm) => {
       if (!this.models.has(llm.id.toString())) {
         try {
-          const model = LLMModelFactory.createModel(
-            llm.type === 'local' ? {
+          const model = LLMModelFactory.createModel({
+            ...(llm.type === 'local' ? {
               type: 'local',
               modelPath: llm.model_path,
               config: llm.config as any
             } : {
               type: 'remote',
               config: llm.config as any
-            }
-          );
+            }),
+            displayName: llm.display_name,
+          });
 
-          Logger.info(`Initializing ${llm.type} model: ${llm.display_name} (ID: ${llm.id})`);
           await model.initialize();
           this.models.set(llm.id.toString(), model);
 
           if (llm.is_default && await model.isAvailable()) {
             this.defaultModel = model;
-
-            Logger.info(`Successfully initialized ${llm.type} model: ${llm.display_name}`);
           }
         } catch (error) {
           Logger.error(`Failed to initialize ${llm.type} model ${llm.display_name}:`, error);
@@ -45,6 +43,13 @@ class LLMModelRegistry {
           break;
         }
       }
+    }
+  }
+
+  async syncDefaultModel(): Promise<void> {
+    const default_id = (await LLMService.getLLMs()).filter(llm => llm.is_default)[0]?.id;
+    if (default_id && this.models.has(default_id.toString())) {
+      this.defaultModel = this.models.get(default_id.toString())!;
     }
   }
 

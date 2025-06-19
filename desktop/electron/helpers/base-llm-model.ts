@@ -21,9 +21,15 @@ export interface LLMModelResponse {
 
 export abstract class BaseLLMModel {
   protected config: Record<string, any>;
+  protected displayName: string;
 
-  constructor(config: Record<string, any> = {}) {
+  constructor(displayName: string, config: Record<string, any> = {}) {
     this.config = config;
+    this.displayName = displayName;
+  }
+
+  getDisplayName(): string {
+    return this.displayName;
   }
 
   abstract initialize(): Promise<void>;

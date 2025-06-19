@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { use } from "@/hooks/use"
 import useAgent from "@/hooks/use-agent"
-import { useMatches, useNavigate } from "@tanstack/react-router"
-import { Activity, ChevronLeft, ChevronRight, ChevronsUpDown, Info, Save, Search, Settings, Trash2 } from "lucide-react"
+import { useBlocker, useMatches, useNavigate } from "@tanstack/react-router"
+import { Activity, ChevronLeft, ChevronRight, ChevronsUpDown, Save, Search, Settings, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 import { AnimatedText } from "./animated-text"
 
 interface Template {
@@ -314,6 +314,43 @@ export function AgentPage() {
     setHasChanges(Object.keys(localChanges).length > 0);
   }, [localChanges]);
 
+  // Block navigation when there are unsaved changes
+  const [showNavigationDialog, setShowNavigationDialog] = useState(false);
+
+  const { proceed, reset, status } = useBlocker({
+    shouldBlockFn: () => hasChanges,
+    withResolver: true
+  });
+
+  // Show navigation dialog when navigation is blocked
+  useEffect(() => {
+    setShowNavigationDialog(status === 'blocked');
+  }, [status]);
+
+  // Handle browser window close/refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
+
+  const handleNavigationConfirm = () => {
+    setHasChanges(false);
+    setLocalChanges({});
+    proceed?.();
+  };
+
+  const handleNavigationCancel = () => {
+    reset?.();
+  };
+
   // Helper function to update local changes
   const updateLocalChanges = (changes: any) => {
     setLocalChanges(prev => ({ ...prev, ...changes }));
@@ -321,15 +358,12 @@ export function AgentPage() {
 
   // State for LLM model selection
   const [llmSearchQuery, setLlmSearchQuery] = useState('')
-  const [llmCurrentPage, setLlmCurrentPage] = useState(1)
 
   // State for MCP servers browsing
   const [mcpSearchQuery, setMcpSearchQuery] = useState('')
-  const [mcpCurrentPage, setMcpCurrentPage] = useState(1)
 
   // State for tools search in modal
   const [toolsSearchQuery, setToolsSearchQuery] = useState('')
-  const [toolsCurrentPage, setToolsCurrentPage] = useState(1)
 
   const handleToolSelection = (serverId: number, selectedTools: string[]) => {
     const mcpTools = currentAgent?.mcpTools ? { ...currentAgent.mcpTools } : {}
@@ -381,8 +415,16 @@ export function AgentPage() {
       Object.assign(agent || {}, localChanges);
       updateAgent(localChanges);
       createAgent();
+      toast("Agent created", {
+        icon: <Save className="h-4 w-4" />,
+        description: "Successfully created agent.",
+      })
     } else {
       updateAgent(localChanges);
+      toast("Agent updated", {
+        icon: <Save className="h-4 w-4" />,
+        description: "Successfully updated agent.",
+      })
     }
     // Clear local changes after saving
     setLocalChanges({});
@@ -398,7 +440,11 @@ export function AgentPage() {
     setShowDeleteDialog(false)
 
     // Redirect to create agent page
-    navigate({ to: "/agents" })
+    navigate({ to: "/agent" });
+    toast("Agent deleted", {
+      icon: <Trash2 className="h-4 w-4" />,
+      description: "Successfully deleted agent.",
+    })
   }
 
   const isCreateButtonDisabled = !currentAgent?.instruction || !currentAgent?.llmId
@@ -412,17 +458,18 @@ export function AgentPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h2 className="text-base font-medium">LLM Model</h2>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs font-medium">Required</Badge>
+              {currentAgent?.llmId ? (
+                <Badge variant="outline" className="text-xs">
+                  {llms?.find(llm => llm.id === currentAgent.llmId)?.display_name || 'Selected'}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs font-medium">Required</Badge>
+              )}
             </div>
           </div>
           <div className="px-3 py-3">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-muted-foreground">Select the model for your agent's responses</p>
-              {currentAgent?.llmId && (
-                <Badge variant="outline" className="text-xs">
-                  Selected
-                </Badge>
-              )}
             </div>
 
             {/* Search for LLM models - mirrors MCP server search */}
@@ -435,7 +482,6 @@ export function AgentPage() {
                 value={llmSearchQuery}
                 onChange={(e) => {
                   setLlmSearchQuery(e.target.value);
-                  setLlmCurrentPage(1); // Reset page when searching
                 }}
               />
             </div>
@@ -448,97 +494,49 @@ export function AgentPage() {
                   (llm.description && llm.description.toLowerCase().includes(llmSearchQuery.toLowerCase()))
                 );
 
-                const MODELS_PER_PAGE = 4;
-                const totalPages = Math.ceil(filteredModels.length / MODELS_PER_PAGE);
-                const startIdx = (llmCurrentPage - 1) * MODELS_PER_PAGE;
-                const visibleModels = filteredModels.slice(startIdx, startIdx + MODELS_PER_PAGE);
-
-                if (visibleModels.length === 0) {
+                if (filteredModels.length === 0) {
                   return (
                     <div className="h-[268px] flex items-center justify-center">
-                      <div className="text-center p-3 border rounded-md bg-muted/10">
+                      <div className="text-center p-3 rounded-md bg-muted/10">
                         <p className="text-xs text-muted-foreground">No models match your search</p>
                       </div>
                     </div>
                   );
                 }
 
-                // Calculate empty slots to fill the grid
-                const emptySlots = MODELS_PER_PAGE - visibleModels.length;
-
                 return (
-                  <>
-                    <div className="h-[268px]">
-                      <div className="space-y-2">
-                        {visibleModels.map((llm) => (
-                          <div
-                            key={llm.id}
-                            className={`border rounded-md cursor-pointer hover:bg-muted/30 h-[64px] ${currentAgent?.llmId === llm.id ? 'bg-primary/10 border-primary/30' : ''
-                              }`}
-                            onClick={() => {
-                              selectLLM(llm.id);
-                              setLlmSearchQuery('');
-                            }}
-                          >
-                            <div className="flex items-center justify-between p-2.5 h-full">
-                              <div className="flex-1">
-                                <div className="font-medium text-sm">{llm.display_name}</div>
-                                {llm.description && (
-                                  <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                                    {llm.description}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {llm.provider && (
-                                  <Badge variant="outline" className="text-xs font-normal">
-                                    {llm.provider}
-                                  </Badge>
-                                )}
-                                {currentAgent?.llmId === llm.id && (
-                                  <Badge className="bg-primary text-xs">Selected</Badge>
-                                )}
-                              </div>
+                  <div className="h-[268px] overflow-y-auto">
+                    <div className="space-y-2 pr-2">
+                      {filteredModels.map((llm) => (
+                        <div
+                          key={llm.id}
+                          className={`border rounded-md cursor-pointer h-[64px] ${currentAgent?.llmId === llm.id ? 'bg-muted/80 border-primary/30' : 'hover:bg-muted/30'}`}
+                          onClick={() => {
+                            selectLLM(llm.id);
+                            setLlmSearchQuery('');
+                          }}
+                        >
+                          <div className="flex items-center justify-between p-2.5 h-full">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{llm.display_name}</div>
+                              {llm.description && (
+                                <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                                  {llm.description}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {llm.provider && (
+                                <Badge variant="outline" className="text-xs font-normal">
+                                  {llm.provider}
+                                </Badge>
+                              )}
                             </div>
                           </div>
-                        ))}
-
-                        {/* Add empty placeholder slots to maintain height */}
-                        {emptySlots > 0 && Array(emptySlots).fill(0).map((_, index) => (
-                          <div key={`empty-${index}`} className="h-[64px] border-0 opacity-0" />
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-
-                    {/* Pagination for models list */}
-                    {totalPages > 1 && (
-                      <div className="flex items-center justify-between mt-6 pt-3 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => setLlmCurrentPage(Math.max(1, llmCurrentPage - 1))}
-                          disabled={llmCurrentPage === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-
-                        <span className="text-xs text-muted-foreground">
-                          {llmCurrentPage} / {totalPages}
-                        </span>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => setLlmCurrentPage(Math.min(totalPages, llmCurrentPage + 1))}
-                          disabled={llmCurrentPage === totalPages}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 );
               })()
             ) : (
@@ -556,17 +554,6 @@ export function AgentPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h2 className="text-base font-medium">MCP Servers</h2>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  updateLocalChanges({ mcpTools: {} });
-                }}
-                disabled={Object.keys(currentAgent?.mcpTools || {}).length === 0}
-                className="text-xs h-8"
-              >
-                Reset
-              </Button>
               <Badge variant="outline" className="text-xs font-medium">Optional</Badge>
             </div>
           </div>
@@ -588,7 +575,6 @@ export function AgentPage() {
                 value={mcpSearchQuery}
                 onChange={(e) => {
                   setMcpSearchQuery(e.target.value);
-                  setMcpCurrentPage(1); // Reset page when searching
                 }}
               />
             </div>
@@ -599,113 +585,68 @@ export function AgentPage() {
                   server.mcp?.name.toLowerCase().includes(mcpSearchQuery.toLowerCase())
                 );
 
-                const SERVERS_PER_PAGE = 4;
-                const totalPages = Math.ceil(filteredServers.length / SERVERS_PER_PAGE);
-                const startIdx = (mcpCurrentPage - 1) * SERVERS_PER_PAGE;
-                const visibleServers = filteredServers.slice(startIdx, startIdx + SERVERS_PER_PAGE);
-
-                if (visibleServers.length === 0) {
+                if (filteredServers.length === 0) {
                   return (
                     <div className="h-[268px] flex items-center justify-center">
-                      <div className="text-center p-3 border rounded-md bg-muted/10">
+                      <div className="text-center p-3 rounded-md bg-muted/10">
                         <p className="text-xs text-muted-foreground">No servers match your search</p>
                       </div>
                     </div>
                   );
                 }
 
-                // Calculate empty slots to fill the grid
-                const emptySlots = SERVERS_PER_PAGE - visibleServers.length;
-
                 return (
-                  <>
-                    <div className="h-[268px]">
-                      <div className="space-y-2">
-                        {visibleServers.map((server) => {
-                          const selectedTools = currentAgent?.mcpTools?.[server.user_mcp.id] || [];
-                          const totalTools = server.mcp?.tools?.length || 0;
+                  <div className="h-[268px] overflow-y-auto">
+                    <div className="space-y-2 pr-2">
+                      {filteredServers.map((server) => {
+                        const selectedTools = currentAgent?.mcpTools?.[server.user_mcp.id] || [];
+                        const totalTools = server.mcp?.tools?.length || 0;
 
-                          return (
-                            <div
-                              key={server.user_mcp.id}
-                              className="border rounded-md cursor-pointer hover:bg-muted/30 h-[64px]"
-                              onClick={() => {
-                                setActiveServer(server);
-                                setServerToolsDialogOpen(true);
-                                // Reset tools search state when opening dialog
-                                setToolsSearchQuery('');
-                                setToolsCurrentPage(1);
-                              }}
-                            >
-                              <div className="flex items-center justify-between p-2.5 h-full">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <img
-                                      src={server.mcp?.icon || 'placeholder-icon.svg'}
-                                      alt={server.mcp?.name}
-                                      className="w-5 h-5 object-contain"
-                                      onError={(e) => {
-                                        e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
-                                      }}
-                                    />
-                                    <span className="font-medium text-sm">{server.mcp?.name}</span>
-                                  </div>
-                                  {/* Add description line to match height of LLM model items */}
-                                  <div className="text-xs text-muted-foreground mt-0.5 ml-7">
-                                    {selectedTools.length > 0
-                                      ? `${selectedTools.length} tool${selectedTools.length !== 1 ? 's' : ''} selected`
-                                      : 'No tools selected'}
-                                  </div>
-                                </div>
+                        return (
+                          <div
+                            key={server.user_mcp.id}
+                            className={`border rounded-md cursor-pointer h-[64px] ${selectedTools.length > 0 ? "bg-muted/80 border-primary/30" : "hover:bg-muted/30"}`}
+                            onClick={() => {
+                              setActiveServer(server);
+                              setServerToolsDialogOpen(true);
+                              // Reset tools search state when opening dialog
+                              setToolsSearchQuery('');
+                            }}
+                          >
+                            <div className="flex items-center justify-between p-2.5 h-full">
+                              <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  {selectedTools.length > 0 && (
-                                    <Badge variant="outline" className="text-xs font-normal">
-                                      {selectedTools.length}/{totalTools}
-                                    </Badge>
-                                  )}
-                                  <ChevronsUpDown className="h-4 w-4 opacity-70" />
+                                  <img
+                                    src={server.mcp?.icon || 'placeholder-icon.svg'}
+                                    alt={server.mcp?.name}
+                                    className="w-5 h-5 object-contain"
+                                    onError={(e) => {
+                                      e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
+                                    }}
+                                  />
+                                  <span className="font-medium text-sm">{server.mcp?.name}</span>
+                                </div>
+                                {/* Add description line to match height of LLM model items */}
+                                <div className="text-xs text-muted-foreground mt-0.5 ml-7">
+                                  {selectedTools.length > 0
+                                    ? `${selectedTools.length} tool${selectedTools.length !== 1 ? 's' : ''} selected`
+                                    : 'No tools selected'}
                                 </div>
                               </div>
+                              <div className="flex items-center gap-2">
+                                {selectedTools.length > 0 && (
+                                  <Badge variant="outline" className="text-xs font-normal">
+                                    {selectedTools.length}/{totalTools}
+                                  </Badge>
+                                )}
+                                <ChevronsUpDown className="h-4 w-4 opacity-70" />
+                              </div>
                             </div>
-                          );
-                        })}
-
-                        {/* Add empty placeholder slots to maintain height */}
-                        {emptySlots > 0 && Array(emptySlots).fill(0).map((_, index) => (
-                          <div key={`empty-${index}`} className="h-[64px] border-0 opacity-0" />
-                        ))}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-
-                    {/* Pagination for servers list */}
-                    {totalPages > 1 && (
-                      <div className="flex items-center justify-between mt-6 pt-3 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => setMcpCurrentPage(Math.max(1, mcpCurrentPage - 1))}
-                          disabled={mcpCurrentPage === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-
-                        <span className="text-xs text-muted-foreground">
-                          {mcpCurrentPage} / {totalPages}
-                        </span>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => setMcpCurrentPage(Math.min(totalPages, mcpCurrentPage + 1))}
-                          disabled={mcpCurrentPage === totalPages}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 );
               })()
             ) : (
@@ -724,21 +665,6 @@ export function AgentPage() {
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-medium">Communication Preferences</h2>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                // Clear the agent's styles
-                updateLocalChanges({ styles: [] });
-
-                // Increment the key to force remount of select components
-                setSelectResetKey(prev => prev + 1);
-              }}
-              disabled={!selectedTone && !selectedStyle}
-              className="text-xs h-8"
-            >
-              Reset
-            </Button>
             <Badge variant="outline" className="text-xs font-medium">Optional</Badge>
           </div>
         </div>
@@ -958,87 +884,109 @@ export function AgentPage() {
     <div className="space-y-8 p-6 mx-auto max-w-5xl w-full">
       {/* Header */}
       <div className="border-b pb-6 mb-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl sm:text-3xl font-bold">
-            {isMainAgent ? "Main Agent" : (isNewAgent ? "Create Agent" : (
-              nameUpdated ? (
-                <AnimatedText text={nameUpdated} />
-              ) : (
-                agent?.name?.length ? agent.name : "New Agent"
-              )
-            ))}
-          </h1>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="ml-2">
-                <Info className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-80">
-              {isMainAgent ? "Your main agent is used for all conversations by default." : "Custom agents can be used for specific tasks and workflows."}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-          Configure your {isMainAgent ? "main AI agent" : "agent"} with models, tools, tone, and communication style
-        </p>
-      </div>
-
-      {/* Content with tabs */}
-      <Tabs
-        defaultValue="configurations"
-        className="w-full"
-        onValueChange={(value) => setActiveTab(value)}
-      >
-        <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-auto mb-6">
-          <TabsTrigger
-            value="configurations"
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Configurations
-          </TabsTrigger>
-          <TabsTrigger
-            value="activities"
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
-          >
-            <Activity className="h-4 w-4 mr-2" />
-            Activities
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="configurations" className="space-y-8 pt-6">
-          {renderConfigurationContent()}
-        </TabsContent>
-
-        <TabsContent value="activities">
-          {renderActivitiesContent()}
-        </TabsContent>
-      </Tabs>
-
-      {/* Action buttons - only show when on Configurations tab */}
-      {activeTab === 'configurations' && (
-        <div className="flex justify-between items-center pt-4 mt-8 border-t">
+        <h1 className="text-2xl sm:text-3xl font-bold">
+          {isMainAgent ? "Main Agent" : (isNewAgent ? "Create Agent" : (
+            nameUpdated ? (
+              <AnimatedText text={nameUpdated} />
+            ) : (
+              agent?.name?.length ? agent.name : "New Agent"
+            )
+          ))}
+        </h1>
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+            Configure your {isMainAgent ? "main AI agent" : "agent"} with models, tools, tone, and communication style
+          </p>
           <div>
-            {!isMainAgent && (
+            {!isMainAgent && !isNewAgent && (
               <Button
                 variant="destructive"
+                size='icon'
                 onClick={handleDelete}
                 className="flex items-center"
                 disabled={isNewAgent || !agent?.id}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Agent
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
-          <Button
-            onClick={handleSave}
-            className="flex items-center"
-            disabled={isNewAgent ? isCreateButtonDisabled : (!hasChanges || isCreateButtonDisabled)}
+        </div>
+      </div>
+
+      {/* Content with tabs */}
+      {
+        isNewAgent ? renderConfigurationContent() : (
+          <Tabs
+            defaultValue="configurations"
+            className="w-full"
+            onValueChange={(value) => setActiveTab(value)}
           >
-            <Save className="h-4 w-4 mr-2" />
-            {isNewAgent ? "Create Agent" : "Save Changes"}
-          </Button>
+            <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-auto mb-6">
+              <TabsTrigger
+                value="configurations"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Configurations
+              </TabsTrigger>
+              <TabsTrigger
+                value="activities"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                Activities
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="configurations" className="space-y-8 pt-6">
+              {renderConfigurationContent()}
+            </TabsContent>
+
+            <TabsContent value="activities">
+              {renderActivitiesContent()}
+            </TabsContent>
+          </Tabs>
+        )
+      }
+
+      {/* Action buttons - only show when on Configurations tab */}
+      {activeTab === 'configurations' && !(isNewAgent ? false : (!hasChanges || isCreateButtonDisabled)) && (
+        <div className="sticky bottom-4 flex justify-between items-center px-4 py-3 mx-3 rounded-lg bg-background shadow-md border animate-in slide-in-from-bottom duration-300 fade-in">
+          <h2 className="text-base font-medium">
+            {isNewAgent ? (
+              isCreateButtonDisabled ? (
+                hasChanges ? `Missing field: ${[
+                  !currentAgent?.instruction ? "Instruction" : "",
+                  !currentAgent?.llmId ? "LLM Model" : "",
+                ].filter(t => t).join(", ")}` :
+                  "Please fill in required fields") : "Ready to create your agent!"
+            ) : (
+              "You have unsaved changes"
+            )}
+          </h2>
+          <div className="flex items-center gap-3">
+            {hasChanges && (
+              <Button
+                variant='ghost'
+                className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                onClick={() => {
+                  setLocalChanges({});
+                  setHasChanges(false);
+                  setSelectResetKey(prev => prev + 1); // Force re-render of select components
+                }}
+              >
+                Reset
+              </Button>
+            )}
+            <Button
+              variant='default'
+              onClick={handleSave}
+              className="flex items-center"
+              disabled={isNewAgent ? isCreateButtonDisabled : (!hasChanges || isCreateButtonDisabled)}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {isNewAgent ? "Create Agent" : "Save Changes"}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1132,13 +1080,12 @@ export function AgentPage() {
                 className="pl-9 h-9"
                 value={toolsSearchQuery}
                 onChange={(e) => {
-                  setToolsCurrentPage(1);
                   setToolsSearchQuery(e.target.value);
                 }}
               />
             </div>
 
-            {/* Tools with pagination */}
+            {/* Tools with scrolling */}
             {(() => {
               if (!activeServer?.mcp?.tools?.length) {
                 return (
@@ -1152,12 +1099,7 @@ export function AgentPage() {
                 tool.name.toLowerCase().includes(toolsSearchQuery.toLowerCase())
               );
 
-              const ITEMS_PER_PAGE = 8;
-              const totalPages = Math.ceil(filteredTools.length / ITEMS_PER_PAGE);
-              const startIdx = (toolsCurrentPage - 1) * ITEMS_PER_PAGE;
-              const visibleTools = filteredTools.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-
-              if (visibleTools.length === 0) {
+              if (filteredTools.length === 0) {
                 return (
                   <div className="p-4 text-center border rounded-md">
                     <p className="text-sm text-muted-foreground">No tools match your search</p>
@@ -1166,66 +1108,35 @@ export function AgentPage() {
               }
 
               return (
-                <>
-                  <div className="border rounded-md overflow-hidden h-[320px]">
-                    <div className="h-full overflow-y-auto">
-                      {visibleTools.map((tool, index) => (
-                        <div
-                          key={tool.id}
-                          className={`flex items-center gap-2 p-3 hover:bg-muted/30 ${index !== visibleTools.length - 1 ? 'border-b' : ''
-                            }`}
+                <div className="border rounded-md overflow-hidden h-[320px]">
+                  <div className="h-full overflow-y-auto">
+                    {filteredTools.map((tool, index) => (
+                      <div
+                        key={tool.id}
+                        className={`flex items-center gap-2 p-3 hover:bg-muted/30 ${index !== filteredTools.length - 1 ? 'border-b' : ''
+                          }`}
+                      >
+                        <Checkbox
+                          id={`${activeServer.user_mcp.id}-${tool.id}`}
+                          checked={(currentAgent?.mcpTools?.[activeServer.user_mcp.id] || []).includes(tool.id)}
+                          onCheckedChange={(checked) => {
+                            const currentTools = currentAgent?.mcpTools?.[activeServer.user_mcp.id] || [];
+                            const updatedTools = checked
+                              ? [...currentTools, tool.id]
+                              : currentTools.filter(t => t !== tool.id);
+                            handleToolSelection(activeServer.user_mcp.id, updatedTools);
+                          }}
+                        />
+                        <label
+                          htmlFor={`${activeServer.user_mcp.id}-${tool.id}`}
+                          className="text-sm cursor-pointer flex-1"
                         >
-                          <Checkbox
-                            id={`${activeServer.user_mcp.id}-${tool.id}`}
-                            checked={(currentAgent?.mcpTools?.[activeServer.user_mcp.id] || []).includes(tool.id)}
-                            onCheckedChange={(checked) => {
-                              const currentTools = currentAgent?.mcpTools?.[activeServer.user_mcp.id] || [];
-                              const updatedTools = checked
-                                ? [...currentTools, tool.id]
-                                : currentTools.filter(t => t !== tool.id);
-                              handleToolSelection(activeServer.user_mcp.id, updatedTools);
-                            }}
-                          />
-                          <label
-                            htmlFor={`${activeServer.user_mcp.id}-${tool.id}`}
-                            className="text-sm cursor-pointer flex-1"
-                          >
-                            {tool.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
+                          {tool.name}
+                        </label>
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Pagination controls */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-6 pt-3 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setToolsCurrentPage(Math.max(1, toolsCurrentPage - 1))}
-                        disabled={toolsCurrentPage === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
-                      </Button>
-
-                      <span className="text-xs text-muted-foreground">
-                        Page {toolsCurrentPage} of {totalPages}
-                      </span>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setToolsCurrentPage(Math.min(totalPages, toolsCurrentPage + 1))}
-                        disabled={toolsCurrentPage === totalPages}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                  )}
-                </>
+                </div>
               );
             })()}
           </div>
@@ -1234,9 +1145,34 @@ export function AgentPage() {
             <Button onClick={() => {
               setServerToolsDialogOpen(false);
               setToolsSearchQuery('');
-              setToolsCurrentPage(1);
             }}>
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Navigation confirmation dialog */}
+      <Dialog open={showNavigationDialog} onOpenChange={setShowNavigationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unsaved Changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. Are you sure you want to leave this page?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleNavigationCancel}
+            >
+              Stay
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleNavigationConfirm}
+            >
+              Leave
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -13,11 +13,11 @@ function getPreviewText(text: string, limit: number = 50): string {
   return text.substring(0, limit) + '...';
 }
 
-export function ContentPreviewCard({ id, title, content, onView, onRemove }: ContentPreviewCardProps) {
+export function ContentPreviewCard({ title, content, onView, onRemove }: ContentPreviewCardProps) {
   return (
-    <div className="flex-shrink-0">
-      <div 
-        className="flex items-start gap-2 p-2 border border-neutral-200 dark:border-neutral-500 rounded-lg bg-neutral-50 dark:bg-neutral-900 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors w-72"
+    <div className="min-w-0">
+      <div
+        className="flex items-start gap-2 p-2 border border-neutral-200 dark:border-neutral-500 rounded-lg bg-neutral-50 dark:bg-neutral-900 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
         onClick={onView}
       >
         <FileText className="w-4 h-4 text-neutral-600 dark:text-neutral-400 flex-shrink-0 mt-0.5" />

@@ -1,17 +1,19 @@
 import { useAuth } from "@/contexts/auth-context";
 import { ChatStreamData } from "@/hooks/use-chat";
+import { useChatInput } from "@/hooks/use-chat-input";
 import { useStream } from "@/hooks/use-stream";
 import { useNavigate } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatInput } from "./chat-input";
 import { Button } from "./ui/button";
 
 export function NewChat() {
-  const [message, setMessage] = useState("");
   const [greeting, setGreeting] = useState("Hello");
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { clearInput } = useChatInput();
+  const shouldClearInput = useRef(true);
 
   useEffect(() => {
     // Get user's first name
@@ -29,11 +31,23 @@ export function NewChat() {
       }
     }
   }, [user]);
+
+
+  useEffect(() => {
+    return () => {
+      if (shouldClearInput.current) {
+        clearInput();
+      }
+    }
+  }, [clearInput]);
+
   const stream = useStream<ChatStreamData>({ channel: 'chat.stream' });
 
   const handleSubmit = (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
     const { content, attachedFiles, longTextDocuments } = data;
     if (!content.trim() && !attachedFiles?.length && !longTextDocuments?.length) return;
+
+    shouldClearInput.current = false;
 
     // Handle sending the message
     window.electronAPI.chat.create({}).then((chat) => {
@@ -51,11 +65,9 @@ export function NewChat() {
         stream.pauseStream(chat.id.toString()).then(() => {
           window.dispatchEvent(new CustomEvent("sidebar.refresh"));
           navigate({ to: `/chat/${chat.id}` });
-          setMessage("");
         })
       });
     })
-    setMessage("");
   };
 
   return (
@@ -63,28 +75,20 @@ export function NewChat() {
       {/* Free plan upgrade banner */}
 
       {/* Header Section with personalized greeting */}
-      <div className="flex flex-col items-center mb-8 text-center">
-        <div className="flex items-center gap-3">
-          <span className="text-amber-400 dark:text-indigo-400">
-            <Sparkles className="h-8 w-8" />
-          </span>
-          <h1 className="text-5xl font-medium text-neutral-800 dark:text-neutral-100">
-            {greeting}
-          </h1>
-        </div>
-      </div>
+      <h1 className="mb-8 text-5xl font-medium text-neutral-800 dark:text-neutral-100 gap-3 text-wrap min-w-0 whitespace-normal wrap-break-word max-w-none flex items-center text-center">
+        <Sparkles className="h-8 w-8 text-amber-400 dark:text-indigo-400 inline-block shrink-0" />
+        {greeting}
+      </h1>
 
       {/* Chat Input Section - using shared ChatInput component */}
       <div className="w-full max-w-3xl px-4">
         <ChatInput
-          value={message}
-          onChange={setMessage}
           onSubmit={handleSubmit}
           placeholder="How can I help you today?"
         />
 
         {/* Shortcut buttons at the bottom */}
-        <div className="flex justify-center gap-3 mt-5">
+        <div className="flex justify-center gap-3 mt-5 min-w-0 flex-wrap">
           <Button variant="outline" className="rounded-full border-neutral-200 dark:border-neutral-700 px-5 py-2 h-auto text-sm font-normal text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-800 dark:hover:text-neutral-200">
             <code className="mr-2">&lt;/&gt;</code> Code
           </Button>

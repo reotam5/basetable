@@ -4,9 +4,10 @@ import { TextViewerModal } from "./text-viewer-modal";
 
 interface DocumentCardProps {
   content: string;
+  title: string;
 }
 
-export function DocumentCard({ content }: DocumentCardProps) {
+export function DocumentCard({ content, title }: DocumentCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
 
@@ -49,7 +50,7 @@ export function DocumentCard({ content }: DocumentCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                PASTED
+                {title}
               </span>
               <span className="text-xs text-neutral-500 dark:text-neutral-400">
                 {formatStats(content)}
@@ -72,7 +73,7 @@ export function DocumentCard({ content }: DocumentCardProps) {
         onClose={() => {
           setIsViewing(false)
         }}
-        title="PASTED"
+        title={title}
       />
     </>
   );

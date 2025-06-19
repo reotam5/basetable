@@ -1,5 +1,5 @@
-import { BaseLLMModel, LLMModelResponseChunk } from "./base-llm-model.js";
 import { api } from "./axios-api.js";
+import { BaseLLMModel, LLMModelResponseChunk } from "./base-llm-model.js";
 import { createStreamIterator } from "./createStreamIterator.js";
 import { Logger } from "./custom-logger.js";
 
@@ -37,16 +37,12 @@ export interface RemoteLLMConfig {
 export class RemoteLLMModel extends BaseLLMModel {
   private remoteConfig: RemoteLLMConfig;
 
-  constructor(config: RemoteLLMConfig) {
-    super(config);
+  constructor(displayName: string, config: RemoteLLMConfig) {
+    super(displayName, config);
     this.remoteConfig = config;
   }
 
-  async initialize(): Promise<void> {
-    // Remote models don't need initialization like local models
-    // Just verify the provider is available
-    Logger.info(`Initialized remote model: ${this.remoteConfig.model} from ${this.remoteConfig.base_url}`);
-  }
+  async initialize(): Promise<void> { }
 
   async isAvailable(): Promise<boolean> {
     try {
@@ -73,6 +69,7 @@ export class RemoteLLMModel extends BaseLLMModel {
         messages: this.parsePromptToMessages(prompt),
         stream: true
       };
+
       Logger.info(requestPayload.messages);
 
       const response = await api.post('/v1/proxy/request', requestPayload, {
@@ -101,10 +98,10 @@ export class RemoteLLMModel extends BaseLLMModel {
               const delta = parsed.choices?.[0]?.delta?.content || '';
               content += delta
               streamIterator.push({
-                  type: 'content_chunk',
-                  delta,
-                  content: content,
-                  search_results: parsed.search_results || []
+                type: 'content_chunk',
+                delta,
+                content: content,
+                search_results: parsed.search_results || []
               });
             } catch (e) {
               // Ignore parsing errors for malformed chunks
@@ -149,7 +146,7 @@ export class RemoteLLMModel extends BaseLLMModel {
         }
       });
       const content = response.data.choices?.[0]?.message?.content;
-      
+
       if (!content) {
         throw new Error("No content received from remote model");
       }
@@ -167,16 +164,16 @@ export class RemoteLLMModel extends BaseLLMModel {
     }
   }
 
-  private parsePromptToMessages(prompt: string): Array<{role: string, content: string}> {
+  private parsePromptToMessages(prompt: string): Array<{ role: string, content: string }> {
     const messages = [];
-    
+
     // Split by role markers
     const sections = prompt.split(/<\|(\w+)\|>/);
-    
+
     for (let i = 1; i < sections.length; i += 2) {
       const role = sections[i];
       const content = sections[i + 1]?.trim();
-      
+
       if (content && (role === 'system' || role === 'user' || role === 'assistant')) {
         messages.push({
           role: role,
@@ -184,7 +181,7 @@ export class RemoteLLMModel extends BaseLLMModel {
         });
       }
     }
-    
+
     // If no proper role markers found, treat entire prompt as user message
     if (messages.length === 0) {
       messages.push({
@@ -192,7 +189,7 @@ export class RemoteLLMModel extends BaseLLMModel {
         content: prompt
       });
     }
-    
+
     return messages;
   }
 }

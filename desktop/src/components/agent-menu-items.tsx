@@ -1,7 +1,8 @@
 import { use } from "@/hooks/use";
 import { useMatches, useNavigate } from "@tanstack/react-router";
-import { Bot, Check, Edit, MoreHorizontal, Plus, Trash, X } from "lucide-react";
+import { Bot, Check, Edit, MoreHorizontal, Plus, Save, Trash, Trash2, X } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { AnimatedText } from "./animated-text";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
@@ -69,6 +70,10 @@ export function AgentMenuItems() {
       setEditingAgentId(null);
       setEditingName("");
       window.dispatchEvent(new CustomEvent("sidebar.refresh"));
+      toast("Agent updated", {
+        icon: <Save className="h-4 w-4" />,
+        description: "Successfully updated agent.",
+      })
     } catch (error) {
       console.error("Failed to update agent name:", error);
     } finally {
@@ -126,6 +131,10 @@ export function AgentMenuItems() {
 
       setDeleteDialogOpen(false);
       setAgentToDelete(null);
+      toast("Agent deleted", {
+        icon: <Trash2 className="h-4 w-4" />,
+        description: "Successfully deleted agent.",
+      })
     } catch (error) {
       console.error("Failed to delete agent:", error);
     } finally {

@@ -3,7 +3,8 @@ import { backend } from "../backend.js";
 import { database } from "../database/database.js";
 import { chat } from "../database/tables/chat.js";
 import { message } from "../database/tables/message.js";
-import { AgentService, MessageService, SettingService } from "../services/index.js";
+import { AgentService, ChatService, MessageService, SettingService } from "../services/index.js";
+import { Logger } from "./custom-logger.js";
 import { LLMModelRegistry } from "./llm-model-registry.js";
 
 class ChatOrchestrator {
@@ -32,12 +33,9 @@ class ChatOrchestrator {
    * main agent's llm model will determine the appropriate agent based on message data
    */
   async getAppropriateAgent(prompt: string, mentionedAgentId?: number): Promise<typeof this.mainAgent> {
-    console.log('getAppropriateAgent called with mentionedAgentId:', mentionedAgentId);
-
     // If an agent is mentioned via @ syntax, use that agent directly
     if (mentionedAgentId) {
       const selectedAgent = this.agents.find(agent => agent.id === mentionedAgentId) || this.mainAgent;
-      console.log('Using mentioned agent:', selectedAgent.name, 'ID:', selectedAgent.id);
       return selectedAgent;
     }
 
@@ -45,11 +43,8 @@ class ChatOrchestrator {
     const autoRouteSetting = await SettingService.getSetting("agent.autoRoute");
     const isAutoRouteEnabled = autoRouteSetting === "true";
 
-    console.log('Auto-routing enabled:', isAutoRouteEnabled);
-
     // If auto-routing is disabled, always return the main agent
     if (!isAutoRouteEnabled) {
-      console.log('Using main agent (auto-routing disabled)');
       return this.mainAgent;
     }
 
@@ -58,18 +53,20 @@ class ChatOrchestrator {
     const res = await llmModel?.structuredResponse<{ agentId: number }>(
       `<|system|>\n` +
       `You are an agent selector. Each agent has different instruction and tools. Based on the user messages, select the most appropriate agent to process the user request. Return only the agent ID.\n\n` +
-      `<|messages|>\n` +
-      `${prompt}\n\n` +
-      `<|agents|>\n` +
+      `<messages>\n${prompt}\n</messages>\n\n` +
+      `<available_agents>\n` +
       `${this.agents.map(agent => (
-        `<|agent|>\n` +
-        `id: ${agent.id}\n` +
-        `name: ${agent.name}\n` +
-        `instruction: ${agent.instruction}\n` +
-        `tools: \n` +
-        `${agent.mcps?.map(m => (`- ${m.name} (${m.selectedTools.join(', ')})`)).join('\n')}`
-      )).join('\n\n')}\n\n` +
-      `<|selected agent id|>`,
+        `<agent id="${agent.id}" name="${agent.name}">\n` +
+        `<instruction>${agent.instruction}</instruction>\n` +
+        `${agent.mcps?.length ?
+          `<tools>\n${agent.mcps.map(m =>
+            `<tool name="${m.name}" capabilities="${m.selectedTools.join(', ')}" />`
+          ).join('\n')}\n</tools>`
+          : '<tools></tools>'
+        }\n` +
+        `</agent>`
+      )).join('\n')}\n` +
+      `</available_agents>`,
       {
         type: 'object',
         properties: {
@@ -88,9 +85,6 @@ class ChatOrchestrator {
     let mentionedAgentId: number | undefined;
     let cleanedPrompt = prompt;
 
-    console.log('Parsing mentions from prompt:', prompt);
-    console.log('Available agents:', this.agents.map(a => ({ id: a.id, name: a.name })));
-
     // Try to find agent mentions anywhere in the prompt
     if (prompt.includes('@')) {
       // Find the best matching agent name (check both original and dashed versions)
@@ -104,25 +98,21 @@ class ChatOrchestrator {
         // Check dashed version first (preferred format)
         const dashedName = agent.name.replace(/\s+/g, '-');
         const dashedPattern = `@${dashedName}`;
-        console.log(`Checking dashed pattern: ${dashedPattern} against prompt: ${prompt}`);
         if (prompt.toLowerCase().includes(dashedPattern.toLowerCase())) {
           if (dashedName.length > longestMatch) {
             bestMatch = agent;
             longestMatch = dashedName.length;
             matchedPattern = dashedPattern;
-            console.log(`Found match with dashed pattern: ${dashedPattern}`);
           }
         }
 
         // Also check original name as fallback
         const originalPattern = `@${agent.name}`;
-        console.log(`Checking original pattern: ${originalPattern} against prompt: ${prompt}`);
         if (prompt.toLowerCase().includes(originalPattern.toLowerCase())) {
           if (agent.name.length > longestMatch) {
             bestMatch = agent;
             longestMatch = agent.name.length;
             matchedPattern = originalPattern;
-            console.log(`Found match with original pattern: ${originalPattern}`);
           }
         }
       }
@@ -131,11 +121,6 @@ class ChatOrchestrator {
         mentionedAgentId = bestMatch.id;
         // Remove the @ mention from wherever it appears in the prompt
         cleanedPrompt = prompt.replace(matchedPattern, '').trim();
-        console.log('Found mention:', matchedPattern);
-        console.log('Matched agent:', bestMatch);
-        console.log('Using agent ID:', mentionedAgentId, 'Cleaned prompt:', cleanedPrompt);
-      } else {
-        console.log('No matching agent found for mention');
       }
     }
 
@@ -151,14 +136,12 @@ class ChatOrchestrator {
     const accumulatedMessages = this.chatSessions.get(chatId)!;
 
     // if this is a new conversation, we generate title using default llm
-    if (accumulatedMessages.length == 0) {
+    if (!(await ChatService.getChatById(chatId))?.title) {
       this.generateTitle(next_prompt, chatId)
     }
 
     // Parse @ mentions from the message
-    console.log('Original prompt for mention parsing:', next_prompt);
     const { cleanedPrompt, mentionedAgentId } = this.parseAgentMentions(next_prompt);
-    console.log('Parsed mentionedAgentId:', mentionedAgentId);
 
     // create a new message in the database (store the original prompt with @ mentions)
     const created_message = await MessageService.createMessage({
@@ -176,46 +159,58 @@ class ChatOrchestrator {
     // format messages into a prompt (use cleaned prompt for LLM)
     const prompt =
       `${accumulatedMessages.slice(0, -1).map(message =>
-        `\n<|${message.type}|>\n` +
-          `${message.content}` +
-          message.metadata?.longTextDocuments?.length ? message.metadata?.longTextDocuments?.map((doc: any) =>
-            `\n<|attached document|>\n` +
-            `${doc.title ? `${doc.title}\n` : ""}` +
-            `${doc?.content}\n`
-          )?.join("\n") : ""
-      ).join('\n')}\n` +
-      `<|user|>\n` +
-      `${cleanedPrompt}\n\n` +
-      `${created_message.metadata?.longTextDocuments?.map((t: any) =>
-        `<|attached document|>\n` +
-        `${t.title ? `${t.title}\n` : ""}` +
-        `${t?.content}\n`
-      ).join("\n") ?? ""}` +
-      `<|assistant|>`;
+        `\n<|${message.type}|>\n${message.metadata?.longTextDocuments?.length
+          ? `<documents>\n${message.metadata.longTextDocuments.map((doc: any) =>
+            `<document>\n<title>${doc.title || "Attached Document"}</title>\n<content>${doc?.content}</content>\n</document>`
+          ).join('\n')}\n</documents>\n\n`
+          : ""
+        }${message.content}`
+      ).join('')}\n<|user|>\n${created_message.metadata?.longTextDocuments?.length
+        ? `<documents>\n${created_message.metadata.longTextDocuments.map((t: any) =>
+          `<document>\n<title>${t.title || "Attached Document"}</title>\n<content>${t?.content}</content>\n</document>`
+        ).join('\n')}\n</documents>\n\n`
+        : ""
+      }${cleanedPrompt}\n\n<|assistant|>`;
+
+
 
 
     // select the appropriate agent based on the prompt and mentions
     const agent = await this.getAppropriateAgent(prompt, mentionedAgentId)
     const llmModel = this.llmModelRegistry.getModel(agent.llm_id.toString())!;
+    Logger.debug(`${agent.name} with ${llmModel.getDisplayName()} is processing the message`);
 
     // prompt with agent instruction
     const promptWithAgentInstruction =
       `<|system|>\n` +
       `${agent.instruction}\n` +
-      `${agent.styles?.length ?
-        `\n<|assistant response style|>\n` +
-        `${agent.styles.map(style => `${style.name}${style.description ? ` (${style.description})` : ""}`).join(', ')}\n`
-        : ""
-      }` +
-      `${agent.tones?.length ?
-        `\n<|assistant response tone|>\n` +
-        `${agent.tones.map(tone => `${tone.name}${tone.description ? ` (${tone.description})` : ""}`).join(', ')}\n`
-        : ""
-      }` +
-      `${agent.mcps?.length ?
-        `\n<|available assistant tools (mcp servers)|>\n` +
-        `${agent.mcps.map(m => (`${m.name} (${m.selectedTools.join(', ')})`)).join('\n')
-        }\n`
+      `${(agent.styles?.length || agent.tones?.length || agent.mcps?.length) ?
+        `\n<agent_configuration>\n` +
+        `${agent.styles?.length ?
+          `<response_styles>\n` +
+          `${agent.styles.map(style =>
+            `<style name="${style.name}"${style.description ? ` description="${style.description}"` : ""} />`
+          ).join('\n')}\n` +
+          `</response_styles>\n`
+          : ""
+        }` +
+        `${agent.tones?.length ?
+          `<response_tones>\n` +
+          `${agent.tones.map(tone =>
+            `<tone name="${tone.name}"${tone.description ? ` description="${tone.description}"` : ""} />`
+          ).join('\n')}\n` +
+          `</response_tones>\n`
+          : ""
+        }` +
+        `${agent.mcps?.length ?
+          `<available_tools>\n` +
+          `${agent.mcps.map(mcp =>
+            `<tool server="${mcp.name}" capabilities="${mcp.selectedTools.join(', ')}" />`
+          ).join('\n')}\n` +
+          `</available_tools>\n`
+          : ""
+        }` +
+        `</agent_configuration>\n`
         : ""
       }` +
       `${prompt}`;
@@ -223,24 +218,29 @@ class ChatOrchestrator {
     const iterator = llmModel.streamResponse(promptWithAgentInstruction, abortController);
 
     let fullContent = '';
-    let searchResults: any[] = [];
+    const metadata: any = {
+      agents: [
+        {
+          name: agent.name,
+          llm: {
+            displayName: llmModel.getDisplayName(),
+          }
+        }]
+    };
 
     try {
       for await (const chunk of iterator) {
         fullContent = chunk.content;
 
         // Capture search results from the first chunk that has them
-        if (chunk.search_results && chunk.search_results.length > 0 && searchResults.length === 0) {
-          searchResults = chunk.search_results;
+        if (chunk.search_results && chunk.search_results.length > 0 && !metadata.search_results) {
+          metadata.search_results = chunk.search_results;
         }
 
         // yield along with agent that was responsible for this response
         yield {
           ...chunk,
-          metadata: {
-            agent,
-            search_results: searchResults.length > 0 ? searchResults : undefined
-          }
+          metadata: metadata,
         };
       }
     } finally {
@@ -252,7 +252,7 @@ class ChatOrchestrator {
           content: fullContent,
           type: 'assistant',
           status: 'success',
-          metadata: searchResults.length > 0 ? JSON.stringify({ search_results: searchResults }) as any : null,
+          metadata: JSON.stringify(metadata) as any,
           created_at: new Date(),
           updated_at: new Date(),
         })

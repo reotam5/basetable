@@ -174,7 +174,6 @@ const useAgent = (id?: number): IUseAgent => {
       if (!id) return;
       await window.electronAPI.agent.delete(id);
       window.dispatchEvent(new CustomEvent('sidebar.refresh'));
-      navigate({ to: `/agents` });
     }
   };
 }
@@ -190,7 +189,7 @@ export const useAgents = () => {
       setLoading(true);
       setError(null);
       const agentsData = await window.electronAPI.agent.getAll();
-      
+
       setAgents(agentsData.map((agent: any) => ({
         id: agent.id,
         is_main: agent.is_main,

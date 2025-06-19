@@ -4,9 +4,10 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { use } from "@/hooks/use"
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, Download, HardDrive, Trash2, X, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Check, Download, HardDrive, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export const Route = createFileRoute('/__app_layout/settings/_layout/llm')({
@@ -42,6 +43,14 @@ function RouteComponent() {
       }))
     });
   };
+
+  const setAsDefault = (llm: (NonNullable<typeof llms>)[number], isDefault: boolean) => {
+    if (isDefault) {
+      window.electronAPI.llm.setDefault(llm.id).then(() => {
+        refetch();
+      })
+    }
+  }
 
   const deleteModel = (llm: (NonNullable<typeof llms>)[number]) => {
     setDeleteError(null); // Clear any previous errors
@@ -141,12 +150,47 @@ function RouteComponent() {
                       <Check className="w-3 h-3" />
                       Downloaded
                     </Badge>
+                    {model.is_default && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="default" className="gap-1 bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700">
+                              <Star className="w-3 h-3" />
+                              Default
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              This model will be used for miscellaneous tasks (eg. generating a title).
+                              <br />
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{model.description}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{model.description}</p>
                 </div>
+
+                {/* Default Toggle */}
+                <Button
+                  variant="outline"
+                  size={'sm'}
+                  className="mr-2"
+                  onClick={() => setAsDefault(model, true)}
+                  disabled={model.is_default}
+                >
+                  <Star className="w-4 h-4" />
+                  Set as Default
+                </Button>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled={model.is_default}
+                    >
                       <Trash2 className="w-4 h-4" />
                       Remove
                     </Button>
@@ -156,13 +200,22 @@ function RouteComponent() {
                       <DialogTitle>Remove Model</DialogTitle>
                       <DialogDescription>
                         Are you sure you want to remove "{model.display_name}"? This will delete the model from your device and free up storage space.
+                        {model.is_default && (
+                          <span className="block mt-2 text-yellow-600 dark:text-yellow-400 font-medium">
+                            Note: This model is currently set as default and cannot be removed. Please set another model as default first.
+                          </span>
+                        )}
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                       <DialogClose asChild>
                         <Button variant="outline">Cancel</Button>
                       </DialogClose>
-                      <Button variant="destructive" onClick={() => deleteModel(model)}>
+                      <Button
+                        variant="destructive"
+                        onClick={() => deleteModel(model)}
+                        disabled={model.is_default}
+                      >
                         Remove Model
                       </Button>
                     </DialogFooter>

@@ -6,8 +6,8 @@ import { BaseLLMModel, LLMModelResponseChunk } from "./base-llm-model.js";
 export class LocalLLMModel extends BaseLLMModel {
   private modelPath: string;
 
-  constructor(modelPath: string, config: typeof LocalLLMModel.prototype.config = {}) {
-    super(config)
+  constructor(displayName: string, modelPath: string, config: typeof LocalLLMModel.prototype.config = {}) {
+    super(displayName, config);
     this.modelPath = modelPath;
   }
 

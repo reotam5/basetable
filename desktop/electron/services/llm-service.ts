@@ -7,6 +7,7 @@ import { agent } from '../database/tables/agent.js';
 import { llm } from '../database/tables/llm.js';
 import { Logger } from '../helpers/custom-logger.js';
 import { event, service } from '../helpers/decorators.js';
+import { LLMModelRegistry } from '../helpers/llm-model-registry.js';
 import { subprocessManager } from '../subprocess/subprocess-manager.js';
 import { ProviderService } from './provider-service.js';
 
@@ -73,6 +74,15 @@ class LLMService {
   @event('llm.delete', 'handle')
   public async deleteLLM(data: typeof llm.$inferSelect) {
     try {
+      // Check if this is the default LLM
+      if (data.is_default) {
+        Logger.warn(`Cannot delete LLM ${data.display_name}: It is the default model`);
+        return {
+          success: false,
+          error: `Cannot delete this model. It is set as the default model. Please set another model as default first.`
+        };
+      }
+
       // Check if any agents are using this LLM
       const agentsUsingLLM = await database()
         .select()
@@ -102,6 +112,27 @@ class LLMService {
     } catch (error) {
       Logger.error("Error deleting LLM:", error);
       return { success: false, error: "Failed to delete the model. Please try again." };
+    }
+  }
+
+  @event('llm.setDefault', 'handle')
+  public async setDefault(llmId: number) {
+    try {
+      // Reset all models to not default
+      await database()
+        .update(llm)
+        .set({ is_default: false });
+
+      // Set the specified model as default
+      await database()
+        .update(llm)
+        .set({ is_default: true })
+        .where(eq(llm.id, llmId));
+
+      await LLMModelRegistry.syncDefaultModel();
+
+    } catch (error) {
+      Logger.error("Error setting default LLM:", error);
     }
   }
 

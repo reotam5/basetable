@@ -2,10 +2,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { useChat } from "@/hooks/use-chat";
+import { useChatInput } from "@/hooks/use-chat-input";
 import { useParams } from "@tanstack/react-router";
 import debounce from "lodash.debounce";
 import { ArrowDown, Bot, Clock, Paperclip, Send, Server } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedText } from "./animated-text";
 import { ChatInput } from "./chat-input";
 import { DocumentCard } from "./document-card";
@@ -44,7 +45,7 @@ function backendToUIMessage(
     timestamp: new Date(backendMsg.created_at!),
     status: backendMsg?.status as "success" | "pending" | "error",
     // These would be populated from  metadata
-    agents: undefined,
+    agents: backendMsg?.metadata?.agents?.map(agent => agent.name) || null,
     mcpServers: undefined,
     systemPrompt: undefined,
     attachedFiles: undefined,
@@ -73,6 +74,7 @@ function getFilePreviews(messages: UIMessage[]) {
 export function ChatInterface() {
   const { chatId } = useParams({ from: '/__app_layout/chat/$chatId' });
   const { user } = useAuth();
+  const { setSelectedTextContext } = useChatInput();
   const {
     chatTitle,
     newChatIds,
@@ -92,7 +94,6 @@ export function ChatInterface() {
     [backendMessages]
   );
 
-  const [inputValue, setInputValue] = useState("");
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [showLoading, setShowLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -101,15 +102,6 @@ export function ChatInterface() {
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
-
-  // Text selection context state
-  const [selectedTextContext, setSelectedTextContext] = useState<{
-    messageId: string;
-    selectedText: string;
-    wordCount: number;
-    messageType: 'user' | 'assistant' | 'system';
-    timestamp: Date;
-  } | null>(null);
 
 
   const scrollToBottom = useMemo(() => debounce((smooth = true) => {
@@ -185,7 +177,7 @@ export function ChatInterface() {
       }
       // Don't clear context when no text is selected - let it persist until sent or manually cleared
     }, 10);
-  }, []);
+  }, [setSelectedTextContext]);
 
   // Don't auto-clear on deselection - let users keep context until they send or manually clear
 
@@ -204,8 +196,6 @@ export function ChatInterface() {
   const handleSend = useCallback(async (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
     const { content, attachedFiles, longTextDocuments } = data;
     if (isSending || (!content.trim() && !attachedFiles?.length && !longTextDocuments?.length)) return;
-
-    setInputValue("");
 
     try {
       await sendMessage({
@@ -330,11 +320,12 @@ export function ChatInterface() {
                     <div className="flex-1 min-w-0">
                       {/** Pasted documents */}
                       {message.longTextDocuments && message.longTextDocuments.length > 0 && (
-                        <div className="space-y-3">
+                        <div className="flex flex-wrap gap-3">
                           {message.longTextDocuments.map((doc, index) => (
                             <div key={`doc-${index}`} className="flex-shrink-0 w-64">
                               <DocumentCard
                                 content={doc.content}
+                                title={doc.title}
                               />
                             </div>
                           ))}
@@ -382,9 +373,9 @@ export function ChatInterface() {
                 )}
 
                 {(message.type === "assistant" &&
-                  (message.mcpServers ||
-                    message.agents)) && (
-                    <>
+                  message.status === "success"
+                ) && (
+                    <Fragment key={message.id}>
                       <div className="mt-3 pt-3">
                         <button
                           onClick={() => toggleMessageExpansion(message.id)}
@@ -401,28 +392,23 @@ export function ChatInterface() {
                             {message.mcpServers && (
                               <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
                                 <Server className="w-3 h-3" />
-                                <span className="font-medium">Accessed:</span>
                                 <span>{message.mcpServers.join(", ")}</span>
                               </div>
                             )}
                             {message.agents && (
                               <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300">
                                 <Bot className="w-3 h-3" />
-                                <span className="font-medium">Agents:</span>
-                                {message.agents.map((agent, idx) => (
-                                  <span key={idx}>{agent}</span>
-                                ))}
+                                {message.agents.map((agent) => agent).join(", ")}
                               </div>
                             )}
                             <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                               <Clock className="w-3 h-3" />
-                              <span className="font-medium">Time:</span>
                               <span>{message.timestamp.toLocaleString()}</span>
                             </div>
                           </div>
                         )}
                       </div>
-                    </>
+                    </Fragment>
                   )}
               </div>
             </div>
@@ -500,14 +486,10 @@ export function ChatInterface() {
           )
         }
         <ChatInput
-          setSelectedTextContext={setSelectedTextContext}
-          selectedTextContext={selectedTextContext}
           containerClassName="max-w-4xl mx-auto"
-          value={inputValue}
-          onChange={setInputValue}
           onSubmit={handleSend}
           placeholder="Ask anything 🤔"
-          disabled={isSending || isWaitingAI}
+          disabled={isSending || isWaitingAI || isAgentResponding}
           sendButtonContent={
             (isSending || isWaitingAI) ? (
               <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current"></div>

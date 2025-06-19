@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/auth-context";
 import { FontProvider } from "@/contexts/font-context";
 import { ThemeProvider } from "@/contexts/theme-context";
@@ -31,6 +32,7 @@ function Root() {
         <ThemeProvider storageKey='ui-theme' defaultTheme='system'>
           <FontProvider>
             <Outlet />
+            <Toaster />
           </FontProvider>
         </ThemeProvider>
       </AuthProvider>

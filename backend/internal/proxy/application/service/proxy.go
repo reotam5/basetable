@@ -194,8 +194,6 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 		return nil, err
 	}
 
-	fmt.Println(requestBody.String())
-
 	target := fmt.Sprintf("%s/%s", providerDTO.BaseURL, providerDTO.Endpoints[request.Endpoint].Path)
 
 	// Build auth header value with optional prefix
@@ -258,8 +256,6 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 				if data == "[DONE]" {
 					return
 				}
-
-				fmt.Println(data)
 
 				// Parse the provider response chunk (same format as non-streaming)
 				var providerChunk any

@@ -19,7 +19,7 @@ export function ContentPreviewCards({ documents, onViewDocument, onRemoveDocumen
 
   return (
     <div className="mb-3">
-      <div className="flex flex-wrap gap-3">
+      <div className="grid-cols-2 grid gap-3 md:grid-cols-3">
         {documents.map((doc) => (
           <ContentPreviewCard
             key={doc.id}

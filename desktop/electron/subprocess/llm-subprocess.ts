@@ -12,7 +12,7 @@ class LLMSubprocess extends BaseSubprocess {
       modelPath: process.argv[2],
     })
     const numOfSequences = 2;
-    const context = await model.createContext({ sequences: numOfSequences })
+    const context = await model.createContext({ sequences: numOfSequences, contextSize: { min: 512 } });
     for (let i = 0; i < numOfSequences; i++) {
       this.sessions.push({
         session: new LlamaChatSession({

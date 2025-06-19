@@ -29,7 +29,6 @@ interface ChatResponseChunk_ContentChunk {
     chunk: string;
     fullContent: string;
     metadata?: {
-      agent?: any;
       search_results?: Array<{
         title: string;
         url: string;
