@@ -2,20 +2,22 @@ import { eq } from "drizzle-orm";
 import { backend } from "../backend.js";
 import { database } from "../database/database.js";
 import { chat } from "../database/tables/chat.js";
-import { message } from "../database/tables/message.js";
-import { AgentService, ChatService, MessageService, SettingService } from "../services/index.js";
+import { mcp_server } from "../database/tables/mcp-server.js";
+import { tool_call } from "../database/tables/tool-call.js";
+import { AgentService, ChatService, ChatStreamResponseContentChunk, ChatStreamResponseFunctionCallChunk, ChatStreamStartFunctionCall, MCPService, MessageService, SettingService } from "../services/index.js";
+import { LLMModelStreamResponse } from "./base-llm-model.js";
 import { Logger } from "./custom-logger.js";
 import { LLMModelRegistry } from "./llm-model-registry.js";
+import { mcpClientRegistry } from "./mcp-client-registry.js";
+import { Message, Tool, ToolCall } from "./remote-llm-model.js";
 
 class ChatOrchestrator {
   private llmModelRegistry!: typeof LLMModelRegistry;
   private agents!: Awaited<ReturnType<typeof AgentService.getAllAgentsWithTools>>;
   private mainAgent!: Awaited<ReturnType<typeof AgentService.getAllAgentsWithTools>>[number];
-  private chatSessions!: Map<number, Awaited<ReturnType<typeof MessageService.getMessagesByChatId>>>
 
   constructor() {
     this.llmModelRegistry = LLMModelRegistry;
-    this.chatSessions = new Map();
   }
 
   async loadLLMModels(): Promise<void> {
@@ -30,9 +32,40 @@ class ChatOrchestrator {
   }
 
   /**
+   * Build system prompt with agent configuration
+   */
+  private buildSystemPrompt(agent: typeof this.mainAgent): string {
+    let systemPrompt = agent.instruction;
+
+    if (agent.styles?.length || agent.tones?.length) {
+      systemPrompt += '\n\n<agent_configuration>\n';
+
+      if (agent.styles?.length) {
+        systemPrompt += '<response_styles>\n';
+        systemPrompt += agent.styles.map(style =>
+          `<style name="${style.name}"${style.description ? ` description="${style.description}"` : ""} />`
+        ).join('\n');
+        systemPrompt += '\n</response_styles>\n';
+      }
+
+      if (agent.tones?.length) {
+        systemPrompt += '<response_tones>\n';
+        systemPrompt += agent.tones.map(tone =>
+          `<tone name="${tone.name}"${tone.description ? ` description="${tone.description}"` : ""} />`
+        ).join('\n');
+        systemPrompt += '\n</response_tones>\n';
+      }
+
+      systemPrompt += '</agent_configuration>\n';
+    }
+
+    return systemPrompt;
+  }
+
+  /**
    * main agent's llm model will determine the appropriate agent based on message data
    */
-  async getAppropriateAgent(prompt: string, mentionedAgentId?: number): Promise<typeof this.mainAgent> {
+  async getAppropriateAgent(messages: Message[], mentionedAgentId?: number): Promise<typeof this.mainAgent> {
     // If an agent is mentioned via @ syntax, use that agent directly
     if (mentionedAgentId) {
       const selectedAgent = this.agents.find(agent => agent.id === mentionedAgentId) || this.mainAgent;
@@ -50,23 +83,30 @@ class ChatOrchestrator {
 
     const llmModel = this.llmModelRegistry.getModel(this.mainAgent.llm_id.toString());
 
+    // Build selection messages
+    const selectionMessages: Message[] = [
+      {
+        role: 'system',
+        content: `You are an agent selector. Each agent has different instruction and tools. Based on the user messages, select the most appropriate agent to process the user request. Return only the agent ID.\n\n` +
+          `<available_agents>\n` +
+          `${this.agents.map(agent => (
+            `<agent id="${agent.id}" name="${agent.name}">\n` +
+            `<instruction>${agent.instruction}</instruction>\n` +
+            `${agent.mcps?.length ?
+              `<tools>\n${agent.mcps.map(m =>
+                `<tool name="${m.name}" capabilities="${m.selectedTools?.join(', ')}" />`
+              ).join('\n')}\n</tools>`
+              : '<tools></tools>'
+            }\n` +
+            `</agent>`
+          )).join('\n')}\n` +
+          `</available_agents>`
+      },
+      ...messages.filter(m => m.role === 'user')  // Only include user messages for selection
+    ];
+
     const res = await llmModel?.structuredResponse<{ agentId: number }>(
-      `<|system|>\n` +
-      `You are an agent selector. Each agent has different instruction and tools. Based on the user messages, select the most appropriate agent to process the user request. Return only the agent ID.\n\n` +
-      `<messages>\n${prompt}\n</messages>\n\n` +
-      `<available_agents>\n` +
-      `${this.agents.map(agent => (
-        `<agent id="${agent.id}" name="${agent.name}">\n` +
-        `<instruction>${agent.instruction}</instruction>\n` +
-        `${agent.mcps?.length ?
-          `<tools>\n${agent.mcps.map(m =>
-            `<tool name="${m.name}" capabilities="${m.selectedTools.join(', ')}" />`
-          ).join('\n')}\n</tools>`
-          : '<tools></tools>'
-        }\n` +
-        `</agent>`
-      )).join('\n')}\n` +
-      `</available_agents>`,
+      selectionMessages,
       {
         type: 'object',
         properties: {
@@ -127,140 +167,263 @@ class ChatOrchestrator {
     return { cleanedPrompt, mentionedAgentId };
   }
 
-  async *processMessage(chatId: number, next_prompt: string, attachedFiles?: any[], longTextDocuments?: Array<{ id: string, content: string, title: string }>, abortController?: AbortController) {
-    // if we don't have chat messages cached, fetch them. this only happens once per chat session
-    if (!this.chatSessions.has(chatId)) {
-      const messages = await MessageService.getMessagesByChatId(chatId);
-      this.chatSessions.set(chatId, messages);
-    }
-    const accumulatedMessages = this.chatSessions.get(chatId)!;
 
-    // if this is a new conversation, we generate title using default llm
-    if (!(await ChatService.getChatById(chatId))?.title) {
-      this.generateTitle(next_prompt, chatId)
+  private convertMCPToolsToProxyFormat(mcpTools: Array<{ mcpServerId: number, tool: NonNullable<typeof mcp_server.$inferSelect['available_tools']>[number] }>): Tool[] {
+    return mcpTools.map(({ mcpServerId, tool }) => {
+      const properties: Record<string, any> = {};
+
+      // Convert each property to ensure it has the required format
+      if (tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0) {
+        for (const [propName, propDef] of Object.entries(tool.inputSchema.properties)) {
+          const prop = propDef as any;
+
+          properties[propName] = {
+            type: prop.type || 'string',
+            description: prop.description || prop.title || '',
+            ...(prop.enum ? { enum: prop.enum } : {}),
+            ...(prop.default !== undefined ? { default: prop.default } : {})
+          };
+        }
+      } else {
+        properties._unused = {
+          type: 'string',
+          description: 'This parameter is not used',
+          default: ''
+        };
+      }
+
+      // Namespace the tool name with server ID to prevent collisions
+      const namespacedToolName = `${mcpServerId}__${tool.name}`;
+
+      return {
+        tool_type: 'function',
+        tool_definition: {
+          name: namespacedToolName,
+          description: `[${mcpServerId}] ${tool.description || ''}`,
+          parameters: {
+            properties,
+            required: tool.inputSchema?.required || []
+          }
+        }
+      };
+    });
+  }
+
+
+  async *processFunctionCallConfirmation({ id, confirmed, mcp_server_id, function_name, function_args, chat_id }: ChatStreamStartFunctionCall['data'], abortController?: AbortController): AsyncGenerator<LLMModelStreamResponse> {
+
+    let toolCall: typeof tool_call.$inferSelect;
+
+    if (confirmed) {
+      let toolCallResponse: Parameters<typeof MessageService.saveToolCallResponse>[1] = {}
+      const client = mcpClientRegistry.getClient(mcp_server_id!)
+      const executionStartTime = new Date();
+      try {
+        if (!client) {
+          toolCallResponse = {
+            content: "This tool cannot be called because the server is not connected.",
+            isError: true
+          }
+        } else {
+          toolCallResponse = await client?.callTool({ name: function_name, arguments: function_args ? JSON.parse(function_args) : undefined });
+        }
+      } catch (error) {
+        toolCallResponse = {
+          content: `Error calling tool: ${error instanceof Error ? error.message : String(error)}`,
+          isError: true
+        }
+      }
+      toolCall = await MessageService.saveToolCallResponse(id, toolCallResponse, executionStartTime, new Date());
+
+    } else {
+      toolCall = await MessageService.rejectToolCall(id);
     }
+
+    yield {
+      type: 'function_call',
+      updated_tool_call: {
+        resolved: {
+          tool_call: toolCall
+        }
+      }
+    }
+
+    // if tool was rejected, we can stop processing the message
+    if (!confirmed) return;
+
+
+    // if all tool calls are confirmed, we can continue processing the message
+    const pendingToolCalls = await MessageService.getPendingToolCalls(chat_id)
+
+    if (!pendingToolCalls?.length) {
+      for await (const chunk of this.processMessage(chat_id, undefined, undefined, undefined, abortController)) {
+        yield chunk;
+      }
+    }
+  }
+
+
+  async *processMessage(chatId: number, next_prompt?: string, attachedFiles?: any[], longTextDocuments?: Array<{ id: string, content: string, title: string }>, abortController?: AbortController): AsyncGenerator<LLMModelStreamResponse> {
+    if (next_prompt) {
+      // if this is a new conversation, we generate title using default llm
+      if (!(await ChatService.getChatById(chatId))?.title) {
+        this.generateTitle(next_prompt, chatId)
+      }
+
+
+      // Store user message using new robust system
+      await MessageService.storeUserMessage(chatId, next_prompt, {
+        long_text_documents: longTextDocuments,
+      });
+    }
+
+    // Get conversation history in proper Message format
+    const conversationHistory = await MessageService.getMessagesForBackend(chatId);
 
     // Parse @ mentions from the message
-    const { cleanedPrompt, mentionedAgentId } = this.parseAgentMentions(next_prompt);
+    const { mentionedAgentId } = next_prompt ? this.parseAgentMentions(next_prompt) : { mentionedAgentId: undefined };
 
-    // create a new message in the database (store the original prompt with @ mentions)
-    const created_message = await MessageService.createMessage({
-      chat_id: chatId,
-      content: next_prompt,
-      type: 'user',
-      status: 'success',
-      metadata: {
-        longTextDocuments
-      }
-    });
-
-    accumulatedMessages.push(created_message);
-
-    // format messages into a prompt (use cleaned prompt for LLM)
-    const prompt =
-      `${accumulatedMessages.slice(0, -1).map(message =>
-        `\n<|${message.type}|>\n${message.metadata?.longTextDocuments?.length
-          ? `<documents>\n${message.metadata.longTextDocuments.map((doc: any) =>
-            `<document>\n<title>${doc.title || "Attached Document"}</title>\n<content>${doc?.content}</content>\n</document>`
-          ).join('\n')}\n</documents>\n\n`
-          : ""
-        }${message.content}`
-      ).join('')}\n<|user|>\n${created_message.metadata?.longTextDocuments?.length
-        ? `<documents>\n${created_message.metadata.longTextDocuments.map((t: any) =>
-          `<document>\n<title>${t.title || "Attached Document"}</title>\n<content>${t?.content}</content>\n</document>`
-        ).join('\n')}\n</documents>\n\n`
-        : ""
-      }${cleanedPrompt}\n\n<|assistant|>`;
-
-
-
-
-    // select the appropriate agent based on the prompt and mentions
-    const agent = await this.getAppropriateAgent(prompt, mentionedAgentId)
+    // select the appropriate agent based on the conversation history
+    const agent = await this.getAppropriateAgent(conversationHistory, mentionedAgentId)
     const llmModel = this.llmModelRegistry.getModel(agent.llm_id.toString())!;
     Logger.debug(`${agent.name} with ${llmModel.getDisplayName()} is processing the message`);
 
-    // prompt with agent instruction
-    const promptWithAgentInstruction =
-      `<|system|>\n` +
-      `${agent.instruction}\n` +
-      `${(agent.styles?.length || agent.tones?.length || agent.mcps?.length) ?
-        `\n<agent_configuration>\n` +
-        `${agent.styles?.length ?
-          `<response_styles>\n` +
-          `${agent.styles.map(style =>
-            `<style name="${style.name}"${style.description ? ` description="${style.description}"` : ""} />`
-          ).join('\n')}\n` +
-          `</response_styles>\n`
-          : ""
-        }` +
-        `${agent.tones?.length ?
-          `<response_tones>\n` +
-          `${agent.tones.map(tone =>
-            `<tone name="${tone.name}"${tone.description ? ` description="${tone.description}"` : ""} />`
-          ).join('\n')}\n` +
-          `</response_tones>\n`
-          : ""
-        }` +
-        `${agent.mcps?.length ?
-          `<available_tools>\n` +
-          `${agent.mcps.map(mcp =>
-            `<tool server="${mcp.name}" capabilities="${mcp.selectedTools.join(', ')}" />`
-          ).join('\n')}\n` +
-          `</available_tools>\n`
-          : ""
-        }` +
-        `</agent_configuration>\n`
-        : ""
-      }` +
-      `${prompt}`;
+    // Get available MCP tools for this agent
+    const availableMCPTools = agent?.mcps?.flatMap(mcp => mcp?.selectedTools?.map(tool => ({ mcpServerId: mcp.mcp_server_id, tool: tool })) ?? []) ?? [];
+    const proxyTools = this.convertMCPToolsToProxyFormat(availableMCPTools);
 
-    const iterator = llmModel.streamResponse(promptWithAgentInstruction, abortController);
+    // Build system message with agent configuration
+    const systemMessage: Message = {
+      role: 'system',
+      content: this.buildSystemPrompt(agent)
+    };
+
+    // Combine system message with conversation history
+    const allMessages: Message[] = [systemMessage, ...conversationHistory];
+
+    const iterator = llmModel.streamResponse(allMessages, abortController, proxyTools);
 
     let fullContent = '';
-    const metadata: any = {
+    let fullThought = '';
+    let fullToolCalls: ToolCall[] = [];
+
+    const metadata: ChatStreamResponseContentChunk['metadata'] = {
       agents: [
         {
           name: agent.name,
           llm: {
-            displayName: llmModel.getDisplayName(),
+            display_name: llmModel.getDisplayName(),
           }
         }]
     };
 
     try {
       for await (const chunk of iterator) {
-        fullContent = chunk.content;
+        if (chunk.type === 'content_chunk') {
+          fullContent = chunk.content;
+          fullThought = chunk.thought || fullThought;
 
-        // Capture search results from the first chunk that has them
-        if (chunk.search_results && chunk.search_results.length > 0 && !metadata.search_results) {
-          metadata.search_results = chunk.search_results;
+          // Capture search results from the first chunk that has them
+          if (chunk.search_results && chunk.search_results.length > 0 && !metadata.search_results) {
+            metadata.search_results = chunk.search_results;
+          }
         }
 
-        // yield along with agent that was responsible for this response
-        yield {
-          ...chunk,
-          metadata: metadata,
-        };
+        // resolve tool calls into more detailed format
+        if (chunk.type === 'function_call') {
+          const { raw } = chunk.tool_call!;
+          fullToolCalls = [...fullToolCalls, raw];
+        }
+
+        // defer function call chunk beause we need to create message first
+        if (chunk.type !== 'function_call') {
+          yield {
+            ...chunk,
+            metadata: {
+              ...(chunk.metadata ?? {}),
+              ...metadata,
+            }
+          };
+        }
       }
-    } finally {
-      // add response to db
-      const [assistantMessage] = await database()
-        .insert(message)
-        .values({
-          chat_id: chatId,
-          content: fullContent,
-          type: 'assistant',
-          status: 'success',
-          metadata: JSON.stringify(metadata) as any,
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning();
-      this.chatSessions.get(chatId)?.push(assistantMessage);
+
+      const savedToolCalls = await this.saveModelResponseMessages(chatId, fullContent, fullThought, metadata, fullToolCalls);
 
 
+      if (savedToolCalls?.length) {
+        for (const toolCall of savedToolCalls) {
+          yield {
+            type: 'function_call',
+            tool_call: toolCall
+          }
+        }
+
+        // execute tool calls that are ready to be executed (bypassed user confirmation)
+        for (const readyToolCall of savedToolCalls.filter(tc => tc.resolved?.tool_call.status === 'ready_to_be_executed')) {
+          for await (const chunk of this.processFunctionCallConfirmation({ ...readyToolCall.resolved!.tool_call, confirmed: true }, abortController)) {
+            yield chunk;
+          }
+        }
+      }
+
+    } catch (error) {
+      Logger.error("Error in processMessage:", error);
+      throw error;
     }
+  }
+
+  private async saveModelResponseMessages(chatId: number, fullContent?: string, fullThought?: string, metadata?: any, fullToolCalls?: ToolCall[]) {
+    // saves thought message if it exists
+    if (fullThought?.trim()) {
+      await MessageService.storeThoughtMessage(chatId, fullThought);
+    }
+
+    // saves assistant message if it exists
+    if (fullContent?.trim()) {
+      await MessageService.storeAssistantMessage(chatId, fullContent, metadata);
+    }
+
+    const toolCallResolvedChunks: NonNullable<ChatStreamResponseFunctionCallChunk['tool_call']>[] = [];
+
+    // saves tool calls if they exist
+    for (const raw of fullToolCalls || []) {
+
+      // example call name: USERMCPID__FUNCTION__NAME
+      // we need to extract USERMCPID and FUNCTION__NAME
+      const mcpServerId = parseInt(raw.call.name.split('__')[0]);
+      const functionName = isNaN(mcpServerId) ? raw.call.name : raw.call.name.split('__').slice(1).join('__');
+
+      // sometimes, llm omits USERMCPID__ prefix, so we need to check if it exists. if they omit, we can still try to look for matching MCP server.
+      const mcpServer = isNaN(mcpServerId) ? await MCPService.getMcpServerByToolId(functionName) : await MCPService.getMCP(mcpServerId);
+
+      if (!mcpServer) {
+        continue;
+      }
+
+      const requireConfirmation = !mcpServer.confirmation_bypass_tools?.includes(functionName)
+
+      const { toolCall } = await MessageService.storeToolCall({
+        tool_call_id: raw.id,
+        chat_id: chatId,
+        mcp_server_id: mcpServer?.id,
+        function_name: functionName,
+        function_args: raw.call.arg,
+        status: requireConfirmation ? 'pending_confirmation' : 'ready_to_be_executed',
+        function_return: null, // Will be updated later once executed
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+
+      toolCallResolvedChunks.push({
+        raw: raw,
+        resolved: {
+          tool_call: toolCall,
+          mcp_server: mcpServer
+        }
+      })
+    }
+
+    return toolCallResolvedChunks
   }
 
   private async generateTitle(prompt: string, chatId: number) {
@@ -268,32 +431,40 @@ class ChatOrchestrator {
 
     let title = 'New Chat';
     if (defaultModel) {
-      const data = await defaultModel.structuredResponse<{ title: string }>(`
-          <|system|>
-          summarize user request into a short descriptive title. (sentence of 5-10 words)
-
-          <|user request|>
-          ${prompt}
-
-          <|title|>
-        `,
+      const titleMessages: Message[] = [
         {
-          type: 'object',
-          properties: {
-            title: { type: 'string' }
-          },
-          required: ['title']
+          role: 'system',
+          content: 'Summarize user request into a short descriptive title. (sentence of 5-10 words)'
+        },
+        {
+          role: 'user',
+          content: prompt
         }
-      ) ?? {}
-      title = data.title || title;
+      ];
+
+      try {
+        const data = await defaultModel.structuredResponse<{ title: string }>(
+          titleMessages,
+          {
+            type: 'object',
+            properties: {
+              title: { type: 'string' }
+            },
+            required: ['title']
+          }
+        );
+        title = data?.title || title;
+      } catch (error) {
+        Logger.error("Failed to generate title:", error);
+      }
     }
 
     await database()
       .update(chat)
       .set({ title })
-      .where(eq(chat.id, chatId))
+      .where(eq(chat.id, chatId));
 
-    backend.getMainWindow()?.windowInstance.webContents.send("chat.titleUpdate", chatId, title)
+    backend.getMainWindow()?.windowInstance.webContents.send("chat.titleUpdate", chatId, title);
   }
 }
 

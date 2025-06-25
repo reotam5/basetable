@@ -1,3 +1,4 @@
+import EventEmitter from "events";
 import { LLamaChatPromptOptions } from "node-llama-cpp";
 import { BaseLLMModel } from "./base-llm-model.js";
 import { LocalLLMModel } from "./local-llm-model.js";
@@ -17,12 +18,14 @@ type LLMModelConfig = ({
 }
 
 export class LLMModelFactory {
+  private static sessionReleasedEventEmitter: EventEmitter = new EventEmitter();
+
   private constructor() { }
 
   static createModel(config: LLMModelConfig): BaseLLMModel {
     switch (config.type) {
       case 'local':
-        return new LocalLLMModel(config.displayName, config.modelPath, config.config);
+        return new LocalLLMModel(config.displayName, config.modelPath, config.config, this.sessionReleasedEventEmitter);
       case 'remote':
         return new RemoteLLMModel(config.displayName, config.config)
       default:

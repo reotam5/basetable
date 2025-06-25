@@ -3,6 +3,7 @@ import { app } from 'electron';
 import { join } from 'path';
 import './backend.js';
 import { backend } from './backend.js';
+import { LLMModelRegistry } from './helpers/llm-model-registry.js';
 import { subprocessManager } from './subprocess/subprocess-manager.js';
 
 app.whenReady().then(() => {
@@ -14,7 +15,13 @@ app.whenReady().then(() => {
 
   subprocessManager.onMessage('localModelDownload', (message) => {
     if (message.type == 'downloadStatus') {
-      backend.getMainWindow()?.windowInstance.webContents.send('llm.statusUpdate', message);
+      backend.getMainWindow()?.windowInstance.webContents.send('llm.statusUpdate', { ...message, isComplete: false });
+
+      if (message.isComplete) {
+        LLMModelRegistry.sync().finally(() => {
+          backend.getMainWindow()?.windowInstance.webContents.send('llm.statusUpdate', { ...message, isComplete: true });
+        })
+      }
     }
   })
 })

@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1749781591921,
-      "tag": "0000_abnormal_serpent_society",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1749960112493,
-      "tag": "0001_wild_warbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1750198267878,
-      "tag": "0002_freezing_outlaw_kid",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1750219652632,
-      "tag": "0003_dusty_true_believers",
+      "when": 1750830218456,
+      "tag": "0000_light_christian_walker",
       "breakpoints": true
     }
   ]

@@ -62,7 +62,7 @@ export function ChatSearch() {
 
   const handleDeleteClick = (chat: { id: number; title: string }, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     // Check if Shift key is held down
     if (e.shiftKey) {
       // Skip confirmation dialog and delete immediately
@@ -222,7 +222,7 @@ export function ChatSearch() {
                     </div>
                     <div className="mt-auto">
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(new Date(chat.updated_at!))}
+                        {formatDate(new Date(chat.updated_at || chat.created_at!))}
                       </span>
                     </div>
                   </div>

@@ -13,9 +13,10 @@ type ProxyRequest struct {
 
 // Message represents a chat message
 type Message struct {
-	Role      string     `json:"role"`
-	Content   string     `json:"content"`
-	Toolcalls []ToolCall `json:"tool_calls,omitempty"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 }
 
 // Tool represents a function tool definition
@@ -88,8 +89,9 @@ type Choice struct {
 
 // Delta represents a delta object
 type Delta struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"toolcalls,omitempty"` // add omitempty if optional
 }
 
 // Usage represents token usage information

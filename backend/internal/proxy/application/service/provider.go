@@ -20,6 +20,7 @@ type ProviderService interface {
 	GetProvider(ctx context.Context, id string) (*dto.GetProviderResponse, error)
 	ListProviders(ctx context.Context) (*dto.ListProvidersResponse, error)
 	CreateProvider(ctx context.Context, request dto.CreateProviderRequest) (*dto.CreateProviderResponse, error)
+	UpdateProviderTemplate(ctx context.Context, request dto.UpdateProviderTemplateRequest) error
 	RemoveProvider(ctx context.Context, id string) error
 	AddModels(ctx context.Context, request dto.AddModelsRequest) error
 	RemoveModel(ctx context.Context, request dto.RemoveModelRequest) error
@@ -105,6 +106,20 @@ func (s *providerService) CreateProvider(ctx context.Context, request dto.Create
 	return &dto.CreateProviderResponse{
 		Provider: s.mapDomainToDTO(provider),
 	}, nil
+}
+
+func (s *providerService) UpdateProviderTemplate(ctx context.Context, request dto.UpdateProviderTemplateRequest) error {
+	return s.uow.Do(ctx, func(ctx context.Context, repoProvider repository.RepositoryProvider) error {
+		pvd, err := repoProvider.ProviderRepository().GetByIDForUpdate(ctx, request.ProviderID)
+		if err != nil {
+			return err
+		}
+
+		pvd.UpdateRequestTemplate(provider.Template{Content: request.RequestTemplate})
+		pvd.UpdateResponseTemplate(provider.Template{Content: request.ResponseTemplate})
+
+		return repoProvider.ProviderRepository().Save(ctx, pvd)
+	})
 }
 
 func (s *providerService) RemoveProvider(ctx context.Context, provider_id string) error {

@@ -1,79 +1,384 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { database } from '../database/database.js';
 import { chat } from '../database/tables/chat.js';
 import { message } from '../database/tables/message.js';
+import { tool_call } from '../database/tables/tool-call.js';
 import { Logger } from '../helpers/custom-logger.js';
 import { event, service } from '../helpers/decorators.js';
+import { MCPClient } from '../helpers/mcp-client.js';
+import { Message } from '../helpers/remote-llm-model.js';
 
 @service
 class MessageService {
 
   @event('message.getByChatId', 'handle')
-  public async getMessagesByChatId(chatId: number) {
+  public async getMessagesByChatId(chatId: number, limit?: number) {
     try {
-      const rows = await database()
+      const query = database()
         .select()
         .from(message)
+        .leftJoin(
+          tool_call,
+          eq(message.id, tool_call.message_id),
+        )
         .where(and(
           eq(message.chat_id, chatId),
         ))
         .orderBy(
           desc(message.created_at),
-          asc(message.type)
-        );
+          desc(tool_call.created_at),
+        )
 
-      // Parse metadata from JSON string to object
-      return rows.map(row => ({
-        ...row,
-        metadata: row.metadata ? (() => {
-          try {
-            return JSON.parse(row.metadata as unknown as string);
-          } catch (error) {
-            Logger.error("Error parsing message metadata:", error);
-            return null;
+      if (limit) {
+        query.limit(limit);
+      }
+      const rows = await query;
+
+      const result = rows.reduce<Record<number, { message: typeof message.$inferSelect; toolCalls: typeof tool_call.$inferSelect[] }>>(
+        (acc, row) => {
+          const message = row.message;
+          const toolCall = row.tool_call;
+          if (!acc[message.id]) {
+            acc[message.id] = { message, toolCalls: [] };
           }
-        })() : null
-      }));
+          if (toolCall) {
+            acc[message.id].toolCalls.unshift(toolCall);
+          }
+          return acc;
+        },
+        {}
+      );
+      return Object.values(result).map(({ message, toolCalls }) => ({ message, toolCalls: toolCalls })).sort((a, b) => b.message!.created_at!.getTime() - a.message!.created_at!.getTime());
     } catch (error) {
       Logger.error("Error fetching messages:", error);
-      return [];
+      throw error;
     }
   }
 
-  public async createMessage(data: typeof message.$inferInsert) {
+  async updateChatUpdatedAt(chatId: number) {
     try {
+      const [updatedChat] = await database()
+        .update(chat)
+        .set({
+          updated_at: new Date(),
+        })
+        .where(eq(chat.id, chatId))
+        .returning();
+      return updatedChat;
+    } catch (error) {
+      Logger.error("Failed to update chat updated_at:", error);
+      throw error;
+    }
+  }
+
+
+  /**
+   * converts getMessagesByChatId output to the format that backend expects. 
+   */
+  async getMessagesForBackend(chatId: number, limit: number = 50): Promise<Message[]> {
+    try {
+      const dbMessages = await this.getMessagesByChatId(chatId, limit);
+      const result: Message[] = [];
+
+      for (const { message, toolCalls } of dbMessages) {
+        if (toolCalls.length > 0) {
+          for (const toolCall of toolCalls.reverse()) {
+            result.push({
+              role: 'tool',
+              tool_call_id: toolCall.tool_call_id!,
+              content: toolCall.function_return ?? "",
+            })
+          }
+        }
+
+        result.push({
+          role: message.role,
+          content: `${message.metadata?.long_text_documents?.length ? message.metadata.long_text_documents.map(t => `<${t.title}>\n${t.content}\n</${t.title}>`).join('\n') + "\n\n" : ""}${message.content}`,
+          thoughts: message.thought ? [message.thought] : [],
+          tool_calls: toolCalls.map(toolCall => ({
+            id: toolCall.tool_call_id!,
+            tool_type: 'function',
+            call: {
+              name: toolCall.function_name,
+              arg: toolCall.function_args ?? ""
+            },
+          })) ?? []
+        })
+      }
+
+      return result.reverse()
+    } catch (error) {
+      Logger.error("Failed to get recent messages:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * gets latest non-error message for the chat.
+   * used to maintain message flow. 
+   */
+  async getLastMessage(chatId: number): Promise<typeof message.$inferSelect | null> {
+    try {
+      const result = await database()
+        .select()
+        .from(message)
+        .where(and(
+          eq(message.chat_id, chatId),
+          ne(message.status, 'error')
+        ))
+        .orderBy(desc(message.created_at))
+        .limit(1);
+
+      if (result.length === 0) return null;
+
+      return result[0];
+    } catch (error) {
+      Logger.error("Failed to get last message:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * When creating user message, it should follow the last assistant message that was successful.
+   * If theres no last message, this is new chat 
+   */
+  async storeUserMessage(chatId: number, content: string, metadata: typeof message.$inferInsert['metadata'] = {}) {
+    await this.updateChatUpdatedAt(chatId);
+
+    const lastMessage = await this.getLastMessage(chatId);
+
+    if (!lastMessage || (lastMessage && lastMessage.role === 'assistant' && lastMessage.status === 'success')) {
       const [newMessage] = await database()
         .insert(message)
         .values({
-          chat_id: data.chat_id,
-          content: data.content,
-          type: data.type,
-          status: data.status,
-          created_at: new Date(),
+          chat_id: chatId,
+          role: 'user',
+          content: content,
+          status: 'success',
+          metadata: metadata,
+        })
+        .returning();
+      return newMessage;
+    }
+
+    throw new Error("You shouldn't be here. Broken message flow. User message should follow success assistant message.");
+  }
+
+  /**
+   * When creating assistant message, look for empty assistant message that merge into (thought creates empty assistant message). 
+   * Make sure that this empty assistant messages is in pending state.
+   * Otherwise, simply create new assistant message
+   */
+  async storeAssistantMessage(chatId: number, content: string, metadata: typeof message.$inferInsert['metadata'] = {}) {
+    await this.updateChatUpdatedAt(chatId);
+
+    const lastMessage = await this.getLastMessage(chatId);
+
+    // thought message is hanging
+    if (lastMessage && lastMessage.role === 'assistant' && lastMessage.status === 'pending' && !lastMessage.content.trim()) {
+      const [updatedMessage] = await database()
+        .update(message)
+        .set({
+          content: content,
+          status: 'success',
           updated_at: new Date(),
-          metadata: data.metadata ? JSON.stringify(data.metadata) as any : null,
+          metadata: metadata,
+        })
+        .where(eq(message.id, lastMessage.id))
+        .returning();
+      return updatedMessage;
+    }
+
+    const [newMessage] = await database()
+      .insert(message)
+      .values({
+        chat_id: chatId,
+        role: 'assistant',
+        content: content,
+        status: 'success',
+        metadata: metadata,
+      })
+      .returning();
+    return newMessage;
+  }
+
+  /**
+   * When creating thought, create empty assistant message below. 
+   * Thought and the placeholder assistant message should be pending until assistant message is completed  
+   */
+  async storeThoughtMessage(chatId: number, content: string) {
+    await this.updateChatUpdatedAt(chatId);
+
+    const [assistantThought] = await database()
+      .insert(message)
+      .values({
+        chat_id: chatId,
+        role: 'assistant',
+        content: '',
+        thought: content,
+        status: 'pending',
+      })
+      .returning();
+
+    return assistantThought;
+  }
+
+
+  /**
+   * When creating tool, look if above message is assistant message. If so, connect. 
+   * Otherwise create empty assistant messages above to link it. The empty assistant message can be made as success state
+   */
+  async storeToolCall(toolCall: Omit<typeof tool_call.$inferInsert, 'message_id'>) {
+    try {
+      await this.updateChatUpdatedAt(toolCall.chat_id);
+
+      let lastMessage = await this.getLastMessage(toolCall.chat_id);
+
+      if (!lastMessage || lastMessage.role !== 'assistant') {
+        // If the last message is not an assistant message, create an empty assistant message
+        const [newAssistantMessage] = await database()
+          .insert(message)
+          .values({
+            chat_id: toolCall.chat_id,
+            role: 'assistant',
+            content: '',
+            status: 'success',
+          })
+          .returning();
+
+        lastMessage = newAssistantMessage;
+      }
+
+      if (!lastMessage) {
+        throw new Error("Failed to find or create an assistant message to link tool call.");
+      }
+
+      if (lastMessage.status == 'pending' && lastMessage.role === 'assistant') {
+        await database()
+          .update(message)
+          .set({
+            status: 'success',
+            updated_at: new Date(),
+          })
+          .where(eq(message.id, lastMessage.id));
+      }
+
+      const [newToolCall] = await database()
+        .insert(tool_call)
+        .values({
+          ...toolCall,
+          message_id: lastMessage.id,
         })
         .returning();
 
-      // update the chat's updated_at timestamp
-      await database()
-        .update(chat)
-        .set({ updated_at: new Date().toISOString() })
-        .where(eq(chat.id, data.chat_id));
-
-      return {
-        ...newMessage,
-        metadata: newMessage.metadata ? (() => {
-          try {
-            return JSON.parse(newMessage.metadata as unknown as string);
-          } catch (error) {
-            Logger.error("Error parsing new message metadata:", error);
-            return null;
-          }
-        })() : null
-      };
+      return { linkedMessage: lastMessage, toolCall: newToolCall };
     } catch (error) {
-      Logger.error("Error creating message:", error);
+      Logger.error("Failed to store tool calls:", error);
+      throw error;
+    }
+  }
+
+  async saveToolCallResponse(id: number, result: Awaited<ReturnType<InstanceType<typeof MCPClient>['callTool']>>, executionStartTime: Date, executionEndTime: Date) {
+    const [toolCall] = await database()
+      .update(tool_call)
+      .set({
+        status: (!result || result?.isError) ? 'error' : 'executed',
+        function_return: result?.content ? JSON.stringify(result.content ?? {}) : null,
+        updated_at: new Date(),
+        execution_start_at: executionStartTime,
+        execution_end_at: executionEndTime,
+      })
+      .where(eq(tool_call.id, id))
+      .returning();
+    return toolCall;
+  }
+
+  async rejectToolCall(id: number) {
+    const [toolCall] = await database()
+      .update(tool_call)
+      .set({
+        status: 'rejected',
+        function_return: "Tool call was rejected by user",
+        updated_at: new Date(),
+      })
+      .where(eq(tool_call.id, id))
+      .returning();
+    return toolCall;
+  }
+
+  async getToolCallById(id: number): Promise<typeof tool_call.$inferSelect | null> {
+    const result = await database()
+      .select()
+      .from(tool_call)
+      .where(eq(tool_call.id, id))
+      .limit(1);
+
+    if (result.length === 0) return null;
+
+    return result[0];
+  }
+
+  async getPendingToolCalls(chatId: number): Promise<typeof tool_call.$inferSelect[]> {
+    try {
+      const result = await database()
+        .select()
+        .from(tool_call)
+        .where(and(
+          eq(tool_call.chat_id, chatId),
+          eq(tool_call.status, 'pending_confirmation'),
+        ))
+        .orderBy(desc(tool_call.created_at));
+
+      return result;
+    } catch (error) {
+      Logger.error("Failed to get hanging tool calls:", error);
+      throw error;
+    }
+  }
+
+  async deleteMessageById(id: number): Promise<void> {
+    try {
+      // First, delete associated tool calls
+      await database()
+        .delete(tool_call)
+        .where(eq(tool_call.message_id, id));
+
+      // Then, delete the message itself
+      await database()
+        .delete(message)
+        .where(eq(message.id, id));
+    } catch (error) {
+      Logger.error("Failed to delete message by ID:", error);
+      throw error;
+    }
+  }
+
+  async deleteUntilLastSuccessMessage(chatId: number): Promise<void> {
+    try {
+      // fetch the last 5 messages to find the last successful one
+      const messages = await this.getMessagesByChatId(chatId, 5);
+      if (messages.length === 0) return;
+
+      // Find the index of the last successful message
+      const lastSuccessIndex = messages.findIndex(msg => msg.message.status === 'success');
+
+      // Get the IDs of messages to delete
+      const messageIdsToDelete = messages.slice(0, lastSuccessIndex).map(msg => msg.message.id);
+
+      if (messageIdsToDelete.length === 0) return; // Nothing to delete
+
+      // delete associated tool calls
+      await database()
+        .delete(tool_call)
+        .where(inArray(tool_call.message_id, messageIdsToDelete));
+
+      // Delete messages and tool calls
+      await database()
+        .delete(message)
+        .where(inArray(message.id, messageIdsToDelete));
+
+    } catch (error) {
+      Logger.error("Failed to delete messages until last success:", error);
       throw error;
     }
   }

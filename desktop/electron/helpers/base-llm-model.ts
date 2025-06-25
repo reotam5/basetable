@@ -1,23 +1,8 @@
 
-/**
- * Response chunk for streaming
- */
-export interface LLMModelResponseChunk {
-  type: 'content_chunk';
-  content: string;
-  delta: string;
-  search_results?: Array<{
-    title: string;
-    url: string;
-  }>;
-}
+import { ChatStreamResponse } from "../services/chat-service.js";
+import type { Message, Tool } from "./remote-llm-model.js";
 
-/**
- * Complete model response
- */
-export interface LLMModelResponse {
-  content: string;
-}
+export type LLMModelStreamResponse = Exclude<ChatStreamResponse, { type: 'message_start' | 'content_complete' }>;
 
 export abstract class BaseLLMModel {
   protected config: Record<string, any>;
@@ -36,7 +21,7 @@ export abstract class BaseLLMModel {
 
   abstract isAvailable(): Promise<boolean>
 
-  abstract streamResponse(prompt: string, abortController?: AbortController): AsyncGenerator<LLMModelResponseChunk, void, void>;
+  abstract streamResponse(messages: Message[], abortController?: AbortController, tools?: Tool[]): AsyncGenerator<LLMModelStreamResponse, void, void>;
 
-  abstract structuredResponse<R>(prompt: string, grammar: any): Promise<R>;
+  abstract structuredResponse<R>(messages: Message[], grammar: any, tools?: Tool[]): Promise<R>;
 }

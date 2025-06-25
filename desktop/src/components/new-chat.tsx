@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/auth-context";
-import { ChatStreamData } from "@/hooks/use-chat";
+import { ChatStreamStart } from "@/hooks/use-chat";
 import { useChatInput } from "@/hooks/use-chat-input";
 import { useStream } from "@/hooks/use-stream";
 import { useNavigate } from "@tanstack/react-router";
@@ -41,7 +41,7 @@ export function NewChat() {
     }
   }, [clearInput]);
 
-  const stream = useStream<ChatStreamData>({ channel: 'chat.stream' });
+  const stream = useStream<Extract<ChatStreamStart, { type: 'message_start' }>>({ channel: 'chat.stream' });
 
   const handleSubmit = (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
     const { content, attachedFiles, longTextDocuments } = data;
@@ -56,11 +56,13 @@ export function NewChat() {
         return;
       }
       stream.startStream(chat.id.toString(), {
-        chatId: chat.id,
-        message: content,
-        attachedFiles: data.attachedFiles,
-        longTextDocuments: data.longTextDocuments,
-
+        type: 'message_start',
+        data: {
+          chatId: chat.id,
+          message: content,
+          attachedFiles: data.attachedFiles,
+          longTextDocuments: data.longTextDocuments,
+        }
       }).then(() => {
         stream.pauseStream(chat.id.toString()).then(() => {
           window.dispatchEvent(new CustomEvent("sidebar.refresh"));

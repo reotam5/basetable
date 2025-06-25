@@ -18,7 +18,7 @@ export interface StreamData {
 
 export type StreamHandler = (data: any, stream: StreamContext) => Promise<void> | void;
 
-export class StreamContext {
+export class StreamContext<T = any> {
   private streamId: string;
   private window: BrowserWindow;
   private channel: string;
@@ -36,7 +36,7 @@ export class StreamContext {
   }
 
   // Send data chunk to renderer
-  write(chunk: any, metadata?: any): void {
+  write(chunk: T, metadata?: any): void {
     if (this.isEnded) {
       throw new Error('Cannot write to ended stream');
     }

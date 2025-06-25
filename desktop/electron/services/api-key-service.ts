@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { database } from '../database/database.js';
 import { api_key } from '../database/tables/api-key.js';
-import { user_mcp } from '../database/tables/mcp.js';
+import { mcp_server } from '../database/tables/mcp-server.js';
 import { AuthHandler } from '../helpers/auth-handler.js';
 import { Logger } from '../helpers/custom-logger.js';
 import { event, service } from '../helpers/decorators.js';
@@ -16,8 +16,8 @@ class APIKeyService {
         .from(api_key)
         .where(eq(api_key.user_id, AuthHandler.profile!.sub))
         .leftJoin(
-          user_mcp,
-          eq(api_key.user_mcp_id, user_mcp.id)
+          mcp_server,
+          eq(api_key.mcp_server_id, mcp_server.id)
         )
         .orderBy(api_key.name);
       return keys;

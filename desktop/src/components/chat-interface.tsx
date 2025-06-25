@@ -1,84 +1,25 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/auth-context";
 import { useChat } from "@/hooks/use-chat";
 import { useChatInput } from "@/hooks/use-chat-input";
 import { useParams } from "@tanstack/react-router";
 import debounce from "lodash.debounce";
-import { ArrowDown, Bot, Clock, Paperclip, Send, Server } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, Send } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedText } from "./animated-text";
+import { AssistantMessage } from "./assistant-message";
 import { ChatInput } from "./chat-input";
-import { DocumentCard } from "./document-card";
-import { MessageContent } from "./message-content";
+import { UserMessage } from "./user-message";
 
-// UI message interface for display
-interface UIMessage {
-  id: string;
-  type: "user" | "assistant" | "system";
-  content: string;
-  timestamp: Date;
-  status: "success" | "pending" | "error";
-  agents?: string[];
-  mcpServers?: string[];
-  systemPrompt?: string;
-  attachedFiles?: File[];
-  search_results?: Array<{
-    title: string;
-    url: string;
-  }>;
-  longTextDocuments?: Array<{
-    id: string;
-    content: string;
-    title: string;
-  }>;
-}
 
-// Helper function to convert backend messages to UI messages
-function backendToUIMessage(
-  backendMsg: NonNullable<ReturnType<typeof useChat>["messages"]>[number]
-): UIMessage {
-  return {
-    id: backendMsg?.id?.toString(),
-    type: backendMsg?.type as "user" | "assistant" | "system",
-    content: backendMsg?.content ?? "",
-    timestamp: new Date(backendMsg.created_at!),
-    status: backendMsg?.status as "success" | "pending" | "error",
-    // These would be populated from  metadata
-    agents: backendMsg?.metadata?.agents?.map(agent => agent.name) || null,
-    mcpServers: undefined,
-    systemPrompt: undefined,
-    attachedFiles: undefined,
-    search_results: backendMsg?.metadata?.search_results,
-    longTextDocuments: backendMsg?.metadata?.longTextDocuments || [],
-  };
-}
-
-// Helper to map attached files to preview objects (with image URLs if needed)
-function getFilePreviews(messages: UIMessage[]) {
-  // Returns: { [messageId]: { name, type, url (for images), file }[] }
-  const previews: Record<string, { name: string; type: string; url?: string; file: File }[]> = {};
-  messages.forEach((msg) => {
-    if (msg.attachedFiles && msg.attachedFiles.length > 0) {
-      previews[msg.id] = msg.attachedFiles.map((file) => {
-        if (file.type.startsWith("image/")) {
-          return { name: file.name, type: file.type, url: URL.createObjectURL(file), file };
-        }
-        return { name: file.name, type: file.type, file };
-      });
-    }
-  });
-  return previews;
-}
+export type UIMessage = ReturnType<typeof useChat>['messages'][number]
 
 export function ChatInterface() {
   const { chatId } = useParams({ from: '/__app_layout/chat/$chatId' });
-  const { user } = useAuth();
   const { setSelectedTextContext } = useChatInput();
   const {
     chatTitle,
     newChatIds,
-    messages: backendMessages,
+    messages,
     error,
     isLoading,
     isSending,
@@ -86,21 +27,18 @@ export function ChatInterface() {
     sendMessage,
     isAgentResponding,
     cancel,
+    sendToolCallConfirmation,
+    streamError,
+    restartFromLastUserMessage
   } = useChat(Number(chatId));
-
-  // Convert backend messages to UI messages
-  const messages = useMemo(() =>
-    backendMessages?.map(backendToUIMessage)?.filter((msg): msg is UIMessage => msg !== null),
-    [backendMessages]
-  );
-
-  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [mcpToolKey, setMcpToolKey] = useState(-1);
   const [showLoading, setShowLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
   const previousMessageCount = useRef(0);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesContainerWrapperRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
 
 
@@ -151,13 +89,9 @@ export function ChatInterface() {
     };
   }, [isLoading]);
 
-  // Helper function to clean display content by removing context tags
-  const cleanDisplayContent = useCallback((content: string) => {
-    return content.replace(/<selected_context[^>]*>[\s\S]*?<\/selected_context>\s*/g, '').trim();
-  }, []);
 
   // Handle text selection within messages
-  const handleTextSelection = useCallback((messageId: string, messageType: 'user' | 'assistant' | 'system', timestamp: Date) => {
+  const handleTextSelection = useCallback((messageId: number, messageType: UIMessage['message']['role'] | 'tool', timestamp: Date) => {
     setTimeout(() => { // Small delay to ensure selection is complete
       const selection = window.getSelection();
       if (selection && selection.toString().trim().length > 0) {
@@ -179,19 +113,6 @@ export function ChatInterface() {
     }, 10);
   }, [setSelectedTextContext]);
 
-  // Don't auto-clear on deselection - let users keep context until they send or manually clear
-
-  const toggleMessageExpansion = useCallback((messageId: string) => {
-    setExpandedMessages(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-      } else {
-        newSet.add(messageId);
-      }
-      return newSet;
-    });
-  }, []);
 
   const handleSend = useCallback(async (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
     const { content, attachedFiles, longTextDocuments } = data;
@@ -199,7 +120,7 @@ export function ChatInterface() {
 
     try {
       await sendMessage({
-        content,
+        message: content.trim(),
         attachedFiles: data.attachedFiles,
         longTextDocuments: data.longTextDocuments,
       });
@@ -221,19 +142,19 @@ export function ChatInterface() {
   useEffect(() => {
     // after sending a message (it has isSending = false back again after sending)
     if (!isSending && !instantScrollDown.current) {
-      if (messagesContainerRef.current) {
+      if (messagesContainerRef.current && messagesContainerWrapperRef.current) {
         // get last user message by checking for the background class
         const lastUserMessage = Array.from(messagesContainerRef.current.children)
           .reverse()
-          .find(child => child.querySelector('.bg-neutral-100, .dark\\:bg-neutral-800')) as HTMLElement;
+          .find(child => child.querySelector('.user-message')) as HTMLElement;
 
         if (!lastUserMessage) return;
 
-        const currentMessageContainerHeight = messagesContainerRef.current.getBoundingClientRect().height;
-        const lastUserMessagePosition = lastUserMessage.offsetTop;
-        const remainingHeight = currentMessageContainerHeight - lastUserMessagePosition;
+        const actualHeightMessagesTakes = messagesContainerRef.current.getBoundingClientRect().height;
+        const lastUserMessageHeight = lastUserMessage.getBoundingClientRect().height;
 
-        messagesContainerRef.current.style.minHeight = currentMessageContainerHeight + (window.innerHeight - 460 - remainingHeight) + 'px';
+
+        messagesContainerWrapperRef.current.style.minHeight = actualHeightMessagesTakes + (window.innerHeight - lastUserMessageHeight) - 370 + 'px';
         scrollToBottom(true);
       }
     }
@@ -281,153 +202,6 @@ export function ChatInterface() {
     }
   }, [isAgentResponding, scrollToBottom, showScrollToBottomButton])
 
-  // Memoize the rendered messages to prevent unnecessary re-renders
-  const filePreviews = useMemo(() => getFilePreviews(messages ?? []), [messages]);
-  useEffect(() => {
-    // Cleanup image URLs on unmount or messages change
-    return () => {
-      Object.values(filePreviews).flat().forEach((preview) => {
-        if (preview.url) URL.revokeObjectURL(preview.url);
-      });
-    };
-  }, [filePreviews]);
-
-  const renderedMessages = useMemo(() => {
-    return (
-      <div className="space-y-2" ref={messagesContainerRef}>
-        {messages?.map((message) => (
-          <div
-            key={message.id}
-            className="text-left"
-          >
-            <div className="w-full">
-              <div
-                className={`${message.type === "user"
-                  ? "bg-neutral-100 dark:bg-neutral-800 py-3 px-4 text-foreground rounded-lg leading-relaxed inline-block max-w-full"
-                  : "py-3 px-4 text-foreground leading-relaxed"
-                  } cursor-text select-text`}
-                onMouseUp={() => handleTextSelection(message.id, message.type, message.timestamp)}
-                onKeyUp={() => handleTextSelection(message.id, message.type, message.timestamp)}
-              >
-                {message.type === "user" ? (
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Avatar className="w-6 h-6 flex-shrink-0">
-                      <AvatarImage src={user?.picture} alt={user?.name} />
-                      <AvatarFallback className="text-xs">
-                        {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      {/** Pasted documents */}
-                      {message.longTextDocuments && message.longTextDocuments.length > 0 && (
-                        <div className="flex flex-wrap gap-3">
-                          {message.longTextDocuments.map((doc, index) => (
-                            <div key={`doc-${index}`} className="flex-shrink-0 w-64">
-                              <DocumentCard
-                                content={doc.content}
-                                title={doc.title}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="whitespace-pre-wrap leading-relaxed text-left break-words">
-                        {cleanDisplayContent(message.content)}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <MessageContent
-                    content={message.content ?? ""}
-                    search_results={message.search_results}
-                  />
-                )}
-
-                {/* Show attached files if present */}
-                {filePreviews[message.id] && filePreviews[message.id].length > 0 && (
-                  <div className="mt-3 flex flex-col">
-                    {/* Image attachments */}
-                    <div className="flex flex-wrap gap-2">
-                      {
-                        filePreviews[message.id].filter(preview => preview.type.startsWith("image/")).map(preview => (
-                          <img src={preview.url} alt={preview.name} className="max-w-[120px] max-h-[80px] rounded mb-1" />
-                        ))
-                      }
-                    </div>
-                    {filePreviews[message.id].some(preview => !preview.type.startsWith("image/")) && filePreviews[message.id].some(preview => preview.type.startsWith("image/")) && (
-                      <div className="mb-2"></div>
-                    )}
-                    {/* File attachments */}
-                    <div className="flex flex-wrap gap-2">
-                      {filePreviews[message.id].filter(preview => !preview.type.startsWith("image/")).map((preview, idx) => (
-                        <div
-                          key={preview.name + preview.file.size + idx}
-                          className={`flex items-center px-3 py-1 text-sm rounded-sm border ${message.type === "user" ? "border-neutral-500 dark:border-neutral-300" : "border-neutral-300 dark:border-neutral-500"}`}
-                        >
-                          <Paperclip className="w-4 h-4 mr-1 opacity-70" />
-                          <span className="truncate max-w-[120px]" title={preview.name}>{preview.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(message.type === "assistant" &&
-                  message.status === "success"
-                ) && (
-                    <Fragment key={message.id}>
-                      <div className="mt-3 pt-3">
-                        <button
-                          onClick={() => toggleMessageExpansion(message.id)}
-                          className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-400 transition-colors"
-                        >
-                          <div className={`transform transition-transform ${expandedMessages.has(message.id) ? 'rotate-90' : 'rotate-0'}`}>
-                            ▶
-                          </div>
-                          {expandedMessages.has(message.id) ? "Hide details" : "Show details"}
-                        </button>
-
-                        {expandedMessages.has(message.id) && (
-                          <div className="mt-3 space-y-2 pl-1">
-                            {message.mcpServers && (
-                              <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
-                                <Server className="w-3 h-3" />
-                                <span>{message.mcpServers.join(", ")}</span>
-                              </div>
-                            )}
-                            {message.agents && (
-                              <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300">
-                                <Bot className="w-3 h-3" />
-                                {message.agents.map((agent) => agent).join(", ")}
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                              <Clock className="w-3 h-3" />
-                              <span>{message.timestamp.toLocaleString()}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </Fragment>
-                  )}
-              </div>
-            </div>
-          </div>
-        ))}
-        {isWaitingAI && (
-          <div className="text-left">
-            <div className="ml-3 py-2">
-              <div className="typing-ellipsis">
-                <div className="dot"></div>
-                <div className="dot"></div>
-                <div className="dot"></div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }, [messages, isWaitingAI, user?.picture, user?.name, cleanDisplayContent, filePreviews, expandedMessages, handleTextSelection, toggleMessageExpansion]);
 
   return (
     <div className="flex-1 flex flex-col pt-[-5px] min-h-[calc(100vh-3.5rem-1px)]">
@@ -459,14 +233,90 @@ export function ChatInterface() {
             </div>
           )}
 
-          {/* Messages */}
-          {!isLoading && !error && messages?.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-600 dark:text-gray-400">No messages yet. Start a conversation!</p>
+
+          {!isLoading && !error && (
+            <div ref={messagesContainerWrapperRef}>
+              <div ref={messagesContainerRef} className="space-y-2">
+                {messages?.map(({ message, toolCalls }) => (
+                  <div
+                    key={message.id + (toolCalls?.length ?? 0)}
+                    className="text-left"
+                  >
+                    <div className="w-full">
+                      <div
+                        className={`${message.role === "user"
+                          ? "bg-neutral-100 dark:bg-neutral-800 py-3 px-4 text-foreground rounded-lg leading-relaxed inline-block max-w-full"
+                          : "py-3 px-4 text-foreground leading-relaxed"
+                          } cursor-text select-text`}
+                        onMouseUp={() => handleTextSelection(message.id, message.role, message.created_at!)}
+                        onKeyUp={() => handleTextSelection(message.id, message.role, message.created_at!)}
+                      >
+                        {message.role === "user" ? (
+                          <UserMessage message={message} />
+                        ) : message.role === "assistant" ? (
+                          <AssistantMessage message={message} toolCalls={toolCalls} sendToolCallConfirmation={sendToolCallConfirmation} mcpToolKey={mcpToolKey} setMcpToolKey={setMcpToolKey} />
+                        ) : (
+                          <div>Unknown message type: {JSON.stringify(message, null, 2)}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isWaitingAI && (
+                  <div className="text-left">
+                    <div className="ml-3 py-2">
+                      <div className="typing-ellipsis">
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
+          {error && (
+            <div className="flex items-center justify-center min-h-[calc(100vh-500px)]">
+              <div className="max-w-md w-full mx-auto">
+                <div className="bg-card border border-destructive/20 rounded-lg p-8 text-center">
+                  {/* Error Icon */}
+                  <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
+                    <svg
+                      className="w-8 h-8 text-destructive"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                      />
+                    </svg>
+                  </div>
 
-          {!isLoading && !error && renderedMessages}
+                  {/* Error Title */}
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    Something went wrong
+                  </h3>
+
+                  {/* Error Message */}
+                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+                    {error.message || 'We encountered an unexpected error while loading your messages. This might be a temporary issue.'}
+                  </p>
+
+                  {/* Additional Help */}
+                  <div className="mt-6 pt-6 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground">
+                      If this problem persists, try restarting the application or contact support.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef}></div>
         </div>
       </div>
@@ -483,6 +333,63 @@ export function ChatInterface() {
             >
               <ArrowDown />
             </Button>
+          )
+        }
+        {
+          streamError && (
+            <div className="max-w-4xl mx-auto mb-4 bg-background">
+              <div className="bg-destructive/10 border border-destructive rounded-lg p-4 flex items-start gap-3">
+                {/* Error Icon */}
+                <div className="flex-shrink-0 w-5 h-5 mt-0.5">
+                  <svg
+                    className="w-5 h-5 text-orange-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+
+                {/* Error Content */}
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-medium text-foreground mb-1">
+                    Connection Issue
+                  </h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {streamError || 'An error occurred while processing your request.'}
+                  </p>
+                </div>
+
+                {/* Retry Button */}
+                <Button
+                  onClick={restartFromLastUserMessage}
+                  variant="outline"
+                  size="sm"
+                  className="flex-shrink-0"
+                >
+                  <svg
+                    className="w-3.5 h-3.5 mr-1.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Retry
+                </Button>
+              </div>
+            </div>
           )
         }
         <ChatInput

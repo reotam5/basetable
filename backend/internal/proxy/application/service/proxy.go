@@ -251,7 +251,6 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 			// Handle "data: " prefix
 			if strings.HasPrefix(line, "data: ") {
 				data := strings.TrimPrefix(line, "data: ")
-
 				// Handle [DONE] marker
 				if data == "[DONE]" {
 					return
@@ -260,22 +259,24 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 				// Parse the provider response chunk (same format as non-streaming)
 				var providerChunk any
 				if err := json.Unmarshal([]byte(data), &providerChunk); err != nil {
+					fmt.Println(err)
 					continue
 				}
 
 				// Transform using same response template
 				var responseBody bytes.Buffer
 				if err := responseTmpl.Execute(&responseBody, providerChunk); err != nil {
+					fmt.Println("ResponseTmpl error")
+					fmt.Println(err)
 					continue
 				}
 
 				// Parse the transformed chunk into canonical Response format
 				var response dto.Response
 				if err := json.Unmarshal(responseBody.Bytes(), &response); err != nil {
+					fmt.Print(err)
 					continue
 				}
-
-				fmt.Println(response)
 
 				// Send the response chunk
 				select {

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "41c80fb6-8aed-47aa-a381-6dd1eca0271d",
+  "id": "0a5ff169-c21f-422b-a2f7-77d6a49efe72",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "agent_style": {
@@ -189,8 +189,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "agent_to_user_mcp": {
-      "name": "agent_to_user_mcp",
+    "agent_to_mcp_server": {
+      "name": "agent_to_mcp_server",
       "columns": {
         "agent_id": {
           "name": "agent_id",
@@ -199,8 +199,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_mcp_id": {
-          "name": "user_mcp_id",
+        "mcp_server_id": {
+          "name": "mcp_server_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -216,9 +216,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "agent_to_user_mcp_agent_id_agent_id_fk": {
-          "name": "agent_to_user_mcp_agent_id_agent_id_fk",
-          "tableFrom": "agent_to_user_mcp",
+        "agent_to_mcp_server_agent_id_agent_id_fk": {
+          "name": "agent_to_mcp_server_agent_id_agent_id_fk",
+          "tableFrom": "agent_to_mcp_server",
           "tableTo": "agent",
           "columnsFrom": [
             "agent_id"
@@ -229,12 +229,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "agent_to_user_mcp_user_mcp_id_user_mcp_id_fk": {
-          "name": "agent_to_user_mcp_user_mcp_id_user_mcp_id_fk",
-          "tableFrom": "agent_to_user_mcp",
-          "tableTo": "user_mcp",
+        "agent_to_mcp_server_mcp_server_id_mcp_server_id_fk": {
+          "name": "agent_to_mcp_server_mcp_server_id_mcp_server_id_fk",
+          "tableFrom": "agent_to_mcp_server",
+          "tableTo": "mcp_server",
           "columnsFrom": [
-            "user_mcp_id"
+            "mcp_server_id"
           ],
           "columnsTo": [
             "id"
@@ -244,12 +244,12 @@
         }
       },
       "compositePrimaryKeys": {
-        "agent_to_user_mcp_agent_id_user_mcp_id_pk": {
+        "agent_to_mcp_server_agent_id_mcp_server_id_pk": {
           "columns": [
             "agent_id",
-            "user_mcp_id"
+            "mcp_server_id"
           ],
-          "name": "agent_to_user_mcp_agent_id_user_mcp_id_pk"
+          "name": "agent_to_mcp_server_agent_id_mcp_server_id_pk"
         }
       },
       "uniqueConstraints": {},
@@ -293,8 +293,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_mcp_id": {
-          "name": "user_mcp_id",
+        "mcp_server_id": {
+          "name": "mcp_server_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -325,12 +325,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "api_key_user_mcp_id_mcp_id_fk": {
-          "name": "api_key_user_mcp_id_mcp_id_fk",
+        "api_key_mcp_server_id_mcp_server_id_fk": {
+          "name": "api_key_mcp_server_id_mcp_server_id_fk",
           "tableFrom": "api_key",
-          "tableTo": "mcp",
+          "tableTo": "mcp_server",
           "columnsFrom": [
-            "user_mcp_id"
+            "mcp_server_id"
           ],
           "columnsTo": [
             "id"
@@ -363,7 +363,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -371,7 +371,7 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -464,48 +464,10 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "mcp": {
-      "name": "mcp",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
         },
-        "name": {
-          "name": "name",
+        "download_url": {
+          "name": "download_url",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "icon": {
-          "name": "icon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tools": {
-          "name": "tools",
-          "type": "blob",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -517,8 +479,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "user_mcp": {
-      "name": "user_mcp",
+    "mcp_server": {
+      "name": "mcp_server",
       "columns": {
         "id": {
           "name": "id",
@@ -534,11 +496,53 @@
           "notNull": true,
           "autoincrement": false
         },
-        "mcp_id": {
-          "name": "mcp_id",
-          "type": "integer",
+        "type": {
+          "name": "type",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "available_tools": {
+          "name": "available_tools",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "confirmation_bypass_tools": {
+          "name": "confirmation_bypass_tools",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "server_config": {
+          "name": "server_config",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "is_active": {
@@ -556,38 +560,30 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
-      "indexes": {
-        "user_mcp_user_id_mcp_id_unique": {
-          "name": "user_mcp_user_id_mcp_id_unique",
-          "columns": [
-            "user_id",
-            "mcp_id"
-          ],
-          "isUnique": true
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
-        "user_mcp_user_id_user_id_fk": {
-          "name": "user_mcp_user_id_user_id_fk",
-          "tableFrom": "user_mcp",
+        "mcp_server_user_id_user_id_fk": {
+          "name": "mcp_server_user_id_user_id_fk",
+          "tableFrom": "mcp_server",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "user_mcp_mcp_id_mcp_id_fk": {
-          "name": "user_mcp_mcp_id_mcp_id_fk",
-          "tableFrom": "user_mcp",
-          "tableTo": "mcp",
-          "columnsFrom": [
-            "mcp_id"
           ],
           "columnsTo": [
             "id"
@@ -610,8 +606,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "type": {
-          "name": "type",
+        "role": {
+          "name": "role",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -623,6 +619,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "thought": {
+          "name": "thought",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "status": {
@@ -658,11 +661,10 @@
         },
         "metadata": {
           "name": "metadata",
-          "type": "text",
+          "type": "blob",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": "'{}'"
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -753,6 +755,149 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "tool_call": {
+      "name": "tool_call",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "tool_call_id": {
+          "name": "tool_call_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mcp_server_id": {
+          "name": "mcp_server_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "function_name": {
+          "name": "function_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "function_args": {
+          "name": "function_args",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "function_return": {
+          "name": "function_return",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "execution_start_at": {
+          "name": "execution_start_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "execution_end_at": {
+          "name": "execution_end_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tool_call_chat_id_chat_id_fk": {
+          "name": "tool_call_chat_id_chat_id_fk",
+          "tableFrom": "tool_call",
+          "tableTo": "chat",
+          "columnsFrom": [
+            "chat_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tool_call_message_id_message_id_fk": {
+          "name": "tool_call_message_id_message_id_fk",
+          "tableFrom": "tool_call",
+          "tableTo": "message",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tool_call_mcp_server_id_mcp_server_id_fk": {
+          "name": "tool_call_mcp_server_id_mcp_server_id_fk",
+          "tableFrom": "tool_call",
+          "tableTo": "mcp_server",
+          "columnsFrom": [
+            "mcp_server_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "user": {
       "name": "user",
       "columns": {
@@ -783,6 +928,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "saw_model_download": {
+          "name": "saw_model_download",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": false
         }
       },
       "indexes": {},

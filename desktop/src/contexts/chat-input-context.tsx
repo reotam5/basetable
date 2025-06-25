@@ -1,3 +1,4 @@
+import { UIMessage } from "@/components/chat-interface";
 import { useMatch } from "@tanstack/react-router";
 import React, { createContext, useCallback, useEffect, useRef, useState } from "react";
 
@@ -16,10 +17,10 @@ interface ChatInputState {
 
   // Selected text context
   selectedTextContext: {
-    messageId: string;
+    messageId: number;
     selectedText: string;
     wordCount: number;
-    messageType: 'user' | 'assistant' | 'system';
+    messageType: UIMessage['message']['role'] | "tool";
     timestamp: Date;
   } | null;
 }
@@ -27,16 +28,10 @@ interface ChatInputState {
 interface ChatInputContextType {
   state: ChatInputState;
   setValue: (value: string) => void;
-  setAttachedFiles: React.Dispatch<React.SetStateAction<File[]>>;
-  setLongTextDocuments: React.Dispatch<React.SetStateAction<Array<{ id: string, content: string, title: string }>>>;
-  setHighlightedMentions: React.Dispatch<React.SetStateAction<Array<{ start: number, end: number, agent: string }>>>;
-  setSelectedTextContext: React.Dispatch<React.SetStateAction<{
-    messageId: string;
-    selectedText: string;
-    wordCount: number;
-    messageType: "user" | "assistant" | "system";
-    timestamp: Date;
-  } | null>>;
+  setAttachedFiles: React.Dispatch<React.SetStateAction<ChatInputState['attachedFiles']>>;
+  setLongTextDocuments: React.Dispatch<React.SetStateAction<ChatInputState['longTextDocuments']>>;
+  setHighlightedMentions: React.Dispatch<React.SetStateAction<ChatInputState['highlightedMentions']>>;
+  setSelectedTextContext: React.Dispatch<React.SetStateAction<ChatInputState['selectedTextContext']>>;
 
   // Actions
   clearInput: () => void;
@@ -56,16 +51,10 @@ export function ChatInputProvider({
   const chatId = match?.params?.chatId;
 
   const [value, setValue] = useState("");
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [longTextDocuments, setLongTextDocuments] = useState<Array<{ id: string, content: string, title: string }>>([]);
-  const [highlightedMentions, setHighlightedMentions] = useState<Array<{ start: number, end: number, agent: string }>>([]);
-  const [selectedTextContext, setSelectedTextContext] = useState<{
-    messageId: string;
-    selectedText: string;
-    wordCount: number;
-    messageType: 'user' | 'assistant' | 'system';
-    timestamp: Date;
-  } | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<ChatInputState['attachedFiles']>([]);
+  const [longTextDocuments, setLongTextDocuments] = useState<ChatInputState['longTextDocuments']>([]);
+  const [highlightedMentions, setHighlightedMentions] = useState<ChatInputState['highlightedMentions']>([]);
+  const [selectedTextContext, setSelectedTextContext] = useState<ChatInputState['selectedTextContext']>(null);
   const shouldReset = useRef(true);
 
   // Reset state when chatId changes

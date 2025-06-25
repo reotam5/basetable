@@ -118,9 +118,12 @@ const electronAPI = {
   },
   mcp: {
     getAll: (filter?: { is_active?: boolean }) => handler.invoke("mcp.getAll", filter) as ReturnType<typeof MCPService.getMCPs>,
-    uninstall: (name: string) => handler.invoke("mcp.uninstall", name) as ReturnType<typeof MCPService.uninstallMCP>,
-    install: (name: string) => handler.invoke("mcp.install", name) as ReturnType<typeof MCPService.installMCP>,
-    setActiveState: (name: string, is_active: boolean) => handler.invoke("mcp.setActiveState", name, is_active) as ReturnType<typeof MCPService.setActiveState>,
+    uninstall: (id: number) => handler.invoke("mcp.uninstall", id) as ReturnType<typeof MCPService.uninstallMCP>,
+    install: (id: number) => handler.invoke("mcp.install", id) as ReturnType<typeof MCPService.installMCP>,
+    setActiveState: (id: number, is_active: boolean) => handler.invoke("mcp.setActiveState", id, is_active) as ReturnType<typeof MCPService.setActiveState>,
+    createNewMcp: (mcp: Parameters<typeof MCPService.createNewMCP>[0]) => handler.invoke("mcp.createNew", mcp) as ReturnType<typeof MCPService.createNewMCP>,
+    getConfirmationBypass: (...args: Parameters<typeof MCPService.getConfirmationBypass>) => handler.invoke("mcp.getConfirmationBypass", ...args) as ReturnType<typeof MCPService.getConfirmationBypass>,
+    setConfirmationBypass: (...args: Parameters<typeof MCPService.setConfirmationBypass>) => handler.invoke("mcp.setConfirmationBypass", ...args) as ReturnType<typeof MCPService.setConfirmationBypass>,
   },
   key: {
     getAll: () => handler.invoke("apikey.getAll") as ReturnType<typeof APIKeyService.getKeys>,
@@ -169,6 +172,11 @@ const electronAPI = {
     },
     onSettingsImported: (callback: () => void) => handler.on("db.imported", callback)
   },
+  // Add direct invoke method for new IPC calls
+  invoke: (channel: string, ...args: any[]) => handler.invoke(channel, ...args),
+  // Add event listener methods for tool execution events
+  on: (channel: string, callback: (...args: any[]) => void) => handler.on(channel, callback),
+  off: (channel: string, callback: (...args: any[]) => void) => handler.removeEventListener(channel, callback),
 }
 
 contextBridge.exposeInMainWorld("store", store);

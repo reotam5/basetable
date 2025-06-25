@@ -3,7 +3,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { agent } from "./agent.js";
 import { api_key } from "./api-key.js";
 import { chat } from "./chat.js";
-import { user_mcp } from "./mcp.js";
+import { mcp_server } from "./mcp-server.js";
 import { setting } from "./setting.js";
 
 export const user = sqliteTable("user", {
@@ -16,7 +16,7 @@ export const user = sqliteTable("user", {
 
 export const user_relations = relations(user, ({ many }) => ({
   user_api_keys: many(api_key),
-  user_mcps: many(user_mcp),
+  mcp_server: many(mcp_server),
   agents: many(agent),
   chats: many(chat),
   settings: many(setting)

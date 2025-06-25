@@ -2,7 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { blob, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { agent_to_agent_style } from "./agent-style.js";
 import { llm } from "./llm.js";
-import { user_mcp } from "./mcp.js";
+import { mcp_server } from "./mcp-server.js";
 import { user } from "./user.js";
 
 export const agent = sqliteTable("agent", {
@@ -15,12 +15,12 @@ export const agent = sqliteTable("agent", {
   created_at: text().default(sql`(CURRENT_TIMESTAMP)`),
 })
 
-export const agent_to_user_mcp = sqliteTable("agent_to_user_mcp", {
+export const agent_to_mcp_server = sqliteTable("agent_to_mcp_server", {
   agent_id: integer().notNull().references(() => agent.id, { onDelete: 'cascade' }),
-  user_mcp_id: integer().notNull().references(() => user_mcp.id, { onDelete: 'cascade' }),
+  mcp_server_id: integer().notNull().references(() => mcp_server.id, { onDelete: 'cascade' }),
   selected_tools: blob({ mode: 'json' }).$type<string[]>(),
 }, (table) => ([
-  primaryKey({ columns: [table.agent_id, table.user_mcp_id] }),
+  primaryKey({ columns: [table.agent_id, table.mcp_server_id] }),
 ]));
 
 export const agent_relations = relations(agent, ({ one, many }) => ({
@@ -33,5 +33,5 @@ export const agent_relations = relations(agent, ({ one, many }) => ({
     fields: [agent.llm_id],
     references: [llm.id],
   }),
-  user_mcps: many(agent_to_user_mcp),
+  mcp_servers: many(agent_to_mcp_server),
 }))

@@ -1,7 +1,48 @@
 import { api } from "./axios-api.js";
-import { BaseLLMModel, LLMModelResponseChunk } from "./base-llm-model.js";
+import { BaseLLMModel, LLMModelStreamResponse } from "./base-llm-model.js";
 import { createStreamIterator } from "./createStreamIterator.js";
 import { Logger } from "./custom-logger.js";
+
+// Types matching the proxy server structure
+export interface ToolCall {
+  id: string;
+  tool_type: string;
+  call: {
+    name: string;
+    arg: string;
+  };
+}
+
+export interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_call_id?: string;
+  tool_calls?: ToolCall[];
+  thoughts?: string[];
+}
+
+export interface ParameterProperty {
+  type: string;
+  description: string;
+  enum?: string[];
+  default?: any;
+}
+
+export interface ParameterSchema {
+  properties: Record<string, ParameterProperty>;
+  required: string[];
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: ParameterSchema;
+}
+
+export interface Tool {
+  tool_type: string;
+  tool_definition: ToolDefinition;
+}
 
 export interface RemoteLLMConfig {
   provider_id: string;
@@ -57,20 +98,21 @@ export class RemoteLLMModel extends BaseLLMModel {
     }
   }
 
-  async *streamResponse(prompt: string, abortController?: AbortController): AsyncGenerator<LLMModelResponseChunk, void, void> {
-    Logger.info('Streaming');
-    const streamIterator = createStreamIterator<LLMModelResponseChunk>();
-
+  async *streamResponse(
+    messages: Message[],
+    abortController?: AbortController,
+    tools?: Tool[]
+  ): AsyncGenerator<LLMModelStreamResponse, void, void> {
+    const streamIterator = createStreamIterator<LLMModelStreamResponse>();
     try {
       const requestPayload = {
         provider_id: this.remoteConfig.provider_id,
         endpoint: "chat",
         model_key: this.remoteConfig.model,
-        messages: this.parsePromptToMessages(prompt),
-        stream: true
+        messages: messages,
+        stream: true,
+        ...(tools && tools.length > 0 ? { tools } : {})
       };
-
-      Logger.info(requestPayload.messages);
 
       const response = await api.post('/v1/proxy/request', requestPayload, {
         headers: {
@@ -81,40 +123,93 @@ export class RemoteLLMModel extends BaseLLMModel {
         signal: abortController?.signal
       });
 
-      // Parse streaming response
-      let content = '';
-      const reader = response.data;
-      reader.on('data', (chunk: Buffer) => {
-        const lines = chunk.toString().split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              streamIterator.complete();
-              return;
-            }
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content || '';
-              content += delta
-              streamIterator.push({
-                type: 'content_chunk',
-                delta,
-                content: content,
-                search_results: parsed.search_results || []
-              });
-            } catch (e) {
-              // Ignore parsing errors for malformed chunks
+      let accumulatedContent = '';
+      const toolCallsMap = new Map<string, any>(); // Track tool calls by ID
+      let currentToolCallId: string | null = null; // Track the current tool call being streamed
+
+      const processLine = (line: string) => {
+        if (!line.startsWith('data: ')) return;
+        const data = line.slice(6).trim();
+
+        if (data === '[DONE]') {
+          // Emit any remaining tool calls before completing
+          this.emitCompletedToolCalls(toolCallsMap, streamIterator);
+          streamIterator.complete();
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const choice = parsed.choices?.[0];
+          const delta = choice?.delta;
+          const finishReason = choice?.finish_reason;
+
+          if (!delta && !finishReason) return;
+
+          // Handle content streaming
+          if (delta?.content) {
+            accumulatedContent += delta.content;
+            streamIterator.push({
+              type: 'content_chunk',
+              content: accumulatedContent,
+              search_results: parsed.search_results || []
+            });
+          }
+
+          // Handle tool calls streaming
+          if (delta?.toolcalls) {
+            for (const toolCall of delta.toolcalls) {
+              if (toolCall.id && toolCall.id.trim() !== '') {
+                // New tool call with ID - create entry
+                currentToolCallId = toolCall.id;
+                toolCallsMap.set(toolCall.id, {
+                  id: toolCall.id,
+                  tool_type: toolCall.tool_type || 'function',
+                  call: {
+                    name: toolCall.call?.name || '',
+                    arg: toolCall.call?.arg || ''
+                  }
+                });
+              } else if (currentToolCallId && toolCallsMap.has(currentToolCallId)) {
+                // Update existing tool call (continuation of streaming)
+                const existingToolCall = toolCallsMap.get(currentToolCallId);
+                if (toolCall.call?.name) {
+                  existingToolCall.call.name += toolCall.call.name;
+                }
+                if (toolCall.call?.arg) {
+                  existingToolCall.call.arg += toolCall.call.arg;
+                }
+              }
             }
           }
+
+          // If finish_reason is "tool_calls", emit all tool calls
+          if (finishReason === 'tool_calls') {
+            this.emitCompletedToolCalls(toolCallsMap, streamIterator);
+            streamIterator.complete();
+          }
+
+        } catch (error) {
+          Logger.error("Failed to parse streaming data", {
+            error: error instanceof Error ? error.message : String(error),
+            data: data.substring(0, 100)
+          });
         }
+      }
+
+      // Set up stream handlers
+      response.data.on('data', (chunk: Buffer) => {
+        const lines = chunk.toString().split('\n');
+        lines.forEach(processLine);
       });
 
-      reader.on('end', () => {
+      response.data.on('end', () => {
+        // Emit any remaining tool calls when stream ends
+        this.emitCompletedToolCalls(toolCallsMap, streamIterator);
         streamIterator.complete();
       });
 
-      reader.on('error', (error: Error) => {
+      response.data.on('error', (error: Error) => {
         Logger.error("Stream error:", error);
         streamIterator.complete();
       });
@@ -129,15 +224,42 @@ export class RemoteLLMModel extends BaseLLMModel {
     }
   }
 
-  async structuredResponse<R>(prompt: string, _grammar: any): Promise<R> {
+  private emitCompletedToolCalls(toolCallsMap: Map<string, any>, streamIterator: any): void {
+    for (const [id, toolCall] of toolCallsMap.entries()) {
+      // Emit the tool call regardless of completion status when finish_reason is tool_calls
+      streamIterator.push({
+        type: 'function_call',
+        tool_call: { raw: toolCall }
+      });
+      toolCallsMap.delete(id); // Remove emitted tool call
+    }
+  }
+
+  private isToolCallComplete(toolCall: any): boolean {
+    // Tool call is complete if it has a name and either no args or valid JSON args
+    if (!toolCall.call?.name) return false;
+
+    const args = toolCall.call.arg;
+    if (!args) return true; // No args is valid
+
+    try {
+      JSON.parse(args);
+      return true;
+    } catch {
+      return false; // Invalid JSON means incomplete
+    }
+  }
+
+  async structuredResponse<R>(messages: Message[], _grammar: any, tools?: Tool[]): Promise<R> {
     Logger.info('Non-Streaming');
     try {
       const requestPayload = {
         provider_id: this.remoteConfig.provider_id,
         endpoint: "chat",
         model_key: this.remoteConfig.model,
-        messages: this.parsePromptToMessages(prompt),
-        stream: false
+        messages: messages,
+        stream: false,
+        ...(tools && tools.length > 0 ? { tools } : {})
       };
 
       const response = await api.post('/v1/proxy/request', requestPayload, {
@@ -154,7 +276,7 @@ export class RemoteLLMModel extends BaseLLMModel {
       // Try to parse as JSON for structured response
       try {
         return JSON.parse(content) as R;
-      } catch (parseError) {
+      } catch {
         // If not valid JSON, return the content as-is
         return content as R;
       }
@@ -164,32 +286,4 @@ export class RemoteLLMModel extends BaseLLMModel {
     }
   }
 
-  private parsePromptToMessages(prompt: string): Array<{ role: string, content: string }> {
-    const messages = [];
-
-    // Split by role markers
-    const sections = prompt.split(/<\|(\w+)\|>/);
-
-    for (let i = 1; i < sections.length; i += 2) {
-      const role = sections[i];
-      const content = sections[i + 1]?.trim();
-
-      if (content && (role === 'system' || role === 'user' || role === 'assistant')) {
-        messages.push({
-          role: role,
-          content: content
-        });
-      }
-    }
-
-    // If no proper role markers found, treat entire prompt as user message
-    if (messages.length === 0) {
-      messages.push({
-        role: 'user',
-        content: prompt
-      });
-    }
-
-    return messages;
-  }
 }

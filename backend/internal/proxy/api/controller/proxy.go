@@ -43,6 +43,9 @@ func (c *proxyController) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		ToolChoice: convertToolChoice(req.ToolChoice),
 	}
 
+	b, _ := json.Marshal(dtoReq)
+	fmt.Println(string(b))
+
 	if dtoReq.Stream {
 		// Handle streaming response
 		responseChan, err := c.proxyService.ProxyRequestStream(r.Context(), dtoReq)
@@ -86,6 +89,8 @@ func (c *proxyController) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
+			fmt.Println(string(responseJSON))
+
 			// Write as Server-Sent Event
 			fmt.Fprintf(w, "data: %s\n\n", responseJSON)
 			flusher.Flush()
@@ -102,7 +107,6 @@ func (c *proxyController) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Handle regular response
 		response, err := c.proxyService.ProxyRequest(r.Context(), dtoReq)
-		fmt.Println(err)
 		if err != nil {
 			hutil.WriteJSONErrorResponse(w, r, hutil.NewInternalError(err))
 			return
@@ -129,11 +133,13 @@ func convertMessages(payloadMessages []payload.Message) []dto.Message {
 	dtoMessages := make([]dto.Message, len(payloadMessages))
 	for i, msg := range payloadMessages {
 		dtoMessages[i] = dto.Message{
-			Role:      dto.MessageRole(msg.Role),
-			Content:   msg.Content,
-			Toolcalls: convertToolCalls(msg.Toolcalls),
+			Role:       dto.MessageRole(msg.Role),
+			Content:    msg.Content,
+			ToolCallID: msg.ToolCallID,
+			ToolCalls:  convertToolCalls(msg.ToolCalls),
 		}
 	}
+
 	return dtoMessages
 }
 
@@ -201,11 +207,12 @@ func convertChoices(dtoChoices []dto.Choice) []payload.Choice {
 			Message: payload.Message{
 				Role:      string(choice.Message.Role),
 				Content:   choice.Message.Content,
-				Toolcalls: convertDTOToolCallsToPayload(choice.Message.Toolcalls),
+				ToolCalls: convertDTOToolCallsToPayload(choice.Message.ToolCalls),
 			},
 			Delta: payload.Delta{
-				Role:    string(choice.Delta.Role),
-				Content: choice.Delta.Content,
+				Role:      string(choice.Delta.Role),
+				Content:   choice.Delta.Content,
+				ToolCalls: convertDTOToolCallsToPayload(choice.Delta.ToolCalls),
 			},
 			FinishReason: string(choice.FinishReason),
 		}

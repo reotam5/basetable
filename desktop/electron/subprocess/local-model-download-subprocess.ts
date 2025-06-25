@@ -51,30 +51,31 @@ class LocalModelDownloadSubprocess extends BaseSubprocess {
     this.downloaders.set(url, { downloader, startTime: Date.now() });
 
     const interval = setInterval(() => {
-      this.sendStatus(url);
+      this.send({
+        ...this.createStatus(url),
+        isComplete: false,
+      })
     }, 50);
 
     downloader?.download?.()
       .finally(() => {
-        this.downloaders.delete(url);
         this.info(`Download completed for ${url}`);
         this.send({
-          type: 'downloadStatus',
-          url,
+          ...this.createStatus(url),
           isComplete: true,
         })
+        this.downloaders.delete(url);
         clearInterval(interval);
       })
   }
 
-  sendStatus(url: string): void {
+  createStatus(url: string) {
     const downloader = this.downloaders.get(url)?.downloader;
     if (!downloader) {
       this.warn(`No download in progress for ${url}.`);
       return;
     }
-
-    this.send({
+    return {
       type: 'downloadStatus',
       url,
       isComplete: false,
@@ -84,7 +85,7 @@ class LocalModelDownloadSubprocess extends BaseSubprocess {
       elapsedTime: Date.now() - this.downloaders.get(url)!.startTime,
       speed: downloader.downloadedSize / ((Date.now() - this.downloaders.get(url)!.startTime) / 1000),
       eta: downloader.totalSize ? (downloader.totalSize - downloader.downloadedSize) / (downloader.downloadedSize / ((Date.now() - this.downloaders.get(url)!.startTime) / 1000)) : 0,
-    })
+    }
   }
 
 

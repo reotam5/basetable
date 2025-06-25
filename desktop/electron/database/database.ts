@@ -27,7 +27,9 @@ class Database {
     }
 
     this.sqlite = new DB(join(app.getPath("userData"), "basetable.db"));
-    this.sqlite.pragma(`key='${password}'`);
+
+    // set encryption if production
+    if (app.isPackaged) this.sqlite.pragma(`key='${password}'`);
 
     this.drizzle = drizzle(this.sqlite);
 

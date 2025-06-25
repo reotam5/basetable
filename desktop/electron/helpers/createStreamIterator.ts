@@ -2,6 +2,7 @@ export function createStreamIterator<T>() {
   const chunks: T[] = [];
   let isCompleted = false;
   let resolveNext: ((value: IteratorResult<T>) => void) | null = null;
+  let deferredCompleteTimeout: NodeJS.Timeout | null = null;
 
   return {
     async *[Symbol.asyncIterator]() {
@@ -21,6 +22,12 @@ export function createStreamIterator<T>() {
     },
 
     push(chunk: T) {
+      // Cancel any pending deferred completion
+      if (deferredCompleteTimeout) {
+        clearTimeout(deferredCompleteTimeout);
+        deferredCompleteTimeout = null;
+      }
+
       chunks.push(chunk);
       if (resolveNext) {
         resolveNext({ value: chunk, done: false });
@@ -34,6 +41,19 @@ export function createStreamIterator<T>() {
         resolveNext({ value: undefined as any, done: true });
         resolveNext = null;
       }
+    },
+
+    deferredComplete(intervalMs: number = 500) {
+      // Cancel any existing deferred completion
+      if (deferredCompleteTimeout) {
+        clearTimeout(deferredCompleteTimeout);
+      }
+
+      // Set up a new deferred completion
+      deferredCompleteTimeout = setTimeout(() => {
+        this.complete();
+        deferredCompleteTimeout = null;
+      }, intervalMs);
     }
   };
 }

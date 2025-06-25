@@ -14,6 +14,7 @@ import (
 
 type ProviderController interface {
 	CreateProvider(w http.ResponseWriter, r *http.Request)
+	UpdateProviderTemplate(w http.ResponseWriter, r *http.Request)
 	GetProvider(w http.ResponseWriter, r *http.Request)
 	RemoveProvider(w http.ResponseWriter, r *http.Request)
 	ListProviders(w http.ResponseWriter, r *http.Request)
@@ -63,6 +64,27 @@ func (c *providerController) CreateProvider(w http.ResponseWriter, r *http.Reque
 
 	response := convertProviderDTOToPayload(provider.Provider)
 	hutil.WriteJSONResponse(w, r, response)
+}
+
+func (c *providerController) UpdateProviderTemplate(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerID")
+	var req payload.UpdateProviderTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		hutil.WriteJSONErrorResponse(w, r, hutil.NewBadRequestError(err))
+		return
+	}
+
+	err := c.providerService.UpdateProviderTemplate(r.Context(), dto.UpdateProviderTemplateRequest{
+		ProviderID:       providerID,
+		RequestTemplate:  req.RequestTemplate,
+		ResponseTemplate: req.ResponseTemplate,
+	})
+	if err != nil {
+		hutil.WriteJSONErrorResponse(w, r, hutil.NewInternalError(err))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (c *providerController) GetProvider(w http.ResponseWriter, r *http.Request) {

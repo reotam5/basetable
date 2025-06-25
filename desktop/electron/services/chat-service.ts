@@ -1,34 +1,139 @@
 import { and, desc, eq, exists, like, or } from 'drizzle-orm';
 import { database } from '../database/database.js';
 import { chat } from '../database/tables/chat.js';
+import { mcp_server } from '../database/tables/mcp-server.js';
 import { message } from '../database/tables/message.js';
+import { tool_call } from '../database/tables/tool-call.js';
 import { AuthHandler } from '../helpers/auth-handler.js';
+import { LLMModelStreamResponse } from '../helpers/base-llm-model.js';
 import { chatOrchestrator } from '../helpers/chat-orchestrator.js';
 import { Logger } from '../helpers/custom-logger.js';
 import { event, service, streamHandler } from '../helpers/decorators.js';
+import { ToolCall } from '../helpers/remote-llm-model.js';
 import { StreamContext } from '../helpers/stream-manager.js';
+import { MessageService } from './message-service.js';
+
+
+type _ChatStreamStart =
+  | {
+    type: 'message_start';
+    data: {
+      chatId: number;
+      message: string;
+      attachedFiles?: File[]; // I don't think so.. but we'll fix once we support attachments
+      longTextDocuments?: Array<{
+        id: string;
+        content: string;
+        title: string;
+      }>;
+    }
+  }
+  | {
+    type: 'function_call_confirmation';
+    data: {
+      confirmed: boolean;
+    } & typeof tool_call.$inferSelect
+  }
+  | {
+    type: 'resume_from_last_user_message';
+    data: {
+      chatId: number;
+    }
+  }
+
+type _ChatStreamResponse =
+  | { type: 'message_start' }
+  | { type: 'content_complete' }
+  | {
+    type: "function_call";
+    tool_call?: {
+      raw: ToolCall,
+      resolved?: {
+        tool_call: typeof tool_call.$inferSelect,
+        mcp_server: typeof mcp_server.$inferSelect,
+      }
+    },
+    updated_tool_call?: DeepPartial<ChatStreamResponseFunctionCallChunk['tool_call']>
+  }
+  | {
+    type: 'content_chunk';
+    content: string;
+    thought?: string;
+    search_results?: Array<{
+      title: string;
+      url: string;
+    }>;
+    metadata?: typeof message.$inferInsert['metadata'];
+  };
+
+
+// This type is what you receive from renderer side when starting a chat stream
+export type ChatStreamStart = _ChatStreamStart;
+export type ChatStreamStartNormalMessage = Extract<ChatStreamStart, { type: 'message_start' }>;
+export type ChatStreamStartFunctionCall = Extract<ChatStreamStart, { type: 'function_call_confirmation' }>;
+
+
+// This type os what you send back to renderer side during the chat stream
+export type ChatStreamResponse = _ChatStreamResponse;
+export type ChatStreamResponseMessageStart = Extract<ChatStreamResponse, { type: 'message_start' }>;
+export type ChatStreamResponseContentComplete = Extract<ChatStreamResponse, { type: 'content_complete' }>;
+export type ChatStreamResponseThoughtChunk = Extract<ChatStreamResponse, { type: 'thought_chunk' }>;
+export type ChatStreamResponseContentChunk = Extract<ChatStreamResponse, { type: 'content_chunk' }>;
+export type ChatStreamResponseFunctionCallChunk = Extract<ChatStreamResponse, { type: 'function_call' }>;
+export type DeepPartial<T> = T extends object ? {
+  [P in keyof T]?: DeepPartial<T[P]>;
+} : T;
+
 
 @service
 class ChatService {
   @streamHandler('chat.stream')
-  async handleChatStream(data: ChatStreamData, stream: StreamContext) {
+  async handleChatStream({ type, data }: ChatStreamStart, stream: StreamContext<ChatStreamResponse>) {
+    const abortController = new AbortController();
     try {
-      const abortController = new AbortController();
-      const iterator = chatOrchestrator.processMessage(data.chatId, data.message, data.attachedFiles, data.longTextDocuments, abortController);
+      let iterator: AsyncGenerator<LLMModelStreamResponse> | undefined = undefined;
+
+      if (type === 'function_call_confirmation') {
+        iterator = chatOrchestrator.processFunctionCallConfirmation(data, abortController);
+      }
+
+      if (type === 'message_start') {
+        await MessageService.deleteUntilLastSuccessMessage(data.chatId);
+
+        // we cannot start message following a user message because user and assistant message must alternate
+        const lastMessage = await MessageService.getLastMessage(data.chatId);
+        if (lastMessage && lastMessage.role === 'user') {
+          await MessageService.deleteMessageById(lastMessage.id);
+        }
+
+        // reject pending tool calls if theres any
+        const pendingToolCalls = await MessageService.getPendingToolCalls(data.chatId);
+        for (const toolCall of pendingToolCalls) {
+          const updatedToolCall = await MessageService.rejectToolCall(toolCall.id);
+          stream.write({
+            type: 'function_call',
+            updated_tool_call: {
+              resolved: {
+                tool_call: updatedToolCall,
+              }
+            }
+          })
+        }
+
+        iterator = chatOrchestrator.processMessage(data.chatId, data.message, data.attachedFiles, data.longTextDocuments, abortController);
+      }
+
+      if (type === 'resume_from_last_user_message') {
+        await MessageService.deleteUntilLastSuccessMessage(data.chatId);
+        iterator = chatOrchestrator.processMessage(data.chatId, undefined, undefined, undefined, abortController);
+      }
+
+      if (iterator === undefined) {
+        throw new Error('Invalid stream type');
+      }
 
       // send message start notification
-      stream.write({
-        type: 'message_start',
-        data: {
-          chatId: data.chatId,
-          userMessage: {
-            content: data.message,
-            metadata: {
-              longTextDocuments: data.longTextDocuments || []
-            }
-          }
-        }
-      } as ChatResponseChunk);
+      stream.write({ type: 'message_start' });
 
 
       // stream the response chunks
@@ -37,23 +142,14 @@ class ChatService {
           abortController.abort();
           break;
         }
-        stream.write({
-          type: chunk.type,
-          data: {
-            chunk: chunk.delta,
-            fullContent: chunk.content,
-            metadata: chunk.metadata,
-          }
-        })
+        stream.write(chunk)
       }
 
       // complete the stream
-      stream.end({
-        type: 'content_complete',
-      } as ChatResponseChunk);
+      stream.end({ type: 'content_complete' });
 
     } catch (error) {
-      Logger.error("Error in chat stream handler:", error);
+      abortController.abort();
       stream.error(error instanceof Error ? error.message : 'Unknown error occurred')
     }
   }
@@ -164,6 +260,16 @@ class ChatService {
   @event('chat.delete', 'handle')
   public async deleteChat(chatId: number) {
     try {
+      // delete all tool calls associated with this chat
+      await database()
+        .delete(tool_call)
+        .where(eq(tool_call.chat_id, chatId));
+
+      // delete all messages in this chat
+      await database()
+        .delete(message)
+        .where(eq(message.chat_id, chatId));
+
       const deletedRows = await database()
         .delete(chat)
         .where(and(
@@ -182,57 +288,3 @@ class ChatService {
 const instance = new ChatService();
 export { instance as ChatService };
 
-
-interface ChatStreamData {
-  chatId: number;
-  message: string;
-  attachedFiles?: File[];
-  longTextDocuments?: Array<{
-    id: string;
-    content: string;
-    title: string;
-  }>;
-}
-
-interface ChatResponseChunk_MessageStart {
-  type: 'message_start';
-  data: {
-    chatId: number;
-    agentMessageId: number;
-    userMessageId: number;
-    userMessage: {
-      content: string;
-      metadata?: {
-        longTextDocuments?: Array<{
-          id: string;
-          content: string;
-          title: string;
-        }>;
-      }
-    }
-  }
-}
-
-interface ChatResponseChunk_ContentChunk {
-  type: 'content_chunk';
-  data: {
-    chunk: string;
-    fullContent: string;
-  };
-}
-
-interface ChatResponseChunk_ContentComplete {
-  type: 'content_complete';
-}
-
-interface ChatResponseChunk_Error {
-  type: 'error';
-  data: {
-    error: string;
-    chatId?: number;
-    userMessageId: number;
-    agentMessageId: number;
-  };
-}
-
-type ChatResponseChunk = ChatResponseChunk_MessageStart | ChatResponseChunk_ContentChunk | ChatResponseChunk_ContentComplete | ChatResponseChunk_Error;

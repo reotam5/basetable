@@ -142,14 +142,16 @@ type Choice struct {
 }
 
 type Delta struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"toolcalls,omitempty"` // add omitempty if optional
 }
 
 type Message struct {
-	Role      MessageRole `json:"role"`
-	Content   string      `json:"content"`
-	Toolcalls []ToolCall  `json:"toolcalls,omitempty"` // add omitempty if optional
+	Role       MessageRole `json:"role"`
+	Content    string      `json:"content"`
+	ToolCallID string      `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall  `json:"toolcalls,omitempty"` // add omitempty if optional
 }
 
 type Usage struct {

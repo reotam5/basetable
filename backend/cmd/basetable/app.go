@@ -270,6 +270,7 @@ func setupRoutes(httpServer *httpserver.Server, controllers *Controllers) {
 		router.Get("/", controllers.Provider.ListProviders)
 		router.Get("/{providerID}", controllers.Provider.GetProvider)
 		router.Delete("/{providerID}", controllers.Provider.RemoveProvider)
+		router.Patch("/{providerID}/template", controllers.Provider.UpdateProviderTemplate)
 
 		// Model management
 		router.Post("/{providerID}/models", controllers.Provider.AddModels)

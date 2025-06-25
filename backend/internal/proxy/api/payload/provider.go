@@ -12,6 +12,11 @@ type CreateProviderRequest struct {
 	Auth             AuthConfig        `json:"auth"`
 }
 
+type UpdateProviderTemplateRequest struct {
+	RequestTemplate  string `json:"request_template"`
+	ResponseTemplate string `json:"response_template"`
+}
+
 // AuthConfig represents authentication configuration
 type AuthConfig struct {
 	Type       string `json:"type"`

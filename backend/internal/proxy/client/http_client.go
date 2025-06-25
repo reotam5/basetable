@@ -98,8 +98,9 @@ func (c *HTTPProxyClient) ProxyRequestStream(ctx context.Context, request servic
 		return nil, err
 	}
 
-	// Check status code
 	if resp.StatusCode >= 400 {
+		b, _ := io.ReadAll(resp.Body)
+		fmt.Println(string(b))
 		resp.Body.Close()
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}

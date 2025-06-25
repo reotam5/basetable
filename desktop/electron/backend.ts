@@ -8,6 +8,7 @@ import { AuthHandler } from "./helpers/auth-handler.js";
 import { chatOrchestrator } from "./helpers/chat-orchestrator.js";
 import { Logger } from "./helpers/custom-logger.js";
 import { Window } from "./helpers/custom-window.js";
+import { mcpClientRegistry } from "./helpers/mcp-client-registry.js";
 import { PaymentHandler } from "./helpers/payment-handler.js";
 import { Screen, screenManager } from "./helpers/screen-manager.js";
 import { StreamManager } from "./helpers/stream-manager.js";
@@ -105,6 +106,7 @@ class Backend {
         } else if (screen === Screen.POST_MODEL_DOWNLOAD_LOADING) {
           await chatOrchestrator.loadLLMModels();
           await chatOrchestrator.loadAgents();
+          await mcpClientRegistry.sync();
           screenManager.setScreen(Screen.APP);
         }
       })

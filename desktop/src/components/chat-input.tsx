@@ -205,7 +205,7 @@ export function ChatInput({
     const attachedText: { id: string, content: string, title: string }[] = [
       ...longTextDocuments ?? [],
       ...selectedTextContext ? [{
-        id: selectedTextContext.messageId,
+        id: selectedTextContext.messageId?.toString(),
         content: selectedTextContext.selectedText,
         title: `Selected Text`
       }] : []
@@ -224,6 +224,17 @@ export function ChatInput({
     detectMentions(initialValue);
     prevInputValueRef.current = initialValue;
     onChange(initialValue);
+
+    // Reset textarea height after clearing content
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      // Set to minimum height to ensure proper reset
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+      }, 0);
+    }
   }, [value, longTextDocuments, selectedTextContext, onSubmit, attachedFiles, setAttachedFiles, setLongTextDocuments, setSelectedTextContext, highlightedMentions, detectMentions, onChange]);
 
   const handleAgentSelect = useCallback((agent: typeof agents[0]) => {

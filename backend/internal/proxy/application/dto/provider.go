@@ -64,6 +64,12 @@ type CreateProviderResponse struct {
 	Provider
 }
 
+type UpdateProviderTemplateRequest struct {
+	ProviderID       string
+	RequestTemplate  string
+	ResponseTemplate string
+}
+
 type AuthConfig struct {
 	Type       string
 	Header     string

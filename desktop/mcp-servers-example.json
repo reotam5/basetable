@@ -1,0 +1,105 @@
+{
+  "servers": [
+    {
+      "id": "filesystem",
+      "name": "File System Tools",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "description": "Provides file system access tools for reading, writing, and managing files"
+    },
+    {
+      "id": "brave-search",
+      "name": "Brave Search",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "your-brave-api-key-here"
+      },
+      "description": "Provides web search capabilities using Brave Search API"
+    },
+    {
+      "id": "github",
+      "name": "GitHub Integration",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-token-here"
+      },
+      "description": "Provides GitHub repository access and management tools"
+    },
+    {
+      "id": "sqlite",
+      "name": "SQLite Database",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "/path/to/database.db"],
+      "description": "Provides SQLite database query and management capabilities"
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL Database",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "postgresql://user:password@localhost:5432/dbname"
+      },
+      "description": "Provides PostgreSQL database access and query tools"
+    },
+    {
+      "id": "aws",
+      "name": "AWS Services",
+      "command": "python3",
+      "args": ["-m", "mcp_server_aws"],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "your-aws-access-key",
+        "AWS_SECRET_ACCESS_KEY": "your-aws-secret-key",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      },
+      "description": "Provides access to AWS services like S3, EC2, Lambda, etc."
+    },
+    {
+      "id": "shell",
+      "name": "Shell Commands",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-shell"],
+      "description": "Provides safe shell command execution capabilities"
+    },
+    {
+      "id": "memory",
+      "name": "Memory Store",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "Provides persistent memory storage for conversations"
+    }
+  ],
+  "usage_instructions": {
+    "setup": [
+      "1. Copy this file to your desired location",
+      "2. Update API keys and paths for the servers you want to use",
+      "3. Install required MCP servers: npm install -g @modelcontextprotocol/server-*",
+      "4. Use the MCP host API to add servers from this configuration"
+    ],
+    "adding_server": {
+      "description": "To add a server programmatically, use the MCPHostService.addServer() method",
+      "example_code": "await MCPHostService.addServer(userId, {\n  id: 'custom-server',\n  name: 'My Custom Server',\n  command: 'python3',\n  args: ['/path/to/my/mcp/server.py'],\n  env: { 'API_KEY': 'secret' }\n});"
+    },
+    "api_endpoints": [
+      "mcp-host:initialize - Initialize MCP host for a user",
+      "mcp-host:add-server - Add a new MCP server",
+      "mcp-host:remove-server - Remove an MCP server",
+      "mcp-host:call-tool - Call a tool on an MCP server",
+      "mcp-host:get-all-tools - Get all available tools",
+      "mcp-host:get-server-tools - Get tools for a specific server",
+      "mcp-host:get-server-status - Get connection status of servers"
+    ]
+  },
+  "security_notes": [
+    "Store API keys securely - consider using environment variables",
+    "Validate file paths to prevent unauthorized access",
+    "Use principle of least privilege for database connections",
+    "Regularly rotate API keys and access tokens",
+    "Monitor MCP server logs for suspicious activity"
+  ]
+}

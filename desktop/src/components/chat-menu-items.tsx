@@ -90,15 +90,18 @@ export function ChatMenuItems() {
     // Check if Shift key is held down
     if (e.shiftKey) {
       // Skip confirmation dialog and delete immediately
-      confirmDeleteWithoutDialog(chat);
+      confirmDelete(chat);
     } else {
       setChatToDelete(chat);
       setDeleteDialogOpen(true);
     }
   };
 
-  // Delete without confirmation dialog (when Shift+Click)
-  const confirmDeleteWithoutDialog = async (chat: { id: number; title: string }) => {
+
+  // Confirm delete
+  const confirmDelete = async (chat: { id: number, title: string }) => {
+    if (!chat) return;
+
     setIsDeleting(true);
     try {
       // Check if we're currently viewing the chat being deleted
@@ -106,32 +109,6 @@ export function ChatMenuItems() {
       const isCurrentChat = currentChatId && Number(currentChatId) === chat.id;
 
       await deleteChat(chat.id);
-
-      // If we're deleting the currently viewed chat, navigate to home
-      if (isCurrentChat) {
-        navigate({ to: "/" as any });
-      }
-
-      // Refresh sidebar
-      window.dispatchEvent(new CustomEvent("sidebar.refresh"));
-    } catch (error) {
-      console.error("Failed to delete chat:", error);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // Confirm delete
-  const confirmDelete = async () => {
-    if (!chatToDelete) return;
-
-    setIsDeleting(true);
-    try {
-      // Check if we're currently viewing the chat being deleted
-      const currentChatId = matches?.[matches.length - 1]?.params?.chatId;
-      const isCurrentChat = currentChatId && Number(currentChatId) === chatToDelete.id;
-
-      await deleteChat(chatToDelete.id);
 
       // If we're deleting the currently viewed chat, navigate to home
       if (isCurrentChat) {
@@ -273,7 +250,7 @@ export function ChatMenuItems() {
             <Button variant="outline" onClick={cancelDelete} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+            <Button variant="destructive" onClick={() => confirmDelete(chatToDelete!)} disabled={isDeleting}>
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

@@ -255,6 +255,8 @@ export function AgentPage() {
   const { data: llms } = use({ fetcher: llmsFetcher });
   const { data: tones } = use({ fetcher: tonesFetcher });
   const { data: styles } = use({ fetcher: stylesFetcher });
+
+
   const { agent, updateAgent, createAgent, deleteAgent } = useAgent(agentId ?? undefined);
   const [localChanges, setLocalChanges] = useState<any>({});
   const [nameUpdated, setNameUpdated] = useState('');
@@ -280,25 +282,7 @@ export function AgentPage() {
   const [activeTab, setActiveTab] = useState<string>('configurations')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [activeServer, setActiveServer] = useState<{
-    user_mcp: {
-      id: number;
-      user_id: string;
-      mcp_id: number;
-      is_active: boolean;
-      is_installed: boolean;
-    };
-    mcp: {
-      id: number;
-      name: string;
-      description: string;
-      icon: string;
-      tools: {
-        name: string;
-        id: string;
-      }[] | null;
-    } | null;
-  } | null>(null)
+  const [activeServer, setActiveServer] = useState<NonNullable<typeof mcpServers>[number] | null>(null)
   const [serverToolsDialogOpen, setServerToolsDialogOpen] = useState(false)
 
   // Use a reset key to force remounting of select components
@@ -582,7 +566,7 @@ export function AgentPage() {
             {mcpServers && mcpServers.length > 0 ? (
               (() => {
                 const filteredServers = mcpServers.filter(server =>
-                  server.mcp?.name.toLowerCase().includes(mcpSearchQuery.toLowerCase())
+                  server?.name?.toLowerCase().includes(mcpSearchQuery.toLowerCase())
                 );
 
                 if (filteredServers.length === 0) {
@@ -599,12 +583,17 @@ export function AgentPage() {
                   <div className="h-[268px] overflow-y-auto">
                     <div className="space-y-2 pr-2">
                       {filteredServers.map((server) => {
-                        const selectedTools = currentAgent?.mcpTools?.[server.user_mcp.id] || [];
-                        const totalTools = server.mcp?.tools?.length || 0;
+                        // Guard against servers with null mcp
+                        if (!server) return null;
+
+                        const serverId = server.id;
+                        const selectedTools = serverId ? (currentAgent?.mcpTools?.[serverId] || []) : [];
+                        const serverTools = server.available_tools;
+                        const totalTools = serverTools?.length || 0;
 
                         return (
                           <div
-                            key={server.user_mcp.id}
+                            key={server?.id}
                             className={`border rounded-md cursor-pointer h-[64px] ${selectedTools.length > 0 ? "bg-muted/80 border-primary/30" : "hover:bg-muted/30"}`}
                             onClick={() => {
                               setActiveServer(server);
@@ -616,15 +605,17 @@ export function AgentPage() {
                             <div className="flex items-center justify-between p-2.5 h-full">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <img
-                                    src={server.mcp?.icon || 'placeholder-icon.svg'}
-                                    alt={server.mcp?.name}
-                                    className="w-5 h-5 object-contain"
-                                    onError={(e) => {
-                                      e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
-                                    }}
-                                  />
-                                  <span className="font-medium text-sm">{server.mcp?.name}</span>
+                                  <div className="relative">
+                                    <img
+                                      src={server.icon || 'placeholder-icon.svg'}
+                                      alt={server.name || 'MCP Server'}
+                                      className="w-5 h-5 object-contain"
+                                      onError={(e) => {
+                                        e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="font-medium text-sm">{server.name || 'Unknown Server'}</span>
                                 </div>
                                 {/* Add description line to match height of LLM model items */}
                                 <div className="text-xs text-muted-foreground mt-0.5 ml-7">
@@ -644,7 +635,7 @@ export function AgentPage() {
                             </div>
                           </div>
                         );
-                      })}
+                      }).filter(Boolean)}
                     </div>
                   </div>
                 );
@@ -678,7 +669,6 @@ export function AgentPage() {
                 key={`tone-select-${selectResetKey}`}
                 value={selectedTone?.toString()}
                 onValueChange={(value) => {
-                  console.log(selectedStyle, value)
                   updateLocalChanges({
                     styles: [...(selectedStyle ? [selectedStyle] : []), parseInt(value)],
                   })
@@ -1021,17 +1011,17 @@ export function AgentPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {activeServer?.mcp?.icon && (
+              {activeServer?.icon && (
                 <img
-                  src={activeServer.mcp.icon}
-                  alt={activeServer.mcp.name}
+                  src={activeServer.icon}
+                  alt={activeServer.name || 'MCP Server'}
                   className="w-5 h-5 object-contain"
                   onError={(e) => {
                     e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
                   }}
                 />
               )}
-              {activeServer?.mcp?.name} Tools
+              {activeServer?.name || 'Unknown Server'} Tools
             </DialogTitle>
             <DialogDescription>
               Select the tools your agent can access from this server
@@ -1044,30 +1034,45 @@ export function AgentPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const allTools = activeServer?.mcp?.tools || [];
-                  const currentTools = currentAgent?.mcpTools?.[activeServer!.user_mcp.id] || [];
-                  const allSelected = allTools.every(tool => currentTools.includes(tool.id));
+                  const allTools = activeServer?.available_tools || [];
+                  const serverId = activeServer?.id;
+                  if (!serverId) return; // Guard against undefined serverId
+
+                  const currentTools = currentAgent?.mcpTools?.[serverId] || [];
+                  const allSelected = allTools.every((tool: any) => currentTools.includes(tool.id));
 
                   if (allSelected) {
                     // Deselect all
                     const updatedMcpTools = { ...(currentAgent?.mcpTools || {}) };
-                    updatedMcpTools[activeServer!.user_mcp.id] = [];
+                    updatedMcpTools[serverId] = [];
                     updateLocalChanges({ mcpTools: updatedMcpTools });
                   } else {
                     // Select all
                     const updatedMcpTools = { ...(currentAgent?.mcpTools || {}) };
-                    updatedMcpTools[activeServer!.user_mcp.id] = [...allTools.map(tool => tool.id)];
+                    updatedMcpTools[serverId] = [...allTools.map((tool: any) => tool.id)];
                     updateLocalChanges({ mcpTools: updatedMcpTools });
                   }
                 }}
               >
-                {activeServer?.mcp?.tools?.every(tool =>
-                  (currentAgent?.mcpTools?.[activeServer?.user_mcp.id] || []).includes(tool.id)
-                ) ? "Deselect All" : "Select All"}
+                {(() => {
+                  const allTools = activeServer?.available_tools || [];
+                  const serverId = activeServer?.id;
+                  if (!serverId) return "Select All";
+
+                  const currentTools = currentAgent?.mcpTools?.[serverId] || [];
+                  return allTools.every((tool: any) => currentTools.includes(tool.id)) ? "Deselect All" : "Select All";
+                })()}
               </Button>
 
               <span className="text-xs text-muted-foreground">
-                {(currentAgent?.mcpTools?.[activeServer?.user_mcp.id ?? ""] || []).length}/{activeServer?.mcp?.tools?.length || 0} selected
+                {(() => {
+                  const allTools = activeServer?.available_tools || [];
+                  const serverId = activeServer?.id;
+                  if (!serverId) return "0/0 selected";
+
+                  const selectedCount = (currentAgent?.mcpTools?.[serverId] || []).length;
+                  return `${selectedCount}/${allTools.length} selected`;
+                })()}
               </span>
             </div>
 
@@ -1087,16 +1092,21 @@ export function AgentPage() {
 
             {/* Tools with scrolling */}
             {(() => {
-              if (!activeServer?.mcp?.tools?.length) {
+              const allTools = activeServer?.available_tools || [];
+              const serverId = activeServer?.id;
+
+              if (!allTools.length) {
                 return (
                   <div className="p-4 text-center border rounded-md">
-                    <p className="text-sm text-muted-foreground">No tools available</p>
+                    <p className="text-sm text-muted-foreground">
+                      No tools available from this server
+                    </p>
                   </div>
                 );
               }
 
-              const filteredTools = activeServer.mcp.tools.filter(tool =>
-                tool.name.toLowerCase().includes(toolsSearchQuery.toLowerCase())
+              const filteredTools = allTools.filter((tool: any) =>
+                (tool?.title ?? tool?.name ?? tool?.id)?.toLowerCase().includes(toolsSearchQuery.toLowerCase())
               );
 
               if (filteredTools.length === 0) {
@@ -1110,31 +1120,43 @@ export function AgentPage() {
               return (
                 <div className="border rounded-md overflow-hidden h-[320px]">
                   <div className="h-full overflow-y-auto">
-                    {filteredTools.map((tool, index) => (
-                      <div
-                        key={tool.id}
-                        className={`flex items-center gap-2 p-3 hover:bg-muted/30 ${index !== filteredTools.length - 1 ? 'border-b' : ''
-                          }`}
-                      >
-                        <Checkbox
-                          id={`${activeServer.user_mcp.id}-${tool.id}`}
-                          checked={(currentAgent?.mcpTools?.[activeServer.user_mcp.id] || []).includes(tool.id)}
-                          onCheckedChange={(checked) => {
-                            const currentTools = currentAgent?.mcpTools?.[activeServer.user_mcp.id] || [];
-                            const updatedTools = checked
-                              ? [...currentTools, tool.id]
-                              : currentTools.filter(t => t !== tool.id);
-                            handleToolSelection(activeServer.user_mcp.id, updatedTools);
-                          }}
-                        />
-                        <label
-                          htmlFor={`${activeServer.user_mcp.id}-${tool.id}`}
-                          className="text-sm cursor-pointer flex-1"
+                    {filteredTools.map((tool: any, index: number) => {
+                      if (!serverId) return null; // Skip if serverId is undefined
+
+                      return (
+                        <div
+                          key={tool.id}
+                          className={`flex items-center gap-2 p-3 hover:bg-muted/30 ${index !== filteredTools.length - 1 ? 'border-b' : ''
+                            }`}
                         >
-                          {tool.name}
-                        </label>
-                      </div>
-                    ))}
+                          <Checkbox
+                            id={`${serverId}-${tool.id}`}
+                            checked={serverId ? (currentAgent?.mcpTools?.[serverId] || []).includes(tool.id) : false}
+                            onCheckedChange={(checked) => {
+                              if (!serverId) return;
+                              const currentTools = currentAgent?.mcpTools?.[serverId] || [];
+                              const updatedTools = checked
+                                ? [...currentTools, tool.id]
+                                : currentTools.filter((t: string) => t !== tool.id);
+                              handleToolSelection(serverId, updatedTools);
+                            }}
+                          />
+                          <div className="flex-1">
+                            <label
+                              htmlFor={`${serverId}-${tool.id}`}
+                              className="text-sm cursor-pointer block font-medium"
+                            >
+                              {tool.title || tool.name || tool.id}
+                            </label>
+                            {tool.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {tool.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }).filter(Boolean)}
                   </div>
                 </div>
               );

@@ -2,18 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchHistory } from "./use-search-history";
 // import { chatApi } from '../services/chat-api';
 
-interface ChatItem {
-  id: number;
-  title: string;
-  created_at: string | null;
-  updated_at: string | null;
-  user_id: string;
-}
 
 export function useChatSearch() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [chats, setChats] = useState<ChatItem[]>([]);
-  const [filteredChats, setFilteredChats] = useState<ChatItem[]>([]);
+  const [chats, setChats] = useState<Awaited<ReturnType<typeof window.electronAPI.chat.getAll>>>([]);
+  const [filteredChats, setFilteredChats] = useState<typeof chats>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +124,7 @@ export function useChatSearch() {
   }, [chats, searchQuery]);
 
   const formatDate = (date: Date) => {
+    console.log(date)
     const now = new Date();
     const diffMs = now?.getTime() - date?.getTime();
     const diffDays = Math?.floor(diffMs / (1000 * 60 * 60 * 24));

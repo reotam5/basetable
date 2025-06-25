@@ -284,6 +284,14 @@ func (p *Provider) Activate() error {
 	return nil
 }
 
+func (p *Provider) UpdateRequestTemplate(tmpl Template) {
+	p.requestTemplate = tmpl
+}
+
+func (p *Provider) UpdateResponseTemplate(tmpl Template) {
+	p.responseTemplate = tmpl
+}
+
 func (p *Provider) String() string {
 	return fmt.Sprintf(
 		"Provider{id: %s, name: %s, baseURL: %s, auth: %v, status: %s, updatedAt: %v}",
