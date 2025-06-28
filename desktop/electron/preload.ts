@@ -1,5 +1,5 @@
 
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import Store from "electron-store";
 import { AuthAccessToken, AuthLogin, AuthProfile } from "./events/auth-events";
 import { DatabaseGetEncryption } from "./events/database-events";
@@ -172,11 +172,9 @@ const electronAPI = {
     },
     onSettingsImported: (callback: () => void) => handler.on("db.imported", callback)
   },
-  // Add direct invoke method for new IPC calls
-  invoke: (channel: string, ...args: any[]) => handler.invoke(channel, ...args),
-  // Add event listener methods for tool execution events
-  on: (channel: string, callback: (...args: any[]) => void) => handler.on(channel, callback),
-  off: (channel: string, callback: (...args: any[]) => void) => handler.removeEventListener(channel, callback),
+  webUtils: {
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  },
 }
 
 contextBridge.exposeInMainWorld("store", store);

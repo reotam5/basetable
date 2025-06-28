@@ -5,7 +5,7 @@ import { join } from "path";
 import { BaseLLMModel, LLMModelStreamResponse } from "./base-llm-model.js";
 import { createStreamIterator } from "./createStreamIterator.js";
 import { Logger } from "./custom-logger.js";
-import type { Message, Tool, ToolCall } from "./remote-llm-model.js";
+import type { Content, Message, Tool, ToolCall } from "./remote-llm-model.js";
 
 export class LocalLLMModel extends BaseLLMModel {
   private modelPath: string;
@@ -195,9 +195,15 @@ export class LocalLLMModel extends BaseLLMModel {
     return Promise.resolve(true);
   }
 
+  private convertContentToText(content?: Content): string {
+    const textParts = content?.filter(c => c.type === 'text').map(c => c.body).join('\n');
+    const imageParts = content?.filter(c => c.type === 'image').map(() => `[user attached image but it is not supported in local LLM]`).join('\n');
+    const fileParts = content?.filter(c => c.type === 'file').map(() => `[user attached file but it is not supported in local LLM]`).join('\n');
+    return [textParts, imageParts, fileParts].filter(Boolean).join('\n');
+  }
 
   convertMessagesToChatHistory(messages: Message[]) {
-    const isLastMessageFromUser = messages.length > 0 && messages[messages.length - 1].role === 'user';
+    const isLastMessageFromUser = messages.length > 0 && messages[messages.length - 1].role === 'user' && messages[messages.length - 1].content?.some(c => c.type === 'text')
     const prevMessages = isLastMessageFromUser ? messages.slice(0, -1) : messages;
 
     return {
@@ -205,41 +211,42 @@ export class LocalLLMModel extends BaseLLMModel {
         if (msg.role === 'system') {
           return {
             type: 'system',
-            text: msg.content
+            text: this.convertContentToText(msg.content),
           }
         } else if (msg.role === 'user') {
           return {
             type: 'user',
-            text: msg.content,
+            text: this.convertContentToText(msg.content),
           }
         } else if (msg.role === 'assistant') {
           const toolCalls = msg?.tool_calls?.map(c => ({
             name: c?.call?.name,
             params: c?.call?.arg,
             type: 'functionCall',
-            result: messages.find(m => m.tool_call_id === c.id)?.content
+            result: messages?.find(m => m.role === 'user' && m.content?.some(content => content.tool_call_id === c.id))?.content?.find(content => content.tool_call_id === c.id)?.body || '',
           } as ChatModelFunctionCall)) ?? [];
 
-          const thoughts = msg.thoughts?.map(t => ({
-            text: t,
+          const thoughts: ChatModelSegment[] = msg.content?.filter(c => c.type === 'think').map(c => ({
             type: 'segment',
+            text: c.body,
             segmentType: 'thought',
             ended: true,
-          }) as ChatModelSegment) ?? [];
+          })) ?? []
 
           const modelResponse = {
             type: 'model',
             response: [
               ...thoughts,
+              this.convertContentToText(msg.content),
               ...toolCalls,
-            ]
-          }
+            ].filter(Boolean)
+          } as ChatHistoryItem;
 
           return modelResponse
         }
         return null
       }).filter(msg => msg !== null) as ChatHistoryItem[] ?? [],
-      currentPrompt: isLastMessageFromUser ? messages[messages.length - 1].content : "If you have the answer to my request, please respond with the answer. You can also continue the conversation if you need more information.",
+      currentPrompt: isLastMessageFromUser ? this.convertContentToText(messages[messages.length - 1].content) : "If you have the answer to my request, please respond with the answer. You can also continue the conversation if you need more information.",
     }
   }
 

@@ -4,6 +4,8 @@ import { useChatInput } from "@/hooks/use-chat-input";
 import { useSettings } from "@/hooks/use-settings";
 import { Bot, ChevronDown, Paperclip, Search, Send, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { getFileInfo } from '../../electron/helpers/file-processor';
 import { ContentPreviewCards } from "./content-preview-cards";
 import { TextViewerModal } from "./text-viewer-modal";
 import { Button } from "./ui/button";
@@ -18,9 +20,65 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
+
 // Long text detection constants
 const LONG_TEXT_CHAR_THRESHOLD = 4000;
 const LONG_TEXT_LINE_THRESHOLD = 50;
+
+// File validation constants
+const MAX_FILES_COUNT = 10; // Maximum number of files that can be attached
+
+
+// Helper function to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+
+// Helper function to validate a single file
+async function validateFile(file: File): Promise<{ isValid: boolean; error?: string }> {
+  const info = getFileInfo(file.name, file.type, file.size, Buffer.from(await file.arrayBuffer()));
+
+  if (info.error) {
+    return {
+      isValid: false,
+      error: info.error || 'Unsupported file type or size exceeds the limit',
+    };
+  }
+
+  return {
+    isValid: true,
+  }
+}
+
+// Helper function to validate multiple files
+async function validateFiles(files: File[], currentFilesCount: number): Promise<{ validFiles: File[]; errors: string[] }> {
+  const validFiles: File[] = [];
+  const errors: string[] = [];
+
+  // Check total file count
+  if (currentFilesCount + files.length > MAX_FILES_COUNT) {
+    errors.push(`Too many files. Maximum ${MAX_FILES_COUNT} files allowed. Currently attached: ${currentFilesCount}, trying to add: ${files.length}.`);
+    return { validFiles: [], errors };
+  }
+
+  // Validate each file
+  for (const file of files) {
+    const validation = await validateFile(file);
+    if (validation.isValid) {
+      validFiles.push(file);
+    } else if (validation.error) {
+      errors.push(validation.error);
+    }
+  }
+
+  return { validFiles, errors };
+}
+
 
 // Helper function to detect long text - only for pasted content
 function isLongText(text: string, isPasted: boolean = false): boolean {
@@ -31,7 +89,7 @@ function isLongText(text: string, isPasted: boolean = false): boolean {
 
 interface ChatInputProps {
   // Callback for submitting
-  onSubmit: (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => void;
+  onSubmit: (data: { content: string; attachedFiles: Array<{ path: string; name: string; size: number; type: string }>; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => void;
   placeholder?: string;
   disabled?: boolean;
 
@@ -60,6 +118,7 @@ export function ChatInput({
   const prevInputValueRef = useRef('');
 
   const [modalContent, setModalContent] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Internal model management
   const { data: models } = use({ fetcher: async () => await window.electronAPI.llm.getAll() });
@@ -259,12 +318,10 @@ export function ChatInput({
     // Set cursor position after the mention
     setTimeout(() => {
       if (textareaRef.current) {
-        const newCursorPos = beforeMention.length + dashedName.length + 2; // +2 for @ and space
-        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-        textareaRef.current.focus();
+        textareaRef.current.selectionStart = textareaRef.current.selectionEnd = newValue.length;
       }
     }, 0);
-  }, [mentionStartIndex, agentQuery, value, onChange, stableAgents.length, detectMentions]);
+  }, [agentQuery.length, detectMentions, mentionStartIndex, onChange, stableAgents.length, value]);
 
   const handleRemoveLongText = useCallback((id: string) => {
     setLongTextDocuments(prev => prev.filter(doc => doc.id !== id));
@@ -314,20 +371,155 @@ export function ChatInput({
     }
   }, [disabled, filteredAgents, handleAgentSelect, handleSubmit, selectedAgentIndex, showAgentDropdown]);
 
-  const handleFileInputClick = useCallback(() => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+
+      // Validate files before processing
+      const { validFiles, errors } = await validateFiles(files, attachedFiles.length);
+
+      // Show error messages for invalid files
+      errors.forEach(error => {
+        toast.error("File validation error", {
+          description: error,
+          position: 'bottom-left'
+        });
+      });
+
+      if (validFiles.length === 0) {
+        // Clear the input so the same file can be re-selected
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+
+      // Process valid files
+      const filesWithPaths = await Promise.all(
+        validFiles.map(async (file) => {
+          try {
+            const path = window.electronAPI.webUtils.getPathForFile(file);
+            return {
+              path,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+            };
+          } catch (error) {
+            console.error(`Failed to get path for file ${file.name}:`, error);
+            toast.error("File processing error", {
+              description: `Failed to process file "${file.name}". Please try again.`,
+              position: 'bottom-left'
+            });
+            // Return null for failed files
+            return null;
+          }
+        })
+      );
+
+      // Filter out failed files (null values)
+      const successfulFiles = filesWithPaths.filter(file => file !== null) as Array<{ path: string; name: string; size: number; type: string }>;
+
+      if (successfulFiles.length > 0) {
+        setAttachedFiles((prev) => [...prev, ...successfulFiles]);
+
+        // Show success message
+        const count = successfulFiles.length;
+        toast.success("Files attached", {
+          description: `${count} file${count !== 1 ? 's' : ''} successfully attached.`,
+          position: 'bottom-left'
+        });
+      }
+
+      // Clear the input so the same file can be re-selected
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }, [setAttachedFiles, attachedFiles.length]);
+
+  const handleAttachFileClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-      e.target.value = ""; // reset for re-uploading same file
-    }
+  const handleRemoveAttachedFile = useCallback((index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   }, [setAttachedFiles]);
 
-  const handleRemoveFile = useCallback((index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
-  }, [setAttachedFiles]);
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set drag over to false if we're leaving the main container
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      // Validate files before processing
+      const { validFiles, errors } = await validateFiles(files, attachedFiles.length);
+
+      // Show error messages for invalid files
+      errors.forEach(error => {
+        toast.error("File validation error", {
+          description: error,
+          position: 'bottom-left'
+        });
+      });
+
+      if (validFiles.length === 0) {
+        return;
+      }
+
+      // Process valid files
+      const filesWithPaths = await Promise.all(
+        validFiles.map(async (file) => {
+          try {
+            const path = window.electronAPI.webUtils.getPathForFile(file);
+            return {
+              path,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+            };
+          } catch (error) {
+            console.error(`Failed to get path for file ${file.name}:`, error);
+            toast.error("File processing error", {
+              description: `Failed to process file "${file.name}". Please try again.`,
+              position: 'bottom-left'
+            });
+            return null;
+          }
+        })
+      );
+
+      // Filter out failed files (null values)
+      const successfulFiles = filesWithPaths.filter(file => file !== null) as Array<{ path: string; name: string; size: number; type: string }>;
+
+      if (successfulFiles.length > 0) {
+        setAttachedFiles((prev) => [...prev, ...successfulFiles]);
+
+        // Show success message
+        const count = successfulFiles.length;
+        toast.success("Files attached", {
+          description: `${count} file${count !== 1 ? 's' : ''} successfully attached.`,
+          position: 'bottom-left'
+        });
+      }
+    }
+  }, [setAttachedFiles, attachedFiles.length]);
 
   const handleAutoRouteToggle = () => {
     setSetting('agent.autoRoute', (!autoRouteEnabled).toString());
@@ -402,7 +594,7 @@ export function ChatInput({
     setCurrentPage(1); // Reset to first page when search changes
   }, []);
 
-  const isSubmitDisabled = (!value.trim() && longTextDocuments.length === 0) || disabled;
+  const isSubmitDisabled = (!value.trim() && longTextDocuments.length === 0 && attachedFiles.length === 0) || disabled;
 
   return (
     <div className={`${containerClassName} relative`}>
@@ -431,7 +623,24 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="bg-white dark:bg-neutral-800 rounded-sm border border-neutral-200 dark:border-neutral-500">
+      <div className={`bg-white dark:bg-neutral-800 rounded-sm border transition-colors ${isDragOver
+        ? 'border-purple-400 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+        : 'border-neutral-200 dark:border-neutral-500'
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay */}
+        {isDragOver && (
+          <div className="absolute inset-0 bg-purple-100 dark:bg-purple-900/30 border-2 border-dashed border-purple-400 dark:border-purple-500 rounded-sm flex items-center justify-center z-10">
+            <div className="text-purple-600 dark:text-purple-400 text-center">
+              <Paperclip className="w-8 h-8 mx-auto mb-2" />
+              <div className="text-sm font-medium">Drop files to attach</div>
+            </div>
+          </div>
+        )}
+
         <Textarea
           ref={textareaRef}
           value={value}
@@ -450,23 +659,22 @@ export function ChatInput({
             {/* Attached Files Preview */}
             {attachedFiles.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
-                {attachedFiles.map((file, idx) => (
-                  <div
-                    key={file.name + file.size + idx}
-                    className="flex items-center border border-neutral-200 dark:border-neutral-500 rounded px-3 py-1 text-sm text-neutral-800 dark:text-neutral-200"
-                  >
-                    <Paperclip className="w-4 h-4 mr-1 opacity-70" />
-                    <span className="truncate max-w-[120px]" title={file.name}>{file.name}</span>
-                    <button
-                      className="ml-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 focus:outline-none"
-                      onClick={() => handleRemoveFile(idx)}
-                      aria-label="Remove file"
-                      type="button"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                {attachedFiles.map((file, idx) => {
+                  return (
+                    <div className="flex items-center border border-neutral-200 dark:border-neutral-500 rounded px-3 py-1 text-sm text-neutral-800 dark:text-neutral-200">
+                      <span className="truncate max-w-[120px]" title={file.name}>{file.name}</span>
+                      <span className="ml-1 text-xs text-neutral-500">({formatFileSize(file.size)})</span>
+                      <button
+                        className="ml-2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 focus:outline-none"
+                        onClick={() => handleRemoveAttachedFile(idx)}
+                        aria-label="Remove file"
+                        type="button"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -614,11 +822,11 @@ export function ChatInput({
             )}
 
             {/* Attachment Button */}
-            <div>
+            <div className="relative">
               <button
                 type="button"
-                className="flex items-center justify-center w-8 h-8 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
-                onClick={handleFileInputClick}
+                className={`flex items-center justify-center w-8 h-8 rounded transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-800'}`}
+                onClick={handleAttachFileClick}
                 aria-label="Attach file"
               >
                 <Paperclip className="w-4 h-4" />

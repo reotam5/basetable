@@ -3,6 +3,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { ChatInputProvider } from '@/contexts/chat-input-context'
 import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { CSSProperties } from 'react'
 
 const appStateStore = window.store.createStore({ name: 'app-state' });
 
@@ -21,7 +22,7 @@ function RouteComponent() {
             "--sidebar-width-icon": "0px",
             "--sidebar-width": "200px",
             "--sidebar-width-mobile": "200px",
-          } as React.CSSProperties}
+          } as CSSProperties}
         >
           <SiteHeader />
           <div className="flex flex-1">

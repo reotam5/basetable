@@ -12,14 +12,16 @@ export interface UseStreamOptions<T = any> {
 export function useStream<I = any, O = any>(options: UseStreamOptions<O>) {
   const registeredStreams = useRef<Map<string, boolean>>(new Map());
 
-  const startStream = useCallback(async (streamId: string, data?: I): Promise<void> => {
+  const startStream = useCallback(async (streamId: string, data?: I) => {
     try {
       // Cancel existing stream if any
       if (await streamClient.isStreamActive(streamId)) {
         await streamClient.cancelStream(streamId);
       }
 
-      await streamClient.startStream(options.channel, streamId, data, {
+      registeredStreams.current.set(streamId, true);
+
+      const response = await streamClient.startStream(options.channel, streamId, data, {
         onData: options.onData,
         onComplete: () => {
           options.onComplete?.();
@@ -28,7 +30,7 @@ export function useStream<I = any, O = any>(options: UseStreamOptions<O>) {
           options.onError?.(error);
         },
       });
-      registeredStreams.current.set(streamId, true);
+      return response;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start stream';
       options.onError?.(errorMessage);

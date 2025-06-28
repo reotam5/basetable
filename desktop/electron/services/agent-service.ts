@@ -205,11 +205,11 @@ class AgentService {
       const data = await defaultModel.structuredResponse<{ name: string }>([
         {
           role: 'system',
-          content: 'Given the agent\'s instruction and its available tools, generate a descriptive name for the agent. (Title Case 5 - 10 Words, Ending With Agent)'
+          content: [{ type: 'text', body: 'Given the agent\'s instruction and its available tools, generate a descriptive name for the agent. (Title Case 5 - 10 Words, Ending With Agent)' }]
         },
         {
           role: 'user',
-          content: `Instruction: ${existing_agent?.instruction}\n\nTools: ${mcpTools.map(tool => `name: ${tool?.mcp_server?.name}\n description: ${tool?.mcp_server?.description}\n capabilities: ${tool.agent_to_mcp_server.selected_tools?.map(t => tool.mcp_server?.available_tools?.find(m => m.id == t)?.name).join(', ')}\n`)}`
+          content: [{ type: 'text', body: `Instruction: ${existing_agent?.instruction}\n\nTools: ${mcpTools.map(tool => `name: ${tool?.mcp_server?.name}\n description: ${tool?.mcp_server?.description}\n capabilities: ${tool.agent_to_mcp_server.selected_tools?.map(t => tool.mcp_server?.available_tools?.find(m => m.id == t)?.name).join(', ')}\n`)}` }]
         }
       ],
         {

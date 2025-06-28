@@ -13,20 +13,34 @@ import (
 
 // HTTPProxyClient implements the ProxyClient interface using HTTP requests
 type HTTPProxyClient struct {
-	httpClient *http.Client
+	regularClient   *http.Client // For regular API calls with shorter timeout
+	streamingClient *http.Client // For streaming requests with longer timeout
 }
 
-// NewHTTPProxyClient creates a new HTTP proxy client with configurable timeout
+// NewHTTPProxyClient creates a new HTTP proxy client with configurable timeout and connection pooling
 func NewHTTPProxyClient(timeout time.Duration) service.ProxyClient {
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 25,
+		MaxConnsPerHost:     50,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		DisableCompression:  true, // Disable compression to avoid buffering for streaming
+	}
+
 	return &HTTPProxyClient{
-		httpClient: &http.Client{
-			Timeout: timeout,
-			// You can add more configuration here like custom transport, TLS config, etc.
+		regularClient: &http.Client{
+			Timeout:   timeout,
+			Transport: transport,
+		},
+		streamingClient: &http.Client{
+			Timeout:   600 * time.Second, // Longer timeout for streaming
+			Transport: transport,
 		},
 	}
 }
 
-// NewDefaultHTTPProxyClient creates a new HTTP proxy client with default 30 second timeout
+// NewDefaultHTTPProxyClient creates a new HTTP proxy client with default 90 second timeout
 func NewDefaultHTTPProxyClient() service.ProxyClient {
 	return NewHTTPProxyClient(60 * time.Second)
 }
@@ -34,32 +48,26 @@ func NewDefaultHTTPProxyClient() service.ProxyClient {
 // ProxyRequest implements the ProxyClient interface
 func (c *HTTPProxyClient) ProxyRequest(ctx context.Context, request service.ProxyRequest) (service.ProxyResponse, error) {
 	startTime := time.Now()
-
-	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, request.Method, request.Target, bytes.NewReader(request.Body))
 	if err != nil {
 		return service.ProxyResponse{}, err
 	}
 
-	// Set headers
 	for key, value := range request.Headers {
 		req.Header.Set(key, value)
 	}
 
-	// Make the HTTP request
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.regularClient.Do(req)
 	if err != nil {
 		return service.ProxyResponse{}, err
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return service.ProxyResponse{}, err
 	}
 
-	// Calculate latency
 	latency := time.Since(startTime)
 
 	return service.ProxyResponse{
@@ -71,7 +79,6 @@ func (c *HTTPProxyClient) ProxyRequest(ctx context.Context, request service.Prox
 
 // ProxyRequestStream implements the ProxyClient interface for streaming requests
 func (c *HTTPProxyClient) ProxyRequestStream(ctx context.Context, request service.ProxyRequest) (io.ReadCloser, error) {
-	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, request.Method, request.Target, bytes.NewReader(request.Body))
 	if err != nil {
 		return nil, err
@@ -82,18 +89,7 @@ func (c *HTTPProxyClient) ProxyRequestStream(ctx context.Context, request servic
 		req.Header.Set(key, value)
 	}
 
-	// Create a client with custom transport for streaming
-	transport := &http.Transport{
-		DisableCompression: true, // Disable compression to avoid buffering
-	}
-
-	streamClient := &http.Client{
-		Timeout:   0, // No timeout for streaming
-		Transport: transport,
-	}
-
-	// Make the HTTP request
-	resp, err := streamClient.Do(req)
+	resp, err := c.streamingClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +101,5 @@ func (c *HTTPProxyClient) ProxyRequestStream(ctx context.Context, request servic
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
 
-	// Return the response body as a ReadCloser for streaming
 	return resp.Body, nil
 }

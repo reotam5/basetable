@@ -8,11 +8,10 @@ import { AuthHandler } from '../helpers/auth-handler.js';
 import { LLMModelStreamResponse } from '../helpers/base-llm-model.js';
 import { chatOrchestrator } from '../helpers/chat-orchestrator.js';
 import { Logger } from '../helpers/custom-logger.js';
-import { event, service, streamHandler } from '../helpers/decorators.js';
+import { event, service, streamHandler, streamInitializer } from '../helpers/decorators.js';
 import { ToolCall } from '../helpers/remote-llm-model.js';
 import { StreamContext } from '../helpers/stream-manager.js';
 import { MessageService } from './message-service.js';
-
 
 type _ChatStreamStart =
   | {
@@ -20,7 +19,7 @@ type _ChatStreamStart =
     data: {
       chatId: number;
       message: string;
-      attachedFiles?: File[]; // I don't think so.. but we'll fix once we support attachments
+      attachedFiles?: Array<{ path: string; name: string }>; // I don't think so.. but we'll fix once we support attachments
       longTextDocuments?: Array<{
         id: string;
         content: string;
@@ -87,6 +86,39 @@ export type DeepPartial<T> = T extends object ? {
 
 @service
 class ChatService {
+
+  @streamInitializer('chat.stream')
+  async initializeChatStream({ type, data }: ChatStreamStart) {
+    // delete previous messages to correct the chat state.
+    if (type === 'message_start' || type === 'resume_from_last_user_message') {
+      await MessageService.deleteUntilLastSuccessMessage(data.chatId);
+    }
+
+
+    // unlike resuming the chat, we need to clear the last user message and create new one
+    if (type === 'message_start') {
+      // we cannot start message following a user message because user and assistant message must alternate
+      const lastMessage = await MessageService.getLastMessage(data.chatId);
+      if (lastMessage && lastMessage.role === 'user') {
+        await MessageService.deleteMessageById(lastMessage.id);
+      }
+
+      try {
+        const response = await MessageService.storeUserMessage(
+          data.chatId,
+          data.message,
+          data.attachedFiles,
+          { long_text_documents: data.longTextDocuments }
+        );
+        return response
+      } catch (error) {
+        Logger.error("Error storing user message:", error);
+        throw new Error('Failed to store user message');
+      }
+    }
+  }
+
+
   @streamHandler('chat.stream')
   async handleChatStream({ type, data }: ChatStreamStart, stream: StreamContext<ChatStreamResponse>) {
     const abortController = new AbortController();
@@ -98,14 +130,6 @@ class ChatService {
       }
 
       if (type === 'message_start') {
-        await MessageService.deleteUntilLastSuccessMessage(data.chatId);
-
-        // we cannot start message following a user message because user and assistant message must alternate
-        const lastMessage = await MessageService.getLastMessage(data.chatId);
-        if (lastMessage && lastMessage.role === 'user') {
-          await MessageService.deleteMessageById(lastMessage.id);
-        }
-
         // reject pending tool calls if theres any
         const pendingToolCalls = await MessageService.getPendingToolCalls(data.chatId);
         for (const toolCall of pendingToolCalls) {
@@ -124,7 +148,6 @@ class ChatService {
       }
 
       if (type === 'resume_from_last_user_message') {
-        await MessageService.deleteUntilLastSuccessMessage(data.chatId);
         iterator = chatOrchestrator.processMessage(data.chatId, undefined, undefined, undefined, abortController);
       }
 

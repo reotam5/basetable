@@ -1,6 +1,5 @@
 import { ipcMain } from "electron";
 import "reflect-metadata";
-import { Logger } from "./custom-logger.js";
 import { StreamManager } from "./stream-manager.js";
 
 // attach this to service class and it will automatically register all methods with @event decorator
@@ -16,19 +15,23 @@ export function service<T extends new (...args: any[]) => any>(target: T) {
         const eventName = Reflect.getMetadata('event:name', target.prototype, method);
         const eventType = Reflect.getMetadata('event:type', target.prototype, method);
         const streamChannel = Reflect.getMetadata('stream:channel', target.prototype, method);
+        const streamInitializer = Reflect.getMetadata('stream:initializer', target.prototype, method);
 
         if (eventName) {
           (ipcMain as any)[eventType](eventName, async (_: any, ...args: any[]) => {
             const result = await this[method](...args);
             return result;
           });
-          Logger.debug("Service:", eventName, "->", method);
         }
 
         if (streamChannel) {
           const manager = StreamManager.getInstance();
           manager.registerHandler(streamChannel, this[method].bind(this));
-          Logger.debug("Stream:", streamChannel, "->", method);
+        }
+
+        if (streamInitializer) {
+          const manager = StreamManager.getInstance();
+          manager.registerInitializer(streamInitializer, this[method].bind(this));
         }
       }
     }
@@ -50,6 +53,15 @@ export function streamHandler(channel: string) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     // Store metadata about the stream handler
     Reflect.defineMetadata('stream:channel', channel, target, propertyKey);
+    return descriptor;
+  };
+}
+
+// Decorator for stream initialization
+export function streamInitializer(channel: string) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    // Store metadata about the stream handler
+    Reflect.defineMetadata('stream:initializer', channel, target, propertyKey);
     return descriptor;
   };
 }

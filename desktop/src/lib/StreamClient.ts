@@ -8,6 +8,7 @@ export interface StreamData {
 
 export interface StreamSubscription {
   streamId: string;
+  initializerResponse?: any;
 }
 
 interface StreamOptions {
@@ -60,15 +61,12 @@ export class StreamClient {
     });
 
     try {
-      await window.electronAPI.stream.start({
+      const response = await window.electronAPI.stream.start({
         streamId,
         channel,
         data,
       });
-
-      return {
-        streamId,
-      };
+      return response
     } catch (error) {
       this.subscriptions.delete(streamId);
       throw error;

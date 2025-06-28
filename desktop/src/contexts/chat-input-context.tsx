@@ -7,7 +7,7 @@ interface ChatInputState {
   value: string;
 
   // File attachments
-  attachedFiles: File[];
+  attachedFiles: Array<{ path: string; name: string; size: number; type: string }>;
 
   // Long text documents
   longTextDocuments: Array<{ id: string, content: string, title: string }>;

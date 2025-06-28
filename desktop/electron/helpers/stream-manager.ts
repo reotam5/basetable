@@ -18,6 +18,8 @@ export interface StreamData {
 
 export type StreamHandler = (data: any, stream: StreamContext) => Promise<void> | void;
 
+export type StreamInitializer = (data: any) => Promise<any>;
+
 export class StreamContext<T = any> {
   private streamId: string;
   private window: BrowserWindow;
@@ -116,6 +118,7 @@ export class StreamManager extends EventEmitter {
   private static instance: StreamManager;
   private streams: Map<string, StreamContext> = new Map();
   private streamHandlers: Map<string, StreamHandler> = new Map();
+  private streamInitializers: Map<string, StreamInitializer> = new Map();
 
   private constructor() {
     super();
@@ -131,13 +134,13 @@ export class StreamManager extends EventEmitter {
 
   private setupIpcHandlers(): void {
     // Handle stream start requests from renderer
-    ipcMain.handle('stream.start', (event, options: StreamOptions) => {
+    ipcMain.handle('stream.start', async (event, options: StreamOptions) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       if (!window) {
         throw new Error('Window not found');
       }
 
-      return this.startStream(options, window);
+      return await this.startStream(options, window);
     });
 
     // Handle stream cancellation
@@ -169,8 +172,16 @@ export class StreamManager extends EventEmitter {
     this.streamHandlers.delete(channel);
   }
 
+  registerInitializer(channel: string, initializer: StreamInitializer): void {
+    this.streamInitializers.set(channel, initializer);
+  }
+
+  unregisterInitializer(channel: string): void {
+    this.streamInitializers.delete(channel);
+  }
+
   // Start a new stream
-  private async startStream(options: StreamOptions, window: BrowserWindow): Promise<string> {
+  private async startStream(options: StreamOptions, window: BrowserWindow) {
     const { streamId, channel, data } = options;
 
     if (this.streams.has(streamId)) {
@@ -182,8 +193,12 @@ export class StreamManager extends EventEmitter {
       throw new Error(`No handler registered for channel: ${channel}`);
     }
 
+    const initializer = this.streamInitializers.get(channel);
+
     const streamContext = new StreamContext(streamId, window, channel);
     this.streams.set(streamId, streamContext);
+
+    const initializerResponse = initializer ? await initializer(data) : undefined;
 
     // Execute the handler asynchronously
     setImmediate(async () => {
@@ -198,7 +213,10 @@ export class StreamManager extends EventEmitter {
       }
     });
 
-    return streamId;
+    return {
+      streamId,
+      initializerResponse,
+    };
   }
 
   // Cancel a stream
@@ -258,6 +276,7 @@ export class StreamManager extends EventEmitter {
     }
     this.streams.clear();
     this.streamHandlers.clear();
+    this.streamInitializers.clear();
   }
 }
 

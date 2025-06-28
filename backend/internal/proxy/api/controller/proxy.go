@@ -73,14 +73,14 @@ func (c *proxyController) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 			// Convert response to payload format
 			payloadResp := payload.ProxyResponse{
 				Model:    response.Model,
-				Choices:  convertChoices(response.Choices),
+				Choices:  convertDTOChoicesToPayload(response.Choices),
 				Provider: response.Provider,
 				Usage: payload.Usage{
 					PromptTokens:     response.Usage.PromptTokens,
 					CompletionTokens: response.Usage.CompletionTokens,
 					TotalTokens:      response.Usage.TotalTokens,
 				},
-				SearchResults: convertSearchResults(response.SearchResults),
+				SearchResults: convertDTOSearchResultsToPayload(response.SearchResults),
 			}
 
 			// Convert to JSON
@@ -115,15 +115,18 @@ func (c *proxyController) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		// Convert DTO to payload response
 		payloadResp := payload.ProxyResponse{
 			Model:    response.Model,
-			Choices:  convertChoices(response.Choices),
+			Choices:  convertDTOChoicesToPayload(response.Choices),
 			Provider: response.Provider,
 			Usage: payload.Usage{
 				PromptTokens:     response.Usage.PromptTokens,
 				CompletionTokens: response.Usage.CompletionTokens,
 				TotalTokens:      response.Usage.TotalTokens,
 			},
-			SearchResults: convertSearchResults(response.SearchResults),
+			SearchResults: convertDTOSearchResultsToPayload(response.SearchResults),
 		}
+
+		// b, _ := json.Marshal(payloadResp)
+		// fmt.Println(string(b))
 
 		hutil.WriteJSONResponse(w, r, payloadResp)
 	}
@@ -133,10 +136,9 @@ func convertMessages(payloadMessages []payload.Message) []dto.Message {
 	dtoMessages := make([]dto.Message, len(payloadMessages))
 	for i, msg := range payloadMessages {
 		dtoMessages[i] = dto.Message{
-			Role:       dto.MessageRole(msg.Role),
-			Content:    msg.Content,
-			ToolCallID: msg.ToolCallID,
-			ToolCalls:  convertToolCalls(msg.ToolCalls),
+			Role:      dto.MessageRole(msg.Role),
+			Content:   convertContent(msg.Content),
+			ToolCalls: convertToolCalls(msg.ToolCalls),
 		}
 	}
 
@@ -176,6 +178,20 @@ func convertTools(payloadTools []payload.Tool) []dto.Tool {
 	return dtoTools
 }
 
+func convertContent(content payload.Content) dto.Content {
+	dtoContent := make(dto.Content, len(content))
+	for i, part := range content {
+		dtoContent[i] = dto.Part{
+			Type:       dto.PartType(part.Type),
+			Body:       part.Body,
+			MediaType:  part.MediaType,
+			ToolCallID: part.ToolCallID,
+		}
+	}
+
+	return dtoContent
+}
+
 func convertParameterProperties(payloadProps map[string]payload.ParameterProperty) map[string]dto.ParameterProperty {
 	dtoProps := make(map[string]dto.ParameterProperty)
 	for key, prop := range payloadProps {
@@ -199,19 +215,19 @@ func convertToolChoice(payloadToolChoice *payload.ToolChoice) dto.ToolChoice {
 	}
 }
 
-func convertChoices(dtoChoices []dto.Choice) []payload.Choice {
+func convertDTOChoicesToPayload(dtoChoices []dto.Choice) []payload.Choice {
 	payloadChoices := make([]payload.Choice, len(dtoChoices))
 	for i, choice := range dtoChoices {
 		payloadChoices[i] = payload.Choice{
 			Index: choice.Index,
 			Message: payload.Message{
 				Role:      string(choice.Message.Role),
-				Content:   choice.Message.Content,
+				Content:   convertDTOContentToPayload(choice.Message.Content),
 				ToolCalls: convertDTOToolCallsToPayload(choice.Message.ToolCalls),
 			},
 			Delta: payload.Delta{
 				Role:      string(choice.Delta.Role),
-				Content:   choice.Delta.Content,
+				Content:   convertDTOContentToPayload(choice.Delta.Content),
 				ToolCalls: convertDTOToolCallsToPayload(choice.Delta.ToolCalls),
 			},
 			FinishReason: string(choice.FinishReason),
@@ -220,7 +236,7 @@ func convertChoices(dtoChoices []dto.Choice) []payload.Choice {
 	return payloadChoices
 }
 
-func convertSearchResults(dtoSearchResults []dto.SearchResult) []payload.SearchResult {
+func convertDTOSearchResultsToPayload(dtoSearchResults []dto.SearchResult) []payload.SearchResult {
 	payloadSearchResults := make([]payload.SearchResult, len(dtoSearchResults))
 	for i, sr := range dtoSearchResults {
 		payloadSearchResults[i] = payload.SearchResult{
@@ -244,4 +260,18 @@ func convertDTOToolCallsToPayload(dtoToolCalls []dto.ToolCall) []payload.ToolCal
 		}
 	}
 	return payloadToolCalls
+}
+
+func convertDTOContentToPayload(dtoContent dto.Content) payload.Content {
+	payloadContent := make(payload.Content, len(dtoContent))
+	for i, part := range dtoContent {
+		payloadContent[i] = payload.Part{
+			Type:       payload.PartType(part.Type),
+			Body:       part.Body,
+			MediaType:  part.MediaType,
+			ToolCallID: part.ToolCallID,
+		}
+	}
+
+	return payloadContent
 }

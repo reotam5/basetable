@@ -4,13 +4,13 @@ import { ChatStreamResponse, ChatStreamStart, ChatStreamStartFunctionCall } from
 import { use } from "./use";
 import { useStream } from "./use-stream";
 
-
 export function useChat(chatId: number) {
   const { data: initialData, error: fetchError, isLoading } = use({
     fetcher: async () => {
       setMessages([]);
       setNewChatIds([]);
       setStreamError(null);
+      if (aiWaitingIndicatorTimeout.current) clearTimeout(aiWaitingIndicatorTimeout.current)
       return await window.electronAPI.chat.message.getByChat(chatId)
     },
     dependencies: [chatId]
@@ -196,7 +196,7 @@ export function useChat(chatId: number) {
     setIsSending(true);
 
     // send message by starting a stream
-    stream.startStream(chatId.toString(), {
+    const response = await stream.startStream(chatId.toString(), {
       type: 'message_start',
       data: {
         chatId: chatId,
@@ -206,23 +206,15 @@ export function useChat(chatId: number) {
       }
     });
 
+    if (!response?.initializerResponse) {
+      setIsSending(false);
+      setIsStreaming(false);
+      setIsWaitingAI(false);
+      return;
+    }
+
     setMessages(prev => [
-      {
-        message: {
-          id: new Date().getTime(), // Use timestamp as a temporary ID
-          chat_id: chatId,
-          role: 'user',
-          thought: null,
-          content: message.trim(),
-          status: 'success',
-          created_at: new Date(),
-          updated_at: new Date(),
-          metadata: {
-            long_text_documents: longTextDocuments || [],
-          }
-        },
-        toolCalls: [],
-      },
+      response?.initializerResponse,
       ...(prev ?? [])
     ]);
 
@@ -236,7 +228,7 @@ export function useChat(chatId: number) {
     isLoading,
     isAgentResponding: isStreaming,
     isSending,
-    isWaitingAI,
+    isWaitingAI: isWaitingAI && !streamError,
     sendMessage,
     cancel: () => {
       stream.cancelStream(chatId.toString()).then(() => {

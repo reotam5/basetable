@@ -116,54 +116,69 @@ type Request struct {
 	Stream     bool
 	Tools      []Tool
 	ToolChoice ToolChoice
-
-	// temp *float64
-	// maxToken *int
 }
 
 type Response struct {
-	Model         string         `json:"model"`
-	Choices       []Choice       `json:"choices"`
-	Provider      string         `json:"provider"`
-	Usage         Usage          `json:"usage"`
-	SearchResults []SearchResult `json:"search_results"`
+	Model         string
+	Choices       []Choice
+	Provider      string
+	Usage         Usage
+	SearchResults []SearchResult
 }
 
 type SearchResult struct {
-	Title string `json:"title"`
-	URL   string `json:"url"`
+	Title string
+	URL   string
 }
 
 type Choice struct {
-	Index        int          `json:"index"`
-	Message      Message      `json:"message"`
-	Delta        Delta        `json:"delta"`
-	FinishReason FinishReason `json:"finish_reason"`
+	Index        int
+	Message      Message
+	Delta        Delta
+	FinishReason FinishReason
+}
+
+type Content []Part
+
+type PartType string
+
+const (
+	PartTypeText  PartType = "text"
+	PartTypeThink PartType = "think" // for reasoning models
+	PartTypeTool  PartType = "tool"
+	PartTypeFile  PartType = "file"  // Support PDF. For other text-based format (.txt, .csv, .html), use text.
+	PartTypeImage PartType = "image" // Support JPEG, PNG, GIF, or WebP.
+)
+
+type Part struct {
+	Type       PartType
+	Body       string
+	MediaType  string // for image. specify jpeg, png, gif, or webp
+	ToolCallID string // for tool parts
 }
 
 type Delta struct {
-	Role      string     `json:"role"`
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"toolcalls,omitempty"` // add omitempty if optional
+	Role      string
+	Content   Content
+	ToolCalls []ToolCall
 }
 
 type Message struct {
-	Role       MessageRole `json:"role"`
-	Content    string      `json:"content"`
-	ToolCallID string      `json:"tool_call_id,omitempty"`
-	ToolCalls  []ToolCall  `json:"toolcalls,omitempty"` // add omitempty if optional
+	Role      MessageRole
+	Content   Content
+	ToolCalls []ToolCall
 }
 
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
 }
 
 type FinishReason string
 
 const (
-	FinishReasonStop     FinishReason = "stop"
-	FinishReasonLength   FinishReason = "length"
-	FinishReasonToolCall FinishReason = "tool_call"
+	FinishReasonStop      FinishReason = "stop"
+	FinishReasonLength    FinishReason = "length"
+	FinishReasonToolCalls FinishReason = "tool_calls"
 )

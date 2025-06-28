@@ -3,8 +3,49 @@ import { BaseLLMModel, LLMModelStreamResponse } from "./base-llm-model.js";
 import { createStreamIterator } from "./createStreamIterator.js";
 import { Logger } from "./custom-logger.js";
 
-// Types matching the proxy server structure
-export interface ToolCall {
+
+// The API should be stable now with all the features we need (thinking, tool calls, multimodal)
+// tool here refers to a tool result, you would pass a tool result with role user and a tool part
+// for text-based files (code, .txt, .html, markdown, .csv, etc.) we can extract the text from the file and pass it as a text part with the user message
+// for pdf files, pass it as a file part with base64 encoded content
+// for images, pass it as an image part with base64 encoded content and media_type
+// for tool results, pass it as a tool part with tool_call_id
+export type PartType = 'text' | 'think' | 'tool' | 'file' | 'image'
+export type MediaType = 'jpeg' | 'png' | 'gif' | 'webp'
+export type Part = {
+  type: PartType;
+  body: string;
+  media_type?: MediaType; // Only for image parts
+  tool_call_id?: string; // Only for tool parts
+}
+
+export type Content = Part[];
+
+// Message.content and Delta.content are now an array of parts instead of a single string since users and models can send requests/responses with multiple parts
+// example 1: a reasoning model can think first before it gives a final answer
+// so the first part in the content of a message/delta would be a think part, and the second part (final answer) would be a text part
+// example 2: users can upload multiple files like pdf and image, and a question (attach a pdf and an image and ask a question)
+// so the first part would be a file part for the the pdf, and the second part would be an image part, and the final part would be a text part for the question
+export interface Message {
+  // the most accurate way to represent the role of a message is to use the actual entity the message comes from
+  // so ideally there should be only 3 roles: user, assistant, and system
+  role: 'system' | 'user' | 'assistant';
+  content: Content;
+  tool_calls?: ToolCall[];
+}
+
+
+// Same as Message, but for the streaming response
+export type Delta = {
+  role: string;
+  content: Content;
+  // This is tools the assistant wants to call
+  tool_calls?: ToolCall[];
+}
+
+
+// Same as before
+export type ToolCall = {
   id: string;
   tool_type: string;
   call: {
@@ -13,38 +54,82 @@ export interface ToolCall {
   };
 }
 
-export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
-  tool_call_id?: string;
-  tool_calls?: ToolCall[];
-  thoughts?: string[];
+export type Request = {
+  provider_id: string;
+  endpoint: string;
+  model_key: string;
+  messages: Message[];
+  stream: boolean;
+  tools?: Tool[];
+  // tool_choice?: ToolChoice; we don't need this right now, but this could be to enable plan mode as we mentioned earlier
 }
 
-export interface ParameterProperty {
+// we don't need this right now
+// // none - no tool call (plan mode)
+// // auto - llm decides
+// // function - must call a defined tool
+// export type ToolChoiceType = 'none' | 'auto' | 'function' 
+// export type ToolChoice = {
+//   type : ToolChoiceType;
+//   function_name?: string; // Only for function choices
+// }
+
+
+// Same as before
+export type Response = {
+  provider: string; // provider name (e.g. OpenAI)
+  model: string;
+  choices: Choice[];
+  search_results: SearchResult[];
+}
+
+
+// Same as before but with enum for finish_reason
+export type Choice = {
+  index: number;
+  message: Message;
+  delta: Delta;
+  // tool_calls means the model decided to call a tool
+  // stop means the model decided to stop the conversation
+  // length means the model decided to stop the conversation because the output reached the max token limit
+  finish_reason: 'tool_calls' | 'stop' | 'length';
+}
+
+// Same as before
+export type SearchResult = {
+  title: string;
+  url: string;
+}
+
+
+// Same as before
+export type ParameterProperty = {
   type: string;
   description: string;
   enum?: string[];
   default?: any;
 }
 
-export interface ParameterSchema {
+// Same as before
+export type ParameterSchema = {
   properties: Record<string, ParameterProperty>;
   required: string[];
 }
 
-export interface ToolDefinition {
+// Same as before
+export type ToolDefinition = {
   name: string;
   description: string;
   parameters: ParameterSchema;
 }
 
-export interface Tool {
+// Same as before
+export type Tool = {
   tool_type: string;
   tool_definition: ToolDefinition;
 }
 
-export interface RemoteLLMConfig {
+export type RemoteLLMConfig = {
   provider_id: string;
   base_url: string;
   model: string;
@@ -123,7 +208,8 @@ export class RemoteLLMModel extends BaseLLMModel {
         signal: abortController?.signal
       });
 
-      let accumulatedContent = '';
+      let fullContent = '';
+      let fullThought = '';
       const toolCallsMap = new Map<string, any>(); // Track tool calls by ID
       let currentToolCallId: string | null = null; // Track the current tool call being streamed
 
@@ -147,35 +233,44 @@ export class RemoteLLMModel extends BaseLLMModel {
           if (!delta && !finishReason) return;
 
           // Handle content streaming
-          if (delta?.content) {
-            accumulatedContent += delta.content;
-            streamIterator.push({
-              type: 'content_chunk',
-              content: accumulatedContent,
-              search_results: parsed.search_results || []
-            });
+          // I don't think this is how it should be done but it works for now
+          if (delta?.content && Array.isArray(delta.content)) {
+            // Merge delta content into accumulated content
+            for (const deltaPart of delta.content) {
+              if (deltaPart.type === 'text') {
+                fullContent += deltaPart.body;
+              } else if (deltaPart.type === 'think') {
+                fullThought += deltaPart.body;
+              } else {
+                Logger.warn(`unexpected part type ${deltaPart.type}. Ignoring it.`);
+              }
+
+              streamIterator.push({
+                type: 'content_chunk',
+                content: fullContent,
+                thought: fullThought,
+                search_results: parsed.search_results || []
+              });
+            }
           }
 
           // Handle tool calls streaming
-          if (delta?.toolcalls) {
-            for (const toolCall of delta.toolcalls) {
-              if (toolCall.id && toolCall.id.trim() !== '') {
-                // New tool call with ID - create entry
+          if (delta?.tool_calls) {
+            for (const toolCall of delta.tool_calls) {
+              if (toolCall.id && toolCall.id.trim() !== '' && toolCall.call && toolCall.call.name.trim() !== '') {
+                // New tool call with ID and tool name - create entry, args will be streamed in subsequent chunks
                 currentToolCallId = toolCall.id;
                 toolCallsMap.set(toolCall.id, {
                   id: toolCall.id,
                   tool_type: toolCall.tool_type || 'function',
                   call: {
-                    name: toolCall.call?.name || '',
+                    name: toolCall.call.name,
                     arg: toolCall.call?.arg || ''
                   }
                 });
               } else if (currentToolCallId && toolCallsMap.has(currentToolCallId)) {
                 // Update existing tool call (continuation of streaming)
                 const existingToolCall = toolCallsMap.get(currentToolCallId);
-                if (toolCall.call?.name) {
-                  existingToolCall.call.name += toolCall.call.name;
-                }
                 if (toolCall.call?.arg) {
                   existingToolCall.call.arg += toolCall.call.arg;
                 }
@@ -214,8 +309,8 @@ export class RemoteLLMModel extends BaseLLMModel {
         streamIterator.complete();
       });
 
-    } catch (error) {
-      Logger.error("Error in remote stream response:", error);
+    } catch {
+      Logger.error("Error in remote stream response");
       streamIterator.complete();
     }
 

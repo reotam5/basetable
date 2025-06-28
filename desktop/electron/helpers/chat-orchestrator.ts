@@ -9,7 +9,7 @@ import { LLMModelStreamResponse } from "./base-llm-model.js";
 import { Logger } from "./custom-logger.js";
 import { LLMModelRegistry } from "./llm-model-registry.js";
 import { mcpClientRegistry } from "./mcp-client-registry.js";
-import { Message, Tool, ToolCall } from "./remote-llm-model.js";
+import { Content, Message, Tool, ToolCall } from "./remote-llm-model.js";
 
 class ChatOrchestrator {
   private llmModelRegistry!: typeof LLMModelRegistry;
@@ -34,7 +34,7 @@ class ChatOrchestrator {
   /**
    * Build system prompt with agent configuration
    */
-  private buildSystemPrompt(agent: typeof this.mainAgent): string {
+  private buildSystemPrompt(agent: typeof this.mainAgent): Content {
     let systemPrompt = agent.instruction;
 
     if (agent.styles?.length || agent.tones?.length) {
@@ -59,7 +59,10 @@ class ChatOrchestrator {
       systemPrompt += '</agent_configuration>\n';
     }
 
-    return systemPrompt;
+    return [{
+      type: 'text',
+      body: systemPrompt
+    }];
   }
 
   /**
@@ -87,20 +90,23 @@ class ChatOrchestrator {
     const selectionMessages: Message[] = [
       {
         role: 'system',
-        content: `You are an agent selector. Each agent has different instruction and tools. Based on the user messages, select the most appropriate agent to process the user request. Return only the agent ID.\n\n` +
-          `<available_agents>\n` +
-          `${this.agents.map(agent => (
-            `<agent id="${agent.id}" name="${agent.name}">\n` +
-            `<instruction>${agent.instruction}</instruction>\n` +
-            `${agent.mcps?.length ?
-              `<tools>\n${agent.mcps.map(m =>
-                `<tool name="${m.name}" capabilities="${m.selectedTools?.join(', ')}" />`
-              ).join('\n')}\n</tools>`
-              : '<tools></tools>'
-            }\n` +
-            `</agent>`
-          )).join('\n')}\n` +
-          `</available_agents>`
+        content: [{
+          type: 'text',
+          body: `You are an agent selector. Each agent has different instruction and tools. Based on the user messages, select the most appropriate agent to process the user request. Return only the agent ID.\n\n` +
+            `<available_agents>\n` +
+            `${this.agents.map(agent => (
+              `<agent id="${agent.id}" name="${agent.name}">\n` +
+              `<instruction>${agent.instruction}</instruction>\n` +
+              `${agent.mcps?.length ?
+                `<tools>\n${agent.mcps.map(m =>
+                  `<tool name="${m.name}" capabilities="${m.selectedTools?.join(', ')}" />`
+                ).join('\n')}\n</tools>`
+                : '<tools></tools>'
+              }\n` +
+              `</agent>`
+            )).join('\n')}\n` +
+            `</available_agents>`
+        }]
       },
       ...messages.filter(m => m.role === 'user')  // Only include user messages for selection
     ];
@@ -263,18 +269,26 @@ class ChatOrchestrator {
   }
 
 
-  async *processMessage(chatId: number, next_prompt?: string, attachedFiles?: any[], longTextDocuments?: Array<{ id: string, content: string, title: string }>, abortController?: AbortController): AsyncGenerator<LLMModelStreamResponse> {
+  async *processMessage(
+    chatId: number,
+    next_prompt?: string,
+    attachedFiles?: Array<{
+      path: string;
+      name: string;
+    }>,
+    longTextDocuments?: Array<{
+      id: string,
+      content: string,
+      title: string
+    }>,
+    abortController?: AbortController
+  ): AsyncGenerator<LLMModelStreamResponse> {
+
     if (next_prompt) {
       // if this is a new conversation, we generate title using default llm
       if (!(await ChatService.getChatById(chatId))?.title) {
         this.generateTitle(next_prompt, chatId)
       }
-
-
-      // Store user message using new robust system
-      await MessageService.storeUserMessage(chatId, next_prompt, {
-        long_text_documents: longTextDocuments,
-      });
     }
 
     // Get conversation history in proper Message format
@@ -434,11 +448,17 @@ class ChatOrchestrator {
       const titleMessages: Message[] = [
         {
           role: 'system',
-          content: 'Summarize user request into a short descriptive title. (sentence of 5-10 words)'
+          content: [{
+            type: 'text',
+            body: 'Summarize user request into a short descriptive title. (sentence of 5-10 words)'
+          }]
         },
         {
           role: 'user',
-          content: prompt
+          content: [{
+            type: 'text',
+            body: prompt
+          }]
         }
       ];
 

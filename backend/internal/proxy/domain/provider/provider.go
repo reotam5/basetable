@@ -195,6 +195,7 @@ func (p *Provider) AddEndpoint(name, path string) error {
 		Status: EndpointStatusActive,
 		Health: EndpointHealthUnknown,
 	})
+	p.updatedAt = time.Now()
 	return nil
 }
 
@@ -202,6 +203,7 @@ func (p *Provider) RemoveEndpoint(endpointName string) error {
 	for i, endpoint := range p.endpoints {
 		if endpoint.Name == endpointName {
 			p.endpoints = slices.Delete(p.endpoints, i, i+1)
+			p.updatedAt = time.Now()
 			return nil
 		}
 	}
@@ -219,6 +221,9 @@ func (p *Provider) DeactivateEndpoint(endpointName string) error {
 				WithStatus(EndpointStatusInactive).
 				WithHealth(EndpointHealthUnknown).
 				WithLastHealthCheck(time.Time{})
+
+			p.updatedAt = time.Now()
+			return nil
 		}
 	}
 	return errors.New("endpoint not found")
@@ -232,6 +237,7 @@ func (p *Provider) ActivateEndpoint(endpointName string) error {
 			}
 
 			p.endpoints[i] = ep.WithStatus(EndpointStatusActive)
+			p.updatedAt = time.Now()
 			return nil
 		}
 	}
@@ -264,9 +270,12 @@ func (p *Provider) Deactivate() error {
 	}
 
 	p.status = StatusInactive
-	// for _, ep := range p.endpoints {
-	// 	p.DeactivateEndpoint(ep.Name)
-	// }
+	for i, ep := range p.endpoints {
+		p.endpoints[i] = ep.
+			WithStatus(EndpointStatusInactive).
+			WithHealth(EndpointHealthUnknown).
+			WithLastHealthCheck(time.Time{})
+	}
 	p.updatedAt = time.Now()
 	return nil
 }
@@ -277,19 +286,21 @@ func (p *Provider) Activate() error {
 	}
 
 	p.status = StatusActive
-	// for _, ep := range p.endpoints {
-	// 	p.ActivateEndpoint(ep.Name)
-	// }
+	for i, ep := range p.endpoints {
+		p.endpoints[i] = ep.WithStatus(EndpointStatusActive)
+	}
 	p.updatedAt = time.Now()
 	return nil
 }
 
 func (p *Provider) UpdateRequestTemplate(tmpl Template) {
 	p.requestTemplate = tmpl
+	p.updatedAt = time.Now()
 }
 
 func (p *Provider) UpdateResponseTemplate(tmpl Template) {
 	p.responseTemplate = tmpl
+	p.updatedAt = time.Now()
 }
 
 func (p *Provider) String() string {

@@ -46,6 +46,17 @@ CREATE TABLE `api_key` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `api_key_user_id_name_unique` ON `api_key` (`user_id`,`name`);--> statement-breakpoint
+CREATE TABLE `attachment` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`message_id` integer NOT NULL,
+	`content` blob,
+	`file_name` text NOT NULL,
+	`file_type` text NOT NULL,
+	`file_size` integer NOT NULL,
+	`created_at` integer DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`message_id`) REFERENCES `message`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `chat` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`title` text DEFAULT 'New Chat' NOT NULL,

@@ -114,7 +114,7 @@ export function ChatInterface() {
   }, [setSelectedTextContext]);
 
 
-  const handleSend = useCallback(async (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
+  const handleSend = useCallback(async (data: { content: string; attachedFiles: Array<{ path: string; name: string; size: number; type: string }>; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
     const { content, attachedFiles, longTextDocuments } = data;
     if (isSending || (!content.trim() && !attachedFiles?.length && !longTextDocuments?.length)) return;
 
@@ -237,7 +237,7 @@ export function ChatInterface() {
           {!isLoading && !error && (
             <div ref={messagesContainerWrapperRef}>
               <div ref={messagesContainerRef} className="space-y-2">
-                {messages?.map(({ message, toolCalls }) => (
+                {messages?.map(({ message, toolCalls, attachments }) => (
                   <div
                     key={message.id + (toolCalls?.length ?? 0)}
                     className="text-left"
@@ -252,7 +252,7 @@ export function ChatInterface() {
                         onKeyUp={() => handleTextSelection(message.id, message.role, message.created_at!)}
                       >
                         {message.role === "user" ? (
-                          <UserMessage message={message} />
+                          <UserMessage message={message} attachments={attachments} />
                         ) : message.role === "assistant" ? (
                           <AssistantMessage message={message} toolCalls={toolCalls} sendToolCallConfirmation={sendToolCallConfirmation} mcpToolKey={mcpToolKey} setMcpToolKey={setMcpToolKey} />
                         ) : (

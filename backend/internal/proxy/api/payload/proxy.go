@@ -11,12 +11,29 @@ type ProxyRequest struct {
 	ToolChoice *ToolChoice `json:"tool_choice,omitempty"`
 }
 
+type Content []Part
+
+type PartType string
+
+type Part struct {
+	Type       PartType `json:"type"`
+	Body       string   `json:"body"`
+	MediaType  string   `json:"media_type,omitempty"` // for image. specify JPEG, PNG, GIF, or WebP
+	ToolCallID string   `json:"tool_call_id,omitempty"` // for tool parts
+}
+
 // Message represents a chat message
 type Message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	Role      string     `json:"role"`
+	Content   Content    `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+}
+
+// Delta represents a delta object
+type Delta struct {
+	Role      string     `json:"role"`
+	Content   Content    `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"` // add omitempty if optional
 }
 
 // Tool represents a function tool definition
@@ -85,13 +102,6 @@ type Choice struct {
 	Message      Message `json:"message"`
 	Delta        Delta   `json:"delta"`
 	FinishReason string  `json:"finish_reason"`
-}
-
-// Delta represents a delta object
-type Delta struct {
-	Role      string     `json:"role"`
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"toolcalls,omitempty"` // add omitempty if optional
 }
 
 // Usage represents token usage information

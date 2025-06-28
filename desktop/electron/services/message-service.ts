@@ -1,13 +1,16 @@
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { fileTypeFromFile } from 'file-type';
+import fs from 'fs';
 import { database } from '../database/database.js';
+import { attachment } from '../database/tables/attachment.js';
 import { chat } from '../database/tables/chat.js';
 import { message } from '../database/tables/message.js';
 import { tool_call } from '../database/tables/tool-call.js';
 import { Logger } from '../helpers/custom-logger.js';
 import { event, service } from '../helpers/decorators.js';
+import { getFileInfo } from '../helpers/file-processor.js';
 import { MCPClient } from '../helpers/mcp-client.js';
-import { Message } from '../helpers/remote-llm-model.js';
-
+import { Content, Message } from '../helpers/remote-llm-model.js';
 @service
 class MessageService {
 
@@ -20,6 +23,10 @@ class MessageService {
         .leftJoin(
           tool_call,
           eq(message.id, tool_call.message_id),
+        )
+        .leftJoin(
+          attachment,
+          eq(message.id, attachment.message_id),
         )
         .where(and(
           eq(message.chat_id, chatId),
@@ -34,21 +41,33 @@ class MessageService {
       }
       const rows = await query;
 
-      const result = rows.reduce<Record<number, { message: typeof message.$inferSelect; toolCalls: typeof tool_call.$inferSelect[] }>>(
+      const result = rows.reduce<Record<number, {
+        message: typeof message.$inferSelect;
+        toolCalls: typeof tool_call.$inferSelect[],
+        attachments?: (Omit<typeof attachment.$inferSelect, 'content'> & { content?: string })[];
+      }>>(
         (acc, row) => {
           const message = row.message;
           const toolCall = row.tool_call;
+          const attachment = row.attachment;
+
           if (!acc[message.id]) {
-            acc[message.id] = { message, toolCalls: [] };
+            acc[message.id] = { message, toolCalls: [], attachments: [] };
           }
           if (toolCall) {
             acc[message.id].toolCalls.unshift(toolCall);
+          }
+          if (attachment) {
+            acc[message.id].attachments?.push({
+              ...attachment,
+              content: attachment.file_type === 'text' ? attachment.content?.toString() : attachment.content?.toString('base64')
+            });
           }
           return acc;
         },
         {}
       );
-      return Object.values(result).map(({ message, toolCalls }) => ({ message, toolCalls: toolCalls })).sort((a, b) => b.message!.created_at!.getTime() - a.message!.created_at!.getTime());
+      return Object.values(result).sort((a, b) => b.message!.created_at!.getTime() - a.message!.created_at!.getTime());
     } catch (error) {
       Logger.error("Error fetching messages:", error);
       throw error;
@@ -80,21 +99,39 @@ class MessageService {
       const dbMessages = await this.getMessagesByChatId(chatId, limit);
       const result: Message[] = [];
 
-      for (const { message, toolCalls } of dbMessages) {
-        if (toolCalls.length > 0) {
-          for (const toolCall of toolCalls.reverse()) {
-            result.push({
-              role: 'tool',
-              tool_call_id: toolCall.tool_call_id!,
-              content: toolCall.function_return ?? "",
-            })
+      for (const { message, toolCalls, attachments } of dbMessages.reverse()) {
+
+        const parts: Content = [];
+
+        if (message.thought && message.thought.trim()) {
+          parts.push({
+            type: 'think',
+            body: message.thought,
+          })
+        }
+
+        if (attachments && attachments.length > 0) {
+          const attachmentParts = attachments?.map(att => {
+            const fileType = att.file_type?.split('/')?.[0]
+            return {
+              type: fileType === 'image' ? 'image' : fileType === 'text' ? 'text' : 'file',
+              body: fileType === 'text' ?
+                "```" + att.file_name +
+                att.content +
+                "```"
+                : att.content,
+              media_type: fileType === 'image' ? att.file_type?.split('/')?.[1] : undefined, // image/png -> png
+            } as Content[number]
+          }) ?? [];
+
+          for (const att of attachmentParts) {
+            parts.push(att);
           }
         }
 
         result.push({
           role: message.role,
-          content: `${message.metadata?.long_text_documents?.length ? message.metadata.long_text_documents.map(t => `<${t.title}>\n${t.content}\n</${t.title}>`).join('\n') + "\n\n" : ""}${message.content}`,
-          thoughts: message.thought ? [message.thought] : [],
+          content: [...parts, ...(message.content ? [{ type: 'text', body: message.content }] as Content : [])],
           tool_calls: toolCalls.map(toolCall => ({
             id: toolCall.tool_call_id!,
             tool_type: 'function',
@@ -104,9 +141,20 @@ class MessageService {
             },
           })) ?? []
         })
+
+        if (toolCalls.length > 0) {
+          result.push({
+            role: 'user',
+            content: toolCalls?.reverse().map(tc => ({
+              type: 'tool',
+              body: tc.function_return ?? "",
+              tool_call_id: tc.tool_call_id!,
+            }))
+          })
+        }
       }
 
-      return result.reverse()
+      return result
     } catch (error) {
       Logger.error("Failed to get recent messages:", error);
       throw error;
@@ -138,11 +186,39 @@ class MessageService {
     }
   }
 
+  async storeAttachment(messageId: number, file: { path: string }) {
+    try {
+      const type = await fileTypeFromFile(file.path);
+      const info = getFileInfo(file.path.split('/').pop() || 'unknown', type?.mime || 'unknown', fs.statSync(file.path).size, fs.readFileSync(file.path));
+
+      if (info.error) {
+        throw new Error(info.error);
+      }
+
+      const { fileType, size } = info.info!;
+
+      const [newAttachment] = await database()
+        .insert(attachment)
+        .values({
+          message_id: messageId,
+          file_type: fileType,
+          file_name: file.path.split('/').pop() || 'unknown',
+          file_size: size,
+          content: fs.readFileSync(file.path),
+        })
+        .returning();
+      return newAttachment;
+    } catch (error) {
+      Logger.error("Failed to store attachment:", error);
+      throw error;
+    }
+  }
+
   /**
    * When creating user message, it should follow the last assistant message that was successful.
    * If theres no last message, this is new chat 
    */
-  async storeUserMessage(chatId: number, content: string, metadata: typeof message.$inferInsert['metadata'] = {}) {
+  async storeUserMessage(chatId: number, content: string, attachments?: Array<{ path: string }>, metadata: typeof message.$inferInsert['metadata'] = {}) {
     await this.updateChatUpdatedAt(chatId);
 
     const lastMessage = await this.getLastMessage(chatId);
@@ -158,7 +234,21 @@ class MessageService {
           metadata: metadata,
         })
         .returning();
-      return newMessage;
+
+      try {
+        // create attachment
+        if (attachments && attachments.length > 0) {
+          for (const attachment of attachments) {
+            await this.storeAttachment(newMessage.id, attachment);
+          }
+        }
+      } catch {
+        await this.deleteMessageById(newMessage.id);
+        throw new Error("Failed to store attachments for the user message. Message was not created.");
+      }
+
+      const [result] = await this.getMessagesByChatId(chatId, attachments?.length);
+      return result
     }
 
     throw new Error("You shouldn't be here. Broken message flow. User message should follow success assistant message.");
@@ -355,8 +445,8 @@ class MessageService {
 
   async deleteUntilLastSuccessMessage(chatId: number): Promise<void> {
     try {
-      // fetch the last 5 messages to find the last successful one
-      const messages = await this.getMessagesByChatId(chatId, 5);
+      // fetch the messages to find the last successful one
+      const messages = await this.getMessagesByChatId(chatId);
       if (messages.length === 0) return;
 
       // Find the index of the last successful message

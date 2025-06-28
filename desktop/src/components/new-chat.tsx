@@ -43,7 +43,7 @@ export function NewChat() {
 
   const stream = useStream<Extract<ChatStreamStart, { type: 'message_start' }>>({ channel: 'chat.stream' });
 
-  const handleSubmit = (data: { content: string; attachedFiles: File[]; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
+  const handleSubmit = (data: { content: string; attachedFiles: Array<{ path: string; name: string; size: number; type: string }>; longTextDocuments: Array<{ id: string, content: string, title: string }> }) => {
     const { content, attachedFiles, longTextDocuments } = data;
     if (!content.trim() && !attachedFiles?.length && !longTextDocuments?.length) return;
 
@@ -60,7 +60,7 @@ export function NewChat() {
         data: {
           chatId: chat.id,
           message: content,
-          attachedFiles: data.attachedFiles,
+          attachedFiles: attachedFiles.map(file => ({ path: file.path, name: file.name, size: file.size, type: file.type })),
           longTextDocuments: data.longTextDocuments,
         }
       }).then(() => {

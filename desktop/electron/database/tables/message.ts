@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { attachment } from "./attachment.js";
 import { chat } from "./chat.js";
 import { tool_call } from "./tool-call.js";
 
@@ -28,6 +29,8 @@ export const message = sqliteTable("message", {
         display_name: string;
       }
     }>;
+    has_attached_file?: boolean; // TODO: remove (we have attachment table)
+    file_count?: number; // TODO remove (we have attachment table)
   }>(),
 })
 
@@ -37,4 +40,5 @@ export const message_relations = relations(message, ({ one, many }) => ({
     references: [chat.id],
   }),
   tool_calls: many(tool_call),
+  attachments: many(attachment)
 }))

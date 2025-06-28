@@ -194,6 +194,8 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 		return nil, err
 	}
 
+	fmt.Println(requestBody.String())
+
 	target := fmt.Sprintf("%s/%s", providerDTO.BaseURL, providerDTO.Endpoints[request.Endpoint].Path)
 
 	// Build auth header value with optional prefix
@@ -263,6 +265,9 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 					continue
 				}
 
+				// b, _ := json.Marshal(providerChunk)
+				// fmt.Println(string(b))
+
 				// Transform using same response template
 				var responseBody bytes.Buffer
 				if err := responseTmpl.Execute(&responseBody, providerChunk); err != nil {
@@ -270,6 +275,8 @@ func (s *proxyService) ProxyRequestStream(ctx context.Context, request dto.Reque
 					fmt.Println(err)
 					continue
 				}
+
+				// fmt.Printf("Response chunk: %s\n", responseBody.String())
 
 				// Parse the transformed chunk into canonical Response format
 				var response dto.Response
