@@ -35,7 +35,6 @@ import { Route as _app_layoutSettingsLayoutDataRouteImport } from './routes/__ap
 import { Route as _app_layoutSettingsLayoutBillingRouteImport } from './routes/__app_layout/settings/_layout.billing'
 import { Route as _app_layoutSettingsLayoutAppearanceRouteImport } from './routes/__app_layout/settings/_layout.appearance'
 import { Route as _app_layoutSettingsLayoutAccountRouteImport } from './routes/__app_layout/settings/_layout.account'
-import { Route as _app_layoutLibrarySearchLib_idRouteImport } from './routes/__app_layout/library/search/$lib_id'
 
 const _app_layoutSettingsRouteImport = createFileRoute(
   '/__app_layout/settings',
@@ -176,12 +175,6 @@ const _app_layoutSettingsLayoutAccountRoute =
     path: '/account',
     getParentRoute: () => _app_layoutSettingsLayoutRoute,
   } as any)
-const _app_layoutLibrarySearchLib_idRoute =
-  _app_layoutLibrarySearchLib_idRouteImport.update({
-    id: '/library/search/$lib_id',
-    path: '/library/search/$lib_id',
-    getParentRoute: () => _app_layoutRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -199,7 +192,6 @@ export interface FileRoutesByFullPath {
   '/chats': typeof _app_layoutChatsIndexRoute
   '/dashboard': typeof _app_layoutDashboardIndexRoute
   '/mcp-servers': typeof _app_layoutMcpServersIndexRoute
-  '/library/search/$lib_id': typeof _app_layoutLibrarySearchLib_idRoute
   '/settings/account': typeof _app_layoutSettingsLayoutAccountRoute
   '/settings/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
   '/settings/billing': typeof _app_layoutSettingsLayoutBillingRoute
@@ -225,7 +217,6 @@ export interface FileRoutesByTo {
   '/chats': typeof _app_layoutChatsIndexRoute
   '/dashboard': typeof _app_layoutDashboardIndexRoute
   '/mcp-servers': typeof _app_layoutMcpServersIndexRoute
-  '/library/search/$lib_id': typeof _app_layoutLibrarySearchLib_idRoute
   '/settings/account': typeof _app_layoutSettingsLayoutAccountRoute
   '/settings/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
   '/settings/billing': typeof _app_layoutSettingsLayoutBillingRoute
@@ -254,7 +245,6 @@ export interface FileRoutesById {
   '/__app_layout/chats/': typeof _app_layoutChatsIndexRoute
   '/__app_layout/dashboard/': typeof _app_layoutDashboardIndexRoute
   '/__app_layout/mcp-servers/': typeof _app_layoutMcpServersIndexRoute
-  '/__app_layout/library/search/$lib_id': typeof _app_layoutLibrarySearchLib_idRoute
   '/__app_layout/settings/_layout/account': typeof _app_layoutSettingsLayoutAccountRoute
   '/__app_layout/settings/_layout/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
   '/__app_layout/settings/_layout/billing': typeof _app_layoutSettingsLayoutBillingRoute
@@ -282,7 +272,6 @@ export interface FileRouteTypes {
     | '/chats'
     | '/dashboard'
     | '/mcp-servers'
-    | '/library/search/$lib_id'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/billing'
@@ -308,7 +297,6 @@ export interface FileRouteTypes {
     | '/chats'
     | '/dashboard'
     | '/mcp-servers'
-    | '/library/search/$lib_id'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/billing'
@@ -336,7 +324,6 @@ export interface FileRouteTypes {
     | '/__app_layout/chats/'
     | '/__app_layout/dashboard/'
     | '/__app_layout/mcp-servers/'
-    | '/__app_layout/library/search/$lib_id'
     | '/__app_layout/settings/_layout/account'
     | '/__app_layout/settings/_layout/appearance'
     | '/__app_layout/settings/_layout/billing'
@@ -533,13 +520,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _app_layoutSettingsLayoutAccountRouteImport
       parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
-    '/__app_layout/library/search/$lib_id': {
-      id: '/__app_layout/library/search/$lib_id'
-      path: '/library/search/$lib_id'
-      fullPath: '/library/search/$lib_id'
-      preLoaderRoute: typeof _app_layoutLibrarySearchLib_idRouteImport
-      parentRoute: typeof _app_layoutRoute
-    }
   }
 }
 
@@ -596,7 +576,6 @@ interface _app_layoutRouteChildren {
   _app_layoutChatsIndexRoute: typeof _app_layoutChatsIndexRoute
   _app_layoutDashboardIndexRoute: typeof _app_layoutDashboardIndexRoute
   _app_layoutMcpServersIndexRoute: typeof _app_layoutMcpServersIndexRoute
-  _app_layoutLibrarySearchLib_idRoute: typeof _app_layoutLibrarySearchLib_idRoute
   _app_layoutLibrarySearchIndexRoute: typeof _app_layoutLibrarySearchIndexRoute
 }
 
@@ -611,7 +590,6 @@ const _app_layoutRouteChildren: _app_layoutRouteChildren = {
   _app_layoutChatsIndexRoute: _app_layoutChatsIndexRoute,
   _app_layoutDashboardIndexRoute: _app_layoutDashboardIndexRoute,
   _app_layoutMcpServersIndexRoute: _app_layoutMcpServersIndexRoute,
-  _app_layoutLibrarySearchLib_idRoute: _app_layoutLibrarySearchLib_idRoute,
   _app_layoutLibrarySearchIndexRoute: _app_layoutLibrarySearchIndexRoute,
 }
 

@@ -74,12 +74,12 @@ const data: {
         },
         {
             title: 'Library',
-            url: ["/library/search", "/library/create", "/library/search/$lib_id"],
+            url: ["/library/search", "/library/create"],
             icon: Library,
             items: [
                 {
                     title: "Search online library",
-                    url: ["/library/search", "/library/search/$lib_id"],
+                    url: ["/library/search"],
                     icon: Library,
                 },
                 {

@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Link } from "@tanstack/react-router"
-import { Bot, Search } from "lucide-react"
+import { Bot, Search, Download } from "lucide-react"
 import { useEffect, useState } from "react"
 
 interface LibraryAgent {
@@ -77,6 +77,21 @@ export function LibrarySearchPage() {
     return ''
   })
 
+  const [selectedAgent, setSelectedAgent] = useState<LibraryAgent | null>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+
+  const handleAgentClick = (agent: LibraryAgent) => {
+    setSelectedAgent(agent)
+    setIsDialogOpen(true)
+  }
+
+  const handleInstall = async (agent: LibraryAgent) => {
+    // Mock install functionality
+    console.log(`Installing agent ${agent.id}`)
+    // In real implementation, this would call the API
+    setIsDialogOpen(false)
+  }
+
   // Update localStorage and URL when search query changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -139,45 +154,42 @@ export function LibrarySearchPage() {
         {/* Agent Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredAgents.map(agent => (
-            <Link
+            <Card 
               key={agent.id}
-              to="/library/search/$lib_id"
-              params={{ lib_id: agent.id.toString() }}
-              className="block"
+              className="hover:shadow-md transition-shadow h-64 flex flex-col cursor-pointer"
+              onClick={() => handleAgentClick(agent)}
             >
-              <Card className="hover:shadow-md transition-shadow h-64 flex flex-col cursor-pointer">
-                <CardHeader className="pb-3 flex-shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Bot className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{agent.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">by {agent.author}</p>
-                    </div>
+              <CardHeader className="pb-3 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Bot className="h-5 w-5 text-primary" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4 flex-1 flex flex-col">
-                  <CardDescription className="text-sm leading-relaxed line-clamp-3 flex-shrink-0">
-                    {agent.description}
-                  </CardDescription>
+                  <div>
+                    <CardTitle className="text-lg">{agent.name}</CardTitle>
+                    <p className="text-sm text-muted-foreground">by {agent.author}</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-1 flex flex-col">
+                <CardDescription className="text-sm leading-relaxed line-clamp-3 flex-shrink-0">
+                  {agent.description}
+                </CardDescription>
 
-                  {/* Capabilities */}
-                  <div className="flex flex-wrap gap-1 flex-shrink-0 min-h-[24px]">
-                    {agent.capabilities.slice(0, 2).map(capability => (
-                      <Badge key={capability} variant="outline" className="text-xs">
-                        {capability}
-                      </Badge>
-                    ))}
-                    {agent.capabilities.length > 2 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{agent.capabilities.length - 2} more
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                {/* Capabilities */}
+                <div className="flex flex-wrap gap-1 flex-shrink-0 min-h-[24px]">
+                  {agent.capabilities.slice(0, 2).map(capability => (
+                    <Badge key={capability} variant="outline" className="text-xs">
+                      {capability}
+                    </Badge>
+                  ))}
+                  {agent.capabilities.length > 2 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{agent.capabilities.length - 2} more
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
@@ -197,6 +209,50 @@ export function LibrarySearchPage() {
           </div>
         )}
       </div>
+
+      {/* Agent Detail Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          {selectedAgent && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">{selectedAgent.name}</DialogTitle>
+                <DialogDescription>
+                  Published by {selectedAgent.author} on {new Date(selectedAgent.createdAt).toLocaleDateString()}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-6">
+                {/* Description */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Description</h3>
+                  <p className="text-sm leading-relaxed">{selectedAgent.description}</p>
+                </div>
+
+                {/* Capabilities */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Capabilities</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAgent.capabilities.map(capability => (
+                      <Badge key={capability} variant="outline" className="text-sm py-1 px-3">
+                        {capability}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Install Button */}
+                <div className="flex justify-end pt-4 border-t">
+                  <Button size="lg" onClick={() => handleInstall(selectedAgent)}>
+                    <Download className="h-5 w-5 mr-2" />
+                    Install Agent
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
