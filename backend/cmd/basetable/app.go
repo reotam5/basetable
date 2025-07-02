@@ -31,6 +31,10 @@ import (
 	proxygmodel "github.com/basetable/basetable/backend/internal/proxy/storage/gorm/model"
 	proxygrepo "github.com/basetable/basetable/backend/internal/proxy/storage/gorm/repository"
 
+	libraryapi "github.com/basetable/basetable/backend/internal/library/api"
+	libraryapp "github.com/basetable/basetable/backend/internal/library/application"
+	librarymodel "github.com/basetable/basetable/backend/internal/library/storage/gorm"
+
 	"github.com/basetable/basetable/backend/internal/shared/application/eventbus"
 	"github.com/basetable/basetable/backend/internal/shared/application/unitofwork"
 	"github.com/basetable/basetable/backend/internal/shared/infrastructure/auth0"
@@ -103,6 +107,7 @@ func runMigrations(db *gormsdk.DB, logger log.Logger) {
 		&proxygmodel.ProviderModel{},
 		&proxygmodel.ModelModel{},
 		&proxygmodel.EndpointModel{},
+		&librarymodel.AgentModel{},
 	}
 
 	for _, model := range models {
@@ -143,6 +148,7 @@ type Repositories struct {
 	BillingUnitOfWork  unitofwork.UnitOfWork[repository.RepositoryProvider]
 	Provider           proxyapp.ProviderRepository
 	ProviderUnitOfWork unitofwork.UnitOfWork[proxyapp.RepositoryProvider]
+	Agent              libraryapp.AgentRepository
 }
 
 func setupRepositories(db *gormsdk.DB) *Repositories {
@@ -154,6 +160,7 @@ func setupRepositories(db *gormsdk.DB) *Repositories {
 		BillingUnitOfWork:  guow.NewUnitOfWork(db, grepo.NewRepositoryProvider),
 		Provider:           proxygrepo.NewProviderRepository(db),
 		ProviderUnitOfWork: guow.NewUnitOfWork(db, proxygrepo.NewRepositoryProvider),
+		Agent:              librarymodel.NewAgentRepository(db),
 	}
 }
 
@@ -164,6 +171,7 @@ type Services struct {
 	Ledger   service.LedgerService
 	Provider proxyservice.ProviderService
 	Proxy    proxyservice.ProxyService
+	Library  libraryapp.LibraryService
 }
 
 func setupServices(
@@ -187,6 +195,8 @@ func setupServices(
 	providerService := proxyservice.NewProviderService(repo.Provider, repo.ProviderUnitOfWork)
 	proxyService := proxyservice.NewProxyService(providerService, proxyClient)
 
+	libraryService := libraryapp.NewLibraryService(repo.Agent)
+
 	return &Services{
 		Payment:  paymentService,
 		Account:  accountService,
@@ -194,6 +204,7 @@ func setupServices(
 		Ledger:   ledgerService,
 		Provider: providerService,
 		Proxy:    proxyService,
+		Library:  libraryService,
 	}
 }
 
@@ -202,6 +213,7 @@ type Controllers struct {
 	Account  controller.AccountController
 	Provider proxyapi.ProviderController
 	Proxy    proxyapi.ProxyController
+	Library  libraryapi.LibraryController
 }
 
 func setupControllers(services *Services, logger log.Logger) *Controllers {
@@ -209,12 +221,14 @@ func setupControllers(services *Services, logger log.Logger) *Controllers {
 	accountController := controller.NewAccountController(services.Account, logger)
 	providerController := proxyapi.NewProviderController(services.Provider)
 	proxyController := proxyapi.NewProxyController(services.Proxy)
+	libraryController := libraryapi.NewLibraryController(services.Library, logger)
 
 	return &Controllers{
 		Payment:  paymentController,
 		Account:  accountController,
 		Provider: providerController,
 		Proxy:    proxyController,
+		Library:  libraryController,
 	}
 }
 
@@ -243,7 +257,7 @@ func setupRoutes(httpServer *httpserver.Server, controllers *Controllers) {
 	// Public API endpoints
 	router.Route("/v1", func(router httpserver.Router) {
 		// Apply Auth0 middleware to all user-facing API routes
-		router.Use(auth0.Middleware())
+		// router.Use(auth0.Middleware())
 
 		// Payment routes
 		router.Route("/payments", func(router httpserver.Router) {
@@ -259,6 +273,12 @@ func setupRoutes(httpServer *httpserver.Server, controllers *Controllers) {
 		// Proxy routes
 		router.Route("/proxy", func(router httpserver.Router) {
 			router.Post("/request", controllers.Proxy.ProxyRequest)
+		})
+
+		// Library routes
+		router.Route("/library", func(router httpserver.Router) {
+			router.Post("/agents", controllers.Library.AddAgent)
+			router.Get("/agents", controllers.Library.ListAgents)
 		})
 
 	})
