@@ -23,9 +23,11 @@ import { Route as _app_layoutChatsIndexRouteImport } from './routes/__app_layout
 import { Route as _app_layoutAgentsIndexRouteImport } from './routes/__app_layout/agents/index'
 import { Route as _app_layoutAgentIndexRouteImport } from './routes/__app_layout/agent/index'
 import { Route as _app_layoutSettingsLayoutRouteImport } from './routes/__app_layout/settings/_layout'
+import { Route as _app_layoutLibraryCreateRouteImport } from './routes/__app_layout/library/create'
 import { Route as _app_layoutChatsSearchRouteImport } from './routes/__app_layout/chats/search'
 import { Route as _app_layoutChatChatIdRouteImport } from './routes/__app_layout/chat/$chatId'
 import { Route as _app_layoutAgentAgentIdRouteImport } from './routes/__app_layout/agent/$agentId'
+import { Route as _app_layoutLibrarySearchIndexRouteImport } from './routes/__app_layout/library/search/index'
 import { Route as _app_layoutSettingsLayoutSecurityRouteImport } from './routes/__app_layout/settings/_layout.security'
 import { Route as _app_layoutSettingsLayoutPrivacyRouteImport } from './routes/__app_layout/settings/_layout.privacy'
 import { Route as _app_layoutSettingsLayoutLlmRouteImport } from './routes/__app_layout/settings/_layout.llm'
@@ -33,6 +35,7 @@ import { Route as _app_layoutSettingsLayoutDataRouteImport } from './routes/__ap
 import { Route as _app_layoutSettingsLayoutBillingRouteImport } from './routes/__app_layout/settings/_layout.billing'
 import { Route as _app_layoutSettingsLayoutAppearanceRouteImport } from './routes/__app_layout/settings/_layout.appearance'
 import { Route as _app_layoutSettingsLayoutAccountRouteImport } from './routes/__app_layout/settings/_layout.account'
+import { Route as _app_layoutLibrarySearchLib_idRouteImport } from './routes/__app_layout/library/search/$lib_id'
 
 const _app_layoutSettingsRouteImport = createFileRoute(
   '/__app_layout/settings',
@@ -104,6 +107,12 @@ const _app_layoutSettingsLayoutRoute =
     id: '/_layout',
     getParentRoute: () => _app_layoutSettingsRoute,
   } as any)
+const _app_layoutLibraryCreateRoute =
+  _app_layoutLibraryCreateRouteImport.update({
+    id: '/library/create',
+    path: '/library/create',
+    getParentRoute: () => _app_layoutRoute,
+  } as any)
 const _app_layoutChatsSearchRoute = _app_layoutChatsSearchRouteImport.update({
   id: '/chats/search',
   path: '/chats/search',
@@ -119,6 +128,12 @@ const _app_layoutAgentAgentIdRoute = _app_layoutAgentAgentIdRouteImport.update({
   path: '/agent/$agentId',
   getParentRoute: () => _app_layoutRoute,
 } as any)
+const _app_layoutLibrarySearchIndexRoute =
+  _app_layoutLibrarySearchIndexRouteImport.update({
+    id: '/library/search/',
+    path: '/library/search/',
+    getParentRoute: () => _app_layoutRoute,
+  } as any)
 const _app_layoutSettingsLayoutSecurityRoute =
   _app_layoutSettingsLayoutSecurityRouteImport.update({
     id: '/security',
@@ -161,6 +176,12 @@ const _app_layoutSettingsLayoutAccountRoute =
     path: '/account',
     getParentRoute: () => _app_layoutSettingsLayoutRoute,
   } as any)
+const _app_layoutLibrarySearchLib_idRoute =
+  _app_layoutLibrarySearchLib_idRouteImport.update({
+    id: '/library/search/$lib_id',
+    path: '/library/search/$lib_id',
+    getParentRoute: () => _app_layoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -171,12 +192,14 @@ export interface FileRoutesByFullPath {
   '/agent/$agentId': typeof _app_layoutAgentAgentIdRoute
   '/chat/$chatId': typeof _app_layoutChatChatIdRoute
   '/chats/search': typeof _app_layoutChatsSearchRoute
+  '/library/create': typeof _app_layoutLibraryCreateRoute
   '/settings': typeof _app_layoutSettingsLayoutRouteWithChildren
   '/agent': typeof _app_layoutAgentIndexRoute
   '/agents': typeof _app_layoutAgentsIndexRoute
   '/chats': typeof _app_layoutChatsIndexRoute
   '/dashboard': typeof _app_layoutDashboardIndexRoute
   '/mcp-servers': typeof _app_layoutMcpServersIndexRoute
+  '/library/search/$lib_id': typeof _app_layoutLibrarySearchLib_idRoute
   '/settings/account': typeof _app_layoutSettingsLayoutAccountRoute
   '/settings/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
   '/settings/billing': typeof _app_layoutSettingsLayoutBillingRoute
@@ -184,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/settings/llm': typeof _app_layoutSettingsLayoutLlmRoute
   '/settings/privacy': typeof _app_layoutSettingsLayoutPrivacyRoute
   '/settings/security': typeof _app_layoutSettingsLayoutSecurityRoute
+  '/library/search': typeof _app_layoutLibrarySearchIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -194,12 +218,14 @@ export interface FileRoutesByTo {
   '/agent/$agentId': typeof _app_layoutAgentAgentIdRoute
   '/chat/$chatId': typeof _app_layoutChatChatIdRoute
   '/chats/search': typeof _app_layoutChatsSearchRoute
+  '/library/create': typeof _app_layoutLibraryCreateRoute
   '/settings': typeof _app_layoutSettingsLayoutRouteWithChildren
   '/agent': typeof _app_layoutAgentIndexRoute
   '/agents': typeof _app_layoutAgentsIndexRoute
   '/chats': typeof _app_layoutChatsIndexRoute
   '/dashboard': typeof _app_layoutDashboardIndexRoute
   '/mcp-servers': typeof _app_layoutMcpServersIndexRoute
+  '/library/search/$lib_id': typeof _app_layoutLibrarySearchLib_idRoute
   '/settings/account': typeof _app_layoutSettingsLayoutAccountRoute
   '/settings/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
   '/settings/billing': typeof _app_layoutSettingsLayoutBillingRoute
@@ -207,6 +233,7 @@ export interface FileRoutesByTo {
   '/settings/llm': typeof _app_layoutSettingsLayoutLlmRoute
   '/settings/privacy': typeof _app_layoutSettingsLayoutPrivacyRoute
   '/settings/security': typeof _app_layoutSettingsLayoutSecurityRoute
+  '/library/search': typeof _app_layoutLibrarySearchIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -219,6 +246,7 @@ export interface FileRoutesById {
   '/__app_layout/agent/$agentId': typeof _app_layoutAgentAgentIdRoute
   '/__app_layout/chat/$chatId': typeof _app_layoutChatChatIdRoute
   '/__app_layout/chats/search': typeof _app_layoutChatsSearchRoute
+  '/__app_layout/library/create': typeof _app_layoutLibraryCreateRoute
   '/__app_layout/settings': typeof _app_layoutSettingsRouteWithChildren
   '/__app_layout/settings/_layout': typeof _app_layoutSettingsLayoutRouteWithChildren
   '/__app_layout/agent/': typeof _app_layoutAgentIndexRoute
@@ -226,6 +254,7 @@ export interface FileRoutesById {
   '/__app_layout/chats/': typeof _app_layoutChatsIndexRoute
   '/__app_layout/dashboard/': typeof _app_layoutDashboardIndexRoute
   '/__app_layout/mcp-servers/': typeof _app_layoutMcpServersIndexRoute
+  '/__app_layout/library/search/$lib_id': typeof _app_layoutLibrarySearchLib_idRoute
   '/__app_layout/settings/_layout/account': typeof _app_layoutSettingsLayoutAccountRoute
   '/__app_layout/settings/_layout/appearance': typeof _app_layoutSettingsLayoutAppearanceRoute
   '/__app_layout/settings/_layout/billing': typeof _app_layoutSettingsLayoutBillingRoute
@@ -233,6 +262,7 @@ export interface FileRoutesById {
   '/__app_layout/settings/_layout/llm': typeof _app_layoutSettingsLayoutLlmRoute
   '/__app_layout/settings/_layout/privacy': typeof _app_layoutSettingsLayoutPrivacyRoute
   '/__app_layout/settings/_layout/security': typeof _app_layoutSettingsLayoutSecurityRoute
+  '/__app_layout/library/search/': typeof _app_layoutLibrarySearchIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -245,12 +275,14 @@ export interface FileRouteTypes {
     | '/agent/$agentId'
     | '/chat/$chatId'
     | '/chats/search'
+    | '/library/create'
     | '/settings'
     | '/agent'
     | '/agents'
     | '/chats'
     | '/dashboard'
     | '/mcp-servers'
+    | '/library/search/$lib_id'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/billing'
@@ -258,6 +290,7 @@ export interface FileRouteTypes {
     | '/settings/llm'
     | '/settings/privacy'
     | '/settings/security'
+    | '/library/search'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -268,12 +301,14 @@ export interface FileRouteTypes {
     | '/agent/$agentId'
     | '/chat/$chatId'
     | '/chats/search'
+    | '/library/create'
     | '/settings'
     | '/agent'
     | '/agents'
     | '/chats'
     | '/dashboard'
     | '/mcp-servers'
+    | '/library/search/$lib_id'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/billing'
@@ -281,6 +316,7 @@ export interface FileRouteTypes {
     | '/settings/llm'
     | '/settings/privacy'
     | '/settings/security'
+    | '/library/search'
   id:
     | '__root__'
     | '/'
@@ -292,6 +328,7 @@ export interface FileRouteTypes {
     | '/__app_layout/agent/$agentId'
     | '/__app_layout/chat/$chatId'
     | '/__app_layout/chats/search'
+    | '/__app_layout/library/create'
     | '/__app_layout/settings'
     | '/__app_layout/settings/_layout'
     | '/__app_layout/agent/'
@@ -299,6 +336,7 @@ export interface FileRouteTypes {
     | '/__app_layout/chats/'
     | '/__app_layout/dashboard/'
     | '/__app_layout/mcp-servers/'
+    | '/__app_layout/library/search/$lib_id'
     | '/__app_layout/settings/_layout/account'
     | '/__app_layout/settings/_layout/appearance'
     | '/__app_layout/settings/_layout/billing'
@@ -306,6 +344,7 @@ export interface FileRouteTypes {
     | '/__app_layout/settings/_layout/llm'
     | '/__app_layout/settings/_layout/privacy'
     | '/__app_layout/settings/_layout/security'
+    | '/__app_layout/library/search/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -410,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _app_layoutSettingsLayoutRouteImport
       parentRoute: typeof _app_layoutSettingsRoute
     }
+    '/__app_layout/library/create': {
+      id: '/__app_layout/library/create'
+      path: '/library/create'
+      fullPath: '/library/create'
+      preLoaderRoute: typeof _app_layoutLibraryCreateRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
     '/__app_layout/chats/search': {
       id: '/__app_layout/chats/search'
       path: '/chats/search'
@@ -429,6 +475,13 @@ declare module '@tanstack/react-router' {
       path: '/agent/$agentId'
       fullPath: '/agent/$agentId'
       preLoaderRoute: typeof _app_layoutAgentAgentIdRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
+    '/__app_layout/library/search/': {
+      id: '/__app_layout/library/search/'
+      path: '/library/search'
+      fullPath: '/library/search'
+      preLoaderRoute: typeof _app_layoutLibrarySearchIndexRouteImport
       parentRoute: typeof _app_layoutRoute
     }
     '/__app_layout/settings/_layout/security': {
@@ -480,6 +533,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _app_layoutSettingsLayoutAccountRouteImport
       parentRoute: typeof _app_layoutSettingsLayoutRoute
     }
+    '/__app_layout/library/search/$lib_id': {
+      id: '/__app_layout/library/search/$lib_id'
+      path: '/library/search/$lib_id'
+      fullPath: '/library/search/$lib_id'
+      preLoaderRoute: typeof _app_layoutLibrarySearchLib_idRouteImport
+      parentRoute: typeof _app_layoutRoute
+    }
   }
 }
 
@@ -529,24 +589,30 @@ interface _app_layoutRouteChildren {
   _app_layoutAgentAgentIdRoute: typeof _app_layoutAgentAgentIdRoute
   _app_layoutChatChatIdRoute: typeof _app_layoutChatChatIdRoute
   _app_layoutChatsSearchRoute: typeof _app_layoutChatsSearchRoute
+  _app_layoutLibraryCreateRoute: typeof _app_layoutLibraryCreateRoute
   _app_layoutSettingsRoute: typeof _app_layoutSettingsRouteWithChildren
   _app_layoutAgentIndexRoute: typeof _app_layoutAgentIndexRoute
   _app_layoutAgentsIndexRoute: typeof _app_layoutAgentsIndexRoute
   _app_layoutChatsIndexRoute: typeof _app_layoutChatsIndexRoute
   _app_layoutDashboardIndexRoute: typeof _app_layoutDashboardIndexRoute
   _app_layoutMcpServersIndexRoute: typeof _app_layoutMcpServersIndexRoute
+  _app_layoutLibrarySearchLib_idRoute: typeof _app_layoutLibrarySearchLib_idRoute
+  _app_layoutLibrarySearchIndexRoute: typeof _app_layoutLibrarySearchIndexRoute
 }
 
 const _app_layoutRouteChildren: _app_layoutRouteChildren = {
   _app_layoutAgentAgentIdRoute: _app_layoutAgentAgentIdRoute,
   _app_layoutChatChatIdRoute: _app_layoutChatChatIdRoute,
   _app_layoutChatsSearchRoute: _app_layoutChatsSearchRoute,
+  _app_layoutLibraryCreateRoute: _app_layoutLibraryCreateRoute,
   _app_layoutSettingsRoute: _app_layoutSettingsRouteWithChildren,
   _app_layoutAgentIndexRoute: _app_layoutAgentIndexRoute,
   _app_layoutAgentsIndexRoute: _app_layoutAgentsIndexRoute,
   _app_layoutChatsIndexRoute: _app_layoutChatsIndexRoute,
   _app_layoutDashboardIndexRoute: _app_layoutDashboardIndexRoute,
   _app_layoutMcpServersIndexRoute: _app_layoutMcpServersIndexRoute,
+  _app_layoutLibrarySearchLib_idRoute: _app_layoutLibrarySearchLib_idRoute,
+  _app_layoutLibrarySearchIndexRoute: _app_layoutLibrarySearchIndexRoute,
 }
 
 const _app_layoutRouteWithChildren = _app_layoutRoute._addFileChildren(
