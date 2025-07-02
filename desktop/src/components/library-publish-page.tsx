@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { use } from "@/hooks/use"
 import { useBlocker } from "@tanstack/react-router"
-import { Bot, Loader2, Plus, Upload, X } from "lucide-react"
+import { Bot, Loader2, Plus, Search, Upload, X } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -25,6 +25,7 @@ export function LibraryPublishPage() {
   })
 
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<number>>(new Set())
+  const [searchTerm, setSearchTerm] = useState('')
   const [libraryEntry, setLibraryEntry] = useState<LibraryEntry>({
     title: '',
     description: '',
@@ -81,7 +82,8 @@ export function LibraryPublishPage() {
       if (agent) {
         setLibraryEntry(prev => ({
           ...prev,
-          agents: [...prev.agents, agent]
+          agents: [...prev.agents, agent],
+          title: agent.name.trim()
         }))
 
         for (const capability of generateAgentCapabilities(agent)) {
@@ -239,6 +241,11 @@ export function LibraryPublishPage() {
 
   const availableAgents = agents?.filter(agent => !agent.is_main) || []
 
+  // Filter agents based on search term
+  const filteredAgents = availableAgents.filter(agent =>
+    agent.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-64px)]">
       <div className="flex-1 space-y-8 p-6 mx-auto max-w-5xl w-full flex flex-col">
@@ -255,6 +262,66 @@ export function LibraryPublishPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Agent Selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Select Agents *</CardTitle>
+                <CardDescription>
+                  Choose the agents you want to include in your library entry.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {availableAgents.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No agents available to publish</p>
+                    <p className="text-sm">Create some agents first to add them to the library</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        placeholder="Search agents..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {/* Agent List */}
+                    <div className="space-y-3">
+                      {filteredAgents.length === 0 ? (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <p>No agents found matching "{searchTerm}"</p>
+                        </div>
+                      ) : (
+                        filteredAgents.map((agent) => (
+                          <Label
+                            htmlFor={`agent-${agent.id}`}
+                            key={agent.id}
+                            className={`border rounded-lg p-4 transition-colors cursor-pointer ${selectedAgentIds.has(agent.id) ? 'bg-muted/50 border-primary/30' : 'hover:bg-muted/30'
+                              }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                id={`agent-${agent.id}`}
+                                checked={selectedAgentIds.has(agent.id)}
+                                onCheckedChange={(checked) => handleAgentSelection(agent.id, checked as boolean)}
+                              />
+                              <span className="font-medium">{agent.name}</span>
+                            </div>
+                          </Label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Library Entry Details */}
             <Card>
               <CardHeader>
@@ -288,42 +355,6 @@ export function LibraryPublishPage() {
               </CardContent>
             </Card>
 
-            {/* Agent Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Select Agents *</CardTitle>
-                <CardDescription>
-                  Choose the agents you want to include in your library entry.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {availableAgents.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No agents available to publish</p>
-                    <p className="text-sm">Create some agents first to add them to the library</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {availableAgents.map((agent) => (
-                      <Label
-                        htmlFor={`agent-${agent.id}`}
-                        key={agent.id}
-                        className={`border rounded-lg p-4 transition-colors ${selectedAgentIds.has(agent.id) ? 'bg-muted/50 border-primary/30' : 'hover:bg-muted/30'
-                          }`}
-                      >
-                        <Checkbox
-                          id={`agent-${agent.id}`}
-                          checked={selectedAgentIds.has(agent.id)}
-                          onCheckedChange={(checked) => handleAgentSelection(agent.id, checked as boolean)}
-                        />
-                        {agent.name}
-                      </Label>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
 
           {/* Sidebar */}
