@@ -1,7 +1,5 @@
 import { Logger as _Logger } from '@promisepending/logger.js';
 import { app } from 'electron';
-import { join } from 'path';
-
 
 class Logger {
   static #instance: Logger;
@@ -23,15 +21,6 @@ class Logger {
       disableFatalCrash: true,
       coloredBackground: false,
       debug: true,
-      fileProperties: {
-        enable: true,
-        logFolderPath: join(app.getPath("userData"), "logs"),
-        enableLatestLog: true,
-        enableDebugLog: true,
-        enableErrorLog: true,
-        enableFatalLog: true,
-        compressLogFilesAfterNewExecution: true
-      },
     });
   }
 
