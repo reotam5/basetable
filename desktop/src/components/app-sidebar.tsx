@@ -79,7 +79,7 @@ const data: {
             items: [
                 {
                     title: "Search online library",
-                    url: ["/library/search"],
+                    url: ["/library/search", "/library/search/$lib_id"],
                     icon: Library,
                 },
                 {
