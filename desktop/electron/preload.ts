@@ -133,6 +133,7 @@ const electronAPI = {
   agent: {
     getMain: () => handler.invoke("agent.getMain") as ReturnType<typeof AgentService.getMainAgent>,
     getAll: () => handler.invoke("agent.getAll") as ReturnType<typeof AgentService.getAllAgents>,
+    getAllAgentsWithTools: () => handler.invoke("agent.getAllWithTools") as ReturnType<typeof AgentService.getAllAgentsWithTools>,
     delete: (id: number) => handler.invoke("agent.delete", id) as ReturnType<typeof AgentService.deleteAgent>,
     create: (agent: { instruction: string; llmId: number; mcpTools?: { [serverId: number]: string[] }; styles?: number[] }) => handler.invoke("agent.create", agent) as ReturnType<typeof AgentService.createAgent>,
     get: (id: number) => handler.invoke("agent.getById", id) as ReturnType<typeof AgentService.getAgentById>,

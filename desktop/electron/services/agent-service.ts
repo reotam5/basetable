@@ -46,6 +46,7 @@ class AgentService {
     }
   }
 
+  @event('agent.getAllWithTools', 'handle')
   public async getAllAgentsWithTools() {
     try {
       const agents = await this.getAllAgents();
