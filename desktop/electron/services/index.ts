@@ -2,10 +2,10 @@ export * from './agent-service.js';
 export * from './agent-style-service.js';
 export * from './api-key-service.js';
 export * from './chat-service.js';
+export * from './library-service.js';
 export * from './llm-service.js';
 export * from './mcp-service.js';
 export * from './message-service.js';
 export * from './provider-service.js';
 export * from './setting-service.js';
 export * from './user-service.js';
-

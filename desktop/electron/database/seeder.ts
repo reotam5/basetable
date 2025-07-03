@@ -72,18 +72,18 @@ export async function seedDatabase() {
 
   // agent styles
   const styles: typeof agent_style.$inferInsert[] = [
-    { id: 1, type: 'tone', name: 'Friendly', description: 'A friendly and approachable tone.' },
-    { id: 2, type: 'tone', name: 'Professional', description: 'A formal and professional tone.' },
-    { id: 3, type: 'tone', name: 'Casual', description: 'A relaxed and informal tone.' },
-    { id: 4, type: 'tone', name: 'Technical', description: 'A precise and technical tone.' },
-    { id: 5, type: 'tone', name: 'Creative', description: 'An imaginative and artistic tone.' },
-    { id: 6, type: 'tone', name: 'Concise', description: 'A brief and to-the-point tone.' },
-    { id: 7, type: 'style', name: 'Detailed', description: 'A comprehensive and thorough style.' },
-    { id: 8, type: 'style', name: 'Bullet Points', description: 'A concise style using bullet points.' },
-    { id: 9, type: 'style', name: 'Step by Step', description: 'A sequential and instructional style.' },
-    { id: 10, type: 'style', name: 'Conversational', description: 'An informal and engaging style.' },
-    { id: 11, type: 'style', name: 'Analytical', description: 'A logical and data-driven style.' },
-    { id: 12, type: 'style', name: 'Storytelling', description: 'A narrative and engaging style.' }
+    { id: 1, type: 'tone', style_key: 'friendly', name: 'Friendly', description: 'A friendly and approachable tone.' },
+    { id: 2, type: 'tone', style_key: 'professional', name: 'Professional', description: 'A formal and professional tone.' },
+    { id: 3, type: 'tone', style_key: 'casual', name: 'Casual', description: 'A relaxed and informal tone.' },
+    { id: 4, type: 'tone', style_key: 'technical', name: 'Technical', description: 'A precise and technical tone.' },
+    { id: 5, type: 'tone', style_key: 'creative', name: 'Creative', description: 'An imaginative and artistic tone.' },
+    { id: 6, type: 'tone', style_key: 'concise', name: 'Concise', description: 'A brief and to-the-point tone.' },
+    { id: 7, type: 'style', style_key: 'detailed', name: 'Detailed', description: 'A comprehensive and thorough style.' },
+    { id: 8, type: 'style', style_key: 'bulletpoints', name: 'Bullet Points', description: 'A concise style using bullet points.' },
+    { id: 9, type: 'style', style_key: 'stepbystep', name: 'Step by Step', description: 'A sequential and instructional style.' },
+    { id: 10, type: 'style', style_key: 'conversational', name: 'Conversational', description: 'An informal and engaging style.' },
+    { id: 11, type: 'style', style_key: 'analytical', name: 'Analytical', description: 'A logical and data-driven style.' },
+    { id: 12, type: 'style', style_key: 'storytelling', name: 'Storytelling', description: 'A narrative and engaging style.' }
   ]
   await Promise.all(styles.map(style => (
     database()
@@ -94,7 +94,8 @@ export async function seedDatabase() {
         set: {
           type: style.type,
           name: style.name,
-          description: style.description
+          description: style.description,
+          style_key: style.style_key,
         }
       })
   )))

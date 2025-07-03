@@ -5,7 +5,7 @@ import { AuthAccessToken, AuthLogin, AuthProfile } from "./events/auth-events";
 import { DatabaseGetEncryption } from "./events/database-events";
 import { PaymentPurchase } from "./events/payment-events";
 import { WindowScreenChange } from "./events/window-events";
-import { AgentService, AgentStyleService, APIKeyService, ChatService, LLMService, MCPService, MessageService, SettingService } from "./services";
+import { AgentService, AgentStyleService, APIKeyService, ChatService, LibraryService, LLMService, MCPService, MessageService, SettingService } from "./services";
 
 console.log("Preload script loading...");
 
@@ -141,6 +141,9 @@ const electronAPI = {
     getTones: () => handler.invoke("agentStyle.getTones") as ReturnType<typeof AgentStyleService.getTones>,
     getStyles: () => handler.invoke("agentStyle.getStyles") as ReturnType<typeof AgentStyleService.getStylesOnly>,
     onNameUpdate: (callback: (agentId: number, name: string) => void) => handler.on("agent.nameUpdate", callback),
+  },
+  library: {
+    create: (...args: Parameters<typeof LibraryService.createLibraryEntry>) => handler.invoke("library.create", ...args) as ReturnType<typeof LibraryService.createLibraryEntry>,
   },
   llm: {
     getAll: () => handler.invoke("llm.getAll") as ReturnType<typeof LLMService.getLLMs>,

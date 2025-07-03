@@ -1,10 +1,12 @@
 CREATE TABLE `agent_style` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`style_key` text NOT NULL,
 	`type` text NOT NULL,
 	`name` text NOT NULL,
 	`description` text NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `agent_style_style_key_unique` ON `agent_style` (`style_key`);--> statement-breakpoint
 CREATE TABLE `agent_to_agent_style` (
 	`agent_id` integer NOT NULL,
 	`agent_style_id` integer NOT NULL,
@@ -15,6 +17,8 @@ CREATE TABLE `agent_to_agent_style` (
 --> statement-breakpoint
 CREATE TABLE `agent` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`uploaded_id` text,
+	`uploaded_status` text DEFAULT 'local',
 	`name` text NOT NULL,
 	`is_main` integer DEFAULT false NOT NULL,
 	`instruction` text NOT NULL,
@@ -25,6 +29,7 @@ CREATE TABLE `agent` (
 	FOREIGN KEY (`llm_id`) REFERENCES `llm`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `agent_uploaded_id_unique` ON `agent` (`uploaded_id`);--> statement-breakpoint
 CREATE TABLE `agent_to_mcp_server` (
 	`agent_id` integer NOT NULL,
 	`mcp_server_id` integer NOT NULL,

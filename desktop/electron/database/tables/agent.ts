@@ -7,6 +7,8 @@ import { user } from "./user.js";
 
 export const agent = sqliteTable("agent", {
   id: integer().primaryKey({ autoIncrement: true }),
+  uploaded_id: text().unique(), // Unique identifier for the agent, used for sharing
+  uploaded_status: text({ enum: ['local', 'uploaded', 'require_update'] }).default('local'), // Status of the agent upload. Require_update means that the agent has been updated locally and needs to be re-uploaded.
   name: text().notNull(),
   is_main: integer({ mode: 'boolean' }).notNull().default(false),
   instruction: text().notNull(),

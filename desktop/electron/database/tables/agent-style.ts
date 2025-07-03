@@ -1,13 +1,16 @@
 import { relations } from "drizzle-orm";
-import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { agent } from "./agent.js";
 
 export const agent_style = sqliteTable("agent_style", {
   id: integer().primaryKey({ autoIncrement: true }),
+  style_key: text().notNull(), // Human readable unique key for the style
   type: text().notNull(), // 'style' or 'tone'
   name: text().notNull(),
   description: text().notNull(),
-})
+}, (table) => [
+  unique().on(table.style_key)
+]);
 
 export const agent_to_agent_style = sqliteTable("agent_to_agent_style", {
   agent_id: integer().notNull().references(() => agent.id, { onDelete: 'cascade' }),

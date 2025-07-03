@@ -4,9 +4,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { use } from "@/hooks/use"
-import { useBlocker } from "@tanstack/react-router"
 import { Check, ChevronDown, ChevronUp, Loader2, Search, Share } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
 export function LibraryPublishPage() {
@@ -22,40 +21,6 @@ export function LibraryPublishPage() {
   const [isInstructionExpanded, setIsInstructionExpanded] = useState(false)
   const [expandedMcpIndex, setExpandedMcpIndex] = useState<number | null>(null)
 
-  // Track unsaved changes for navigation blocking
-  const [hasChanges, setHasChanges] = useState(false)
-  const [showNavigationDialog, setShowNavigationDialog] = useState(false)
-
-  // Block navigation when there are unsaved changes
-  const { proceed, reset, status } = useBlocker({
-    shouldBlockFn: () => hasChanges,
-    withResolver: true
-  })
-
-  // Show navigation dialog when navigation is blocked
-  useEffect(() => {
-    setShowNavigationDialog(status === 'blocked')
-  }, [status])
-
-  // Handle browser window close/refresh
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasChanges) {
-        e.preventDefault()
-        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?'
-        return e.returnValue
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasChanges])
-
-  // Update hasChanges when dialog is open
-  useEffect(() => {
-    setHasChanges(showShareDialog)
-  }, [showShareDialog])
-
   const handleAgentSelect = (agentId: number) => {
     setSelectedAgent(agentId)
     setShowShareDialog(true)
@@ -70,24 +35,14 @@ export function LibraryPublishPage() {
     setExpandedMcpIndex(null)
   }
 
-  const handleNavigationConfirm = () => {
-    setHasChanges(false)
-    proceed?.()
-  }
-
-  const handleNavigationCancel = () => {
-    reset?.()
-  }
-
   const handleShare = async () => {
-    if (!selectedAgent) return
+    const selectedAgentData = availableAgents.find(a => a.id === selectedAgent)
+    if (!selectedAgent || !selectedAgentData) return
 
     setIsSharing(true)
     try {
       // Simulate API call to share to library
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      const selectedAgentData = availableAgents.find(a => a.id === selectedAgent)
+      await window.electronAPI.library.create(selectedAgentData)
 
       toast.success("Agent shared successfully!", {
         description: `${selectedAgentData?.name} is now available in the community library.`,
@@ -97,7 +52,6 @@ export function LibraryPublishPage() {
       setSharedAgents(prev => new Set(prev).add(selectedAgent))
       setSelectedAgent(null)
       setShowShareDialog(false)
-      setHasChanges(false)
 
     } catch {
       toast.error("Failed to share agent")
@@ -369,36 +323,6 @@ export function LibraryPublishPage() {
                     Share
                   </>
                 )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Navigation Confirmation Dialog */}
-        <Dialog open={showNavigationDialog} onOpenChange={setShowNavigationDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Unsaved Changes</DialogTitle>            <DialogDescription>
-                You are in the middle of sharing an agent. Are you sure you want to leave?
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowNavigationDialog(false)
-                  handleNavigationCancel()
-                }}
-              >
-                Stay
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowNavigationDialog(false)
-                  handleNavigationConfirm()
-                }}
-              >
-                Leave
               </Button>
             </DialogFooter>
           </DialogContent>

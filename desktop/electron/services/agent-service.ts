@@ -51,8 +51,8 @@ class AgentService {
     try {
       const agents = await this.getAllAgents();
       const toolMap = new Map<number, { mcp_server_id: number; name: string; description: string; selectedTools: typeof mcp_server.$inferSelect['available_tools']; serverConfig: typeof mcp_server.$inferInsert['server_config'] }[]>();
-      const styleMap = new Map<number, { name: string; description?: string }[]>();
-      const toneMap = new Map<number, { name: string; description?: string }[]>();
+      const styleMap = new Map<number, { name: string; description?: string, style_key: string }[]>();
+      const toneMap = new Map<number, { name: string; description?: string, style_key: string }[]>();
 
       for (const agent of agents) {
         const mcpTools = await database()
@@ -76,8 +76,8 @@ class AgentService {
           serverConfig: tool.mcp_server?.server_config
         })).filter(tool => tool.selectedTools.length > 0));
 
-        styleMap.set(agent.id, styles?.filter(s => s.agent_style?.type == 'style').map(style => ({ name: style.agent_style!.name, description: style.agent_style?.description })) ?? [])
-        toneMap.set(agent.id, styles?.filter(s => s.agent_style?.type == 'tone').map(style => ({ name: style.agent_style!.name, description: style.agent_style?.description })) ?? [])
+        styleMap.set(agent.id, styles?.filter(s => s.agent_style?.type == 'style').map(style => ({ name: style.agent_style!.name, description: style.agent_style?.description, style_key: style.agent_style!.style_key })) ?? [])
+        toneMap.set(agent.id, styles?.filter(s => s.agent_style?.type == 'tone').map(style => ({ name: style.agent_style!.name, description: style.agent_style?.description, style_key: style.agent_style!.style_key })) ?? [])
       }
 
       return agents.map(agent => ({
@@ -227,7 +227,7 @@ class AgentService {
 
     const [updatedAgent] = await database()
       .update(agent)
-      .set({ name })
+      .set({ name, uploaded_status: existing_agent?.uploaded_status === 'local' ? 'local' : 'require_update' })
       .where(eq(agent.id, id))
       .returning();
 
@@ -246,9 +246,12 @@ class AgentService {
   }) {
     try {
       if (data.name != undefined || data.instruction != undefined || data.llmId != undefined) {
+        const existingAgent = await this.getAgentById(id);
+
         await database()
           .update(agent)
           .set({
+            uploaded_status: existingAgent?.uploaded_status === 'local' ? 'local' : 'require_update',
             ...(data.name != undefined ? {
               name: data.name
             } : {}),

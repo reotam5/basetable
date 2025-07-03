@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b25bc47e-fac7-4e09-8223-ff826a9f00c4",
+  "id": "a21997b0-f124-4c08-94ff-588b0ad725e0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "agent_style": {
@@ -13,6 +13,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "style_key": {
+          "name": "style_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "type": {
           "name": "type",
@@ -36,7 +43,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "agent_style_style_key_unique": {
+          "name": "agent_style_style_key_unique",
+          "columns": [
+            "style_key"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -111,6 +126,21 @@
           "notNull": true,
           "autoincrement": true
         },
+        "uploaded_id": {
+          "name": "uploaded_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "uploaded_status": {
+          "name": "uploaded_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'local'"
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -156,7 +186,15 @@
           "default": "(CURRENT_TIMESTAMP)"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "agent_uploaded_id_unique": {
+          "name": "agent_uploaded_id_unique",
+          "columns": [
+            "uploaded_id"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
         "agent_user_id_user_id_fk": {
           "name": "agent_user_id_user_id_fk",
