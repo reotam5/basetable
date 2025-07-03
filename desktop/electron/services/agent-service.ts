@@ -50,7 +50,7 @@ class AgentService {
   public async getAllAgentsWithTools() {
     try {
       const agents = await this.getAllAgents();
-      const toolMap = new Map<number, { mcp_server_id: number; name: string; description: string; selectedTools: typeof mcp_server.$inferSelect['available_tools'] }[]>();
+      const toolMap = new Map<number, { mcp_server_id: number; name: string; description: string; selectedTools: typeof mcp_server.$inferSelect['available_tools']; serverConfig: typeof mcp_server.$inferInsert['server_config'] }[]>();
       const styleMap = new Map<number, { name: string; description?: string }[]>();
       const toneMap = new Map<number, { name: string; description?: string }[]>();
 
@@ -73,6 +73,7 @@ class AgentService {
           name: tool.mcp_server!.name,
           description: tool.mcp_server!.description ?? "",
           selectedTools: tool.agent_to_mcp_server?.selected_tools?.map(toolId => tool.mcp_server!.available_tools!.find(t => t.id == toolId) ?? { id: "", name: "" }).filter(t => t.id) ?? [],
+          serverConfig: tool.mcp_server?.server_config
         })).filter(tool => tool.selectedTools.length > 0));
 
         styleMap.set(agent.id, styles?.filter(s => s.agent_style?.type == 'style').map(style => ({ name: style.agent_style!.name, description: style.agent_style?.description })) ?? [])

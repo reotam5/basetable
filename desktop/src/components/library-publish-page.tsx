@@ -1,39 +1,26 @@
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { use } from "@/hooks/use"
 import { useBlocker } from "@tanstack/react-router"
-import { Bot, Loader2, Plus, Search, Upload, X } from "lucide-react"
+import { Check, ChevronDown, ChevronUp, Loader2, Search, Share } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
-
-
-interface LibraryEntry {
-  title: string
-  description: string
-  agents: Awaited<ReturnType<typeof window.electronAPI.agent.getAllAgentsWithTools>>
-}
 
 export function LibraryPublishPage() {
   const { data: agents, isLoading } = use({
     fetcher: useCallback(() => window.electronAPI.agent.getAllAgentsWithTools(), [])
   })
 
-  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<number>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
-  const [libraryEntry, setLibraryEntry] = useState<LibraryEntry>({
-    title: '',
-    description: '',
-    agents: []
-  })
-  const [isPublishing, setIsPublishing] = useState(false)
-  const [newCapability, setNewCapability] = useState('')
-  const [capabilities, setCapabilities] = useState<Record<string, string[]>>({})
+  const [isSharing, setIsSharing] = useState(false)
+  const [sharedAgents, setSharedAgents] = useState<Set<number>>(new Set())
+  const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [isInstructionExpanded, setIsInstructionExpanded] = useState(false)
+  const [expandedMcpIndex, setExpandedMcpIndex] = useState<number | null>(null)
 
   // Track unsaved changes for navigation blocking
   const [hasChanges, setHasChanges] = useState(false)
@@ -64,95 +51,24 @@ export function LibraryPublishPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasChanges])
 
-  // Update hasChanges when form data changes
+  // Update hasChanges when dialog is open
   useEffect(() => {
-    const formHasData = !!(libraryEntry.title.trim() ||
-      libraryEntry.description.trim() ||
-      selectedAgentIds.size > 0 ||
-      Object.values(capabilities).flatMap(c => c).length > 0)
-    setHasChanges(formHasData)
-  }, [libraryEntry.title, libraryEntry.description, selectedAgentIds, capabilities])
+    setHasChanges(showShareDialog)
+  }, [showShareDialog])
 
-  const handleAgentSelection = (agentId: number, checked: boolean) => {
-    const newSelectedIds = new Set(selectedAgentIds)
-
-    if (checked) {
-      newSelectedIds.add(agentId)
-      const agent = availableAgents.find(a => a.id === agentId)
-      if (agent) {
-        setLibraryEntry(prev => ({
-          ...prev,
-          agents: [...prev.agents, agent],
-          title: agent.name.trim()
-        }))
-
-        for (const capability of generateAgentCapabilities(agent)) {
-          handleAddCapability(agentId.toString(), capability)
-        }
-      }
-    } else {
-      newSelectedIds.delete(agentId)
-      setLibraryEntry(prev => ({
-        ...prev,
-        agents: prev.agents.filter(a => a.id !== agentId)
-      }))
-      setCapabilities(prev => {
-        delete prev[agentId.toString()]
-        return {
-          ...prev,
-        }
-      })
-    }
-
-    setSelectedAgentIds(newSelectedIds)
+  const handleAgentSelect = (agentId: number) => {
+    setSelectedAgent(agentId)
+    setShowShareDialog(true)
+    setIsInstructionExpanded(false)
+    setExpandedMcpIndex(null)
   }
 
-  const handleAddCapability = (key: string, capability: string) => {
-    const trimmedCapability = capability.trim()
-    if (trimmedCapability) {
-      setCapabilities(prev => {
-        for (const capabilities of Object.values(prev)) {
-          if (capabilities.includes(trimmedCapability)) {
-            // If the capability already exists, skip adding
-            return prev
-          }
-        }
-
-        return {
-          ...prev,
-          [key]: [...(prev?.[key] || []), trimmedCapability]
-        }
-      })
-    }
+  const handleCloseDialog = () => {
+    setShowShareDialog(false)
+    setSelectedAgent(null)
+    setIsInstructionExpanded(false)
+    setExpandedMcpIndex(null)
   }
-
-  const handleRemoveCapability = (capability: string) => {
-    setCapabilities(prev => {
-      return Object.fromEntries(
-        Object.entries(prev).map(([key, caps]) => [
-          key,
-          caps.filter(c => c !== capability)
-        ])
-      )
-    })
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleAddCapability('custom', newCapability)
-      setNewCapability('')
-    }
-  }
-
-  // Update hasChanges when form data changes
-  useEffect(() => {
-    const formHasData = !!(libraryEntry.title.trim() ||
-      libraryEntry.description.trim() ||
-      selectedAgentIds.size > 0 ||
-      Object.values(capabilities).flatMap(c => c).length > 0)
-    setHasChanges(formHasData)
-  }, [libraryEntry.title, libraryEntry.description, selectedAgentIds, capabilities])
 
   const handleNavigationConfirm = () => {
     setHasChanges(false)
@@ -163,43 +79,32 @@ export function LibraryPublishPage() {
     reset?.()
   }
 
-  const handlePublish = async () => {
-    if (!libraryEntry.title.trim() || !libraryEntry.description.trim() || selectedAgentIds.size === 0) {
-      toast.error("Please fill in all required fields and select at least one agent")
-      return
-    }
+  const handleShare = async () => {
+    if (!selectedAgent) return
 
-    setIsPublishing(true)
+    setIsSharing(true)
     try {
-      // Simulate API call to publish to library
+      // Simulate API call to share to library
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      toast.success("Successfully published to library!", {
-        icon: <Upload className="h-4 w-4" />,
-        description: "Your agent collection is now available for others to use.",
+      const selectedAgentData = availableAgents.find(a => a.id === selectedAgent)
+
+      toast.success("Agent shared successfully!", {
+        description: `${selectedAgentData?.name} is now available in the community library.`,
       })
 
-      // Reset form
-      setSelectedAgentIds(new Set())
-      setLibraryEntry({
-        title: '',
-        description: '',
-        agents: []
-      })
-      setCapabilities({})
-      setNewCapability('')
-      setHasChanges(false) // Clear unsaved changes flag
+      // Mark agent as shared and close dialog
+      setSharedAgents(prev => new Set(prev).add(selectedAgent))
+      setSelectedAgent(null)
+      setShowShareDialog(false)
+      setHasChanges(false)
 
     } catch {
-      toast.error("Failed to publish to library")
+      toast.error("Failed to share agent")
     } finally {
-      setIsPublishing(false)
+      setIsSharing(false)
     }
   }
-
-  const isFormValid = libraryEntry.title.trim() &&
-    libraryEntry.description.trim() &&
-    selectedAgentIds.size > 0
 
   if (isLoading) {
     return (
@@ -212,270 +117,269 @@ export function LibraryPublishPage() {
     )
   }
 
-  const generateAgentCapabilities = (agent: LibraryEntry['agents'][number]): string[] => {
-    const capabilities: string[] = []
-
-    // Add capabilities based on MCP tools
-    if (agent.mcps && agent.mcps.length > 0) {
-      agent.mcps.forEach(mcp => {
-        if (mcp.selectedTools && mcp.selectedTools.length > 0) {
-          // Add specific tool capabilities
-          mcp.selectedTools.forEach(tool => {
-            if (tool.name && tool.description) {
-              // Create a more descriptive capability from tool name
-              const toolCapability = (mcp.name + ": " + tool.name)
-                .replace(/_/g, ' ')
-                .replace(/-/g, ' ')
-                .replace(/([A-Z])/g, ' $1')
-                .trim()
-                .toLowerCase()
-              capabilities.push(toolCapability)
-            }
-          })
-        }
-      })
-    }
-
-    return capabilities
-  }
-
   const availableAgents = agents?.filter(agent => !agent.is_main) || []
-
-  // Filter agents based on search term
   const filteredAgents = availableAgents.filter(agent =>
     agent.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
+  const selectedAgentData = selectedAgent ? availableAgents.find(a => a.id === selectedAgent) : null
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-64px)]">
-      <div className="flex-1 space-y-8 p-6 mx-auto max-w-5xl w-full flex flex-col">
+      <div className="flex-1 space-y-8 p-6 mx-auto max-w-5xl w-full">
         {/* Header */}
-        <div className="border-b pb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
-            Share Your Agent
+        <div className="pb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold">
+            Share Your Agents
           </h1>
           <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-            Share your agents with the community.
+            Choose an agent to share with the community.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+        {availableAgents.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <CardTitle className="text-lg font-medium mb-2">No agents available</CardTitle>
+              <CardDescription>Create some agents first to share them with the community</CardDescription>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search agents..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
 
-            {/* Agent Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Select Agents *</CardTitle>
-                <CardDescription>
-                  Choose the agents you want to include in your library entry.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {availableAgents.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No agents available to publish</p>
-                    <p className="text-sm">Create some agents first to add them to the library</p>
+            {/* Agent Table */}
+            {filteredAgents.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No agents found matching "{searchTerm}"</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Agent Name</TableHead>
+                    <TableHead>Instruction</TableHead>
+                    <TableHead>Tools</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAgents.map((agent) => {
+                    const isShared = sharedAgents.has(agent.id)
+
+                    return (
+                      <TableRow
+                        key={agent.id}
+                        className={`
+                          ${isShared
+                            ? 'bg-green-50 border-green-200'
+                            : 'cursor-pointer'
+                          }
+                        `}
+                        onClick={() => !isShared && handleAgentSelect(agent.id)}
+                      >
+                        <TableCell className="font-medium">{agent.name}</TableCell>
+                        <TableCell className="max-w-xs">
+                          <div className="truncate text-sm text-muted-foreground" title={agent.instruction}>
+                            {agent.instruction}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {agent.mcps?.length > 0 ? `${agent.mcps.length} tool${agent.mcps.length > 1 ? 's' : ''}` : 'None'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isShared ? (
+                            <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                              <Check className="h-4 w-4" />
+                              Shared
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={(e) => {
+                              e.stopPropagation()
+                              handleAgentSelect(agent.id)
+                            }}>
+                              <Share className="h-4 w-4 mr-2" />
+                              Share
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </>
+        )}
+
+        {/* Share Confirmation Dialog */}
+        <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+          <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle>
+                Share "{selectedAgentData?.name}"
+              </DialogTitle>
+              <DialogDescription>
+                This will make your agent available for others to download and use from the online library.
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedAgentData && (
+              <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+                {/* Agent Details */}
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Agent Name</span>
+                    <span className="text-sm font-medium">{selectedAgentData.name}</span>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Search Input */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        placeholder="Search agents..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
+                  {selectedAgentData.tones?.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Tone</span>
+                      <span className="text-sm font-medium">{selectedAgentData.tones?.[0]?.name}</span>
                     </div>
-
-                    {/* Agent List */}
-                    <div className="space-y-3">
-                      {filteredAgents.length === 0 ? (
-                        <div className="text-center py-4 text-muted-foreground">
-                          <p>No agents found matching "{searchTerm}"</p>
+                  )}
+                  {selectedAgentData.styles?.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Style</span>
+                      <span className="text-sm font-medium">{selectedAgentData.styles?.[0]?.name}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Instruction</span>
+                    <div className="text-sm font-medium max-w-xs text-right truncate whitespace-normal break-words">
+                      {selectedAgentData.instruction.length > 100 ? (
+                        <div className="space-y-2">
+                          <div>
+                            {isInstructionExpanded
+                              ? selectedAgentData.instruction
+                              : `${selectedAgentData.instruction.slice(0, 100)}...`
+                            }
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsInstructionExpanded(!isInstructionExpanded)}
+                            className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            {isInstructionExpanded ? (
+                              <>
+                                Show less <ChevronUp className="h-3 w-3 ml-1" />
+                              </>
+                            ) : (
+                              <>
+                                Show more <ChevronDown className="h-3 w-3 ml-1" />
+                              </>
+                            )}
+                          </Button>
                         </div>
                       ) : (
-                        filteredAgents.map((agent) => (
-                          <Label
-                            htmlFor={`agent-${agent.id}`}
-                            key={agent.id}
-                            className={`border rounded-lg p-4 transition-colors cursor-pointer ${selectedAgentIds.has(agent.id) ? 'bg-muted/50 border-primary/30' : 'hover:bg-muted/30'
-                              }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Checkbox
-                                id={`agent-${agent.id}`}
-                                checked={selectedAgentIds.has(agent.id)}
-                                onCheckedChange={(checked) => handleAgentSelection(agent.id, checked as boolean)}
-                              />
-                              <span className="font-medium">{agent.name}</span>
-                            </div>
-                          </Label>
-                        ))
+                        selectedAgentData.instruction
                       )}
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Library Entry Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Library Entry Details</CardTitle>
-                <CardDescription>
-                  Provide information about your agent collection that will be visible to other users.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    value={libraryEntry.title}
-                    onChange={(e) => setLibraryEntry(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="e.g., Development Team Assistant"
-                    className="w-full"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
-                  <Textarea
-                    id="description"
-                    value={libraryEntry.description}
-                    onChange={(e) => setLibraryEntry(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe what your agent collection does and how it can help users..."
-                    className="w-full h-24"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-          </div>
-
-          {/* Sidebar */}
-          <div className="flex flex-col">
-            {/* Capabilities */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Capabilities</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col">
-                {/* Add custom capability */}
-                <div className="space-y-2">
-                  <Label htmlFor="new-capability" className="text-xs text-muted-foreground">
-                    Add capability
-                  </Label>
-                  <div className="flex gap-2 items-center">
-                    <Input
-                      id="new-capability"
-                      value={newCapability}
-                      onChange={(e) => setNewCapability(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="e.g., data analysis"
-                      className="text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        handleAddCapability('custom', newCapability)
-                        setNewCapability('')
-                      }}
-                      disabled={!newCapability.trim()}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-
-                {Object.values(capabilities).flatMap(c => c).length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-6">
-                    {Object.values(capabilities).flatMap(c => c).map((capability) => (
-                      <Badge key={capability} variant="outline" className="text-xs group relative pr-6 whitespace-normal">
-                        {capability}
-                        <button
-                          onClick={() => handleRemoveCapability(capability)}
-                          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-80 hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        {/* Action buttons */}
-        {
-          (libraryEntry.title.trim() || libraryEntry.description.trim() || selectedAgentIds.size > 0)
-          && (
-            <div className="sticky bottom-4 flex justify-between items-center px-4 py-3 mx-3 rounded-lg bg-background shadow-md border animate-in slide-in-from-bottom duration-300 fade-in">
-              <h2 className="text-base font-medium">
-                {isPublishing ? "Publishing your agent collection..." :
-                  !isFormValid ? (
-                    `Missing field: ${[
-                      !libraryEntry.title.trim() ? "Title" : "",
-                      !libraryEntry.description.trim() ? "Description" : "",
-                      selectedAgentIds.size === 0 ? "Agent Selection" : "",
-                    ].filter(t => t).join(", ")}`
-                  ) : "Ready to publish to library!"}
-              </h2>
-              <div className="flex items-center gap-3">
-                {(libraryEntry.title.trim() || libraryEntry.description.trim() || selectedAgentIds.size > 0) && (
-                  <Button
-                    variant='ghost'
-                    className="text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                    onClick={() => {
-                      setSelectedAgentIds(new Set())
-                      setLibraryEntry({
-                        title: '',
-                        description: '',
-                        agents: []
-                      })
-                      setCapabilities({})
-                      setNewCapability('')
-                      setHasChanges(false) // Clear unsaved changes flag
-                    }}
-                  >
-                    Reset
-                  </Button>
-                )}
-                <Button
-                  variant='default'
-                  onClick={handlePublish}
-                  disabled={!isFormValid || isPublishing}
-                  className="flex items-center"
-                >
-                  {isPublishing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Publishing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Publish to Library
-                    </>
+                  {selectedAgentData.mcps && selectedAgentData.mcps.length > 0 && (
+                    <div>
+                      <span className="text-sm text-muted-foreground block mb-2">Available Tools</span>
+                      <div className="">
+                        {selectedAgentData.mcps.map((mcp, index) => (
+                          <div key={index}>
+                            <div className="flex items-center justify-between py-2">
+                              <span className="text-sm font-medium">{mcp.name}</span>
+                              {mcp.serverConfig && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setExpandedMcpIndex(expandedMcpIndex === index ? null : index)}
+                                  className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  {expandedMcpIndex === index ? (
+                                    <>
+                                      Hide details <ChevronUp className="h-3 w-3 ml-1" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      Show details <ChevronDown className="h-3 w-3 ml-1" />
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            {mcp.serverConfig && expandedMcpIndex === index && (
+                              <div className="ml-4 pb-2 space-y-3 border-l-2 border-muted pl-4">
+                                <div className="text-xs">
+                                  <span className="font-medium text-muted-foreground">Command:</span>
+                                  <div className="mt-1 p-2 bg-muted/50 rounded text-xs font-mono">
+                                    {mcp.serverConfig.command}
+                                  </div>
+                                </div>
+                                {mcp.serverConfig.args && mcp.serverConfig.args.length > 0 && (
+                                  <div className="text-xs">
+                                    <span className="font-medium text-muted-foreground">Arguments:</span>
+                                    <div className="mt-1 p-2 bg-muted/50 rounded text-xs font-mono">
+                                      {mcp.serverConfig.args.join(' ')}
+                                    </div>
+                                  </div>
+                                )}
+                                {mcp.serverConfig.env && Object.keys(mcp.serverConfig.env).length > 0 && (
+                                  <div className="text-xs">
+                                    <span className="font-medium text-muted-foreground">Environment Variables:</span>
+                                    <div className="mt-1 space-y-1">
+                                      {Object.entries(mcp.serverConfig.env).map(([key, value]) => (
+                                        <div key={key} className="p-2 bg-muted/50 rounded text-xs font-mono">
+                                          <span className="text-blue-600">{key}</span>: <span>{value}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </Button>
+                </div>
               </div>
-            </div>
-          )
-        }
+            )}
+
+            <DialogFooter className="flex-shrink-0 mt-4">
+              <Button variant="outline" onClick={handleCloseDialog}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleShare}
+                disabled={isSharing}
+              >
+                {isSharing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sharing...
+                  </>
+                ) : (
+                  <>
+                    Share
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Navigation Confirmation Dialog */}
         <Dialog open={showNavigationDialog} onOpenChange={setShowNavigationDialog}>
-          <DialogContent className="sm:max-w-[420px]">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Unsaved Changes</DialogTitle>
-              <DialogDescription>
-                You have unsaved changes. Are you sure you want to leave this page?
+              <DialogTitle>Unsaved Changes</DialogTitle>            <DialogDescription>
+                You are in the middle of sharing an agent. Are you sure you want to leave?
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -485,18 +389,16 @@ export function LibraryPublishPage() {
                   setShowNavigationDialog(false)
                   handleNavigationCancel()
                 }}
-                className="w-full sm:w-auto"
               >
-                Stay on Page
+                Stay
               </Button>
               <Button
                 onClick={() => {
                   setShowNavigationDialog(false)
                   handleNavigationConfirm()
                 }}
-                className="w-full sm:w-auto"
               >
-                Leave Page
+                Leave
               </Button>
             </DialogFooter>
           </DialogContent>

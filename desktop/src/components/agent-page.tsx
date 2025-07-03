@@ -767,7 +767,8 @@ export function AgentPage() {
                   instruction: e.target.value
                 })
               }}
-              className="min-h-[350px] font-mono text-sm resize-y"
+              className="min-h-[350px] w-full font-mono text-sm resize-y break-words"
+              style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
               placeholder="Enter detailed instructions for your agent..."
             />
           </div>
