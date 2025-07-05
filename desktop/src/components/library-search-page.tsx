@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { use } from "@/hooks/use"
-import { Bot, Download, Search } from "lucide-react"
+import { Bot, Download, Loader2, Search } from "lucide-react"
 import { useEffect, useState } from "react"
 
 
@@ -21,17 +21,74 @@ export function LibrarySearchPage() {
 
   const [selectedAgent, setSelectedAgent] = useState<NonNullable<typeof agents>[number] | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isInstalling, setIsInstalling] = useState(false)
+  const [installError, setInstallError] = useState<string | null>(null)
 
   const handleAgentClick = (agent: NonNullable<typeof agents>[number]) => {
     setSelectedAgent(agent)
     setIsDialogOpen(true)
+    setInstallError(null) // Clear any previous errors
   }
 
   const handleInstall = async (agent: NonNullable<typeof agents>[number]) => {
-    // Mock install functionality
-    console.log(`Installing agent ${agent.id}`)
-    // In real implementation, this would call the API
-    setIsDialogOpen(false)
+    setIsInstalling(true)
+    setInstallError(null)
+
+    try {
+      // Install MCP servers if any
+      const installedMcpServers: { [serverId: number]: string[] } = {}
+
+      if (agent.mcp && agent.mcp.length > 0) {
+        for (const mcpTool of agent.mcp) {
+          try {
+            const mcpServer = await window.electronAPI.mcp.createNewMcp({
+              server_config: {
+                command: mcpTool.command,
+                args: mcpTool.arguments || [],
+                env: mcpTool.env || {}
+              }
+            })
+
+            if (mcpServer) {
+              // Get available tools for this server and add them all
+              const allServers = await window.electronAPI.mcp.getAll()
+              const server = allServers.find(s => s.id === mcpServer.id)
+              if (server?.available_tools) {
+                installedMcpServers[mcpServer.id] = server.available_tools.map(tool => tool.id)
+              }
+            }
+          } catch (mcpError) {
+            console.error(`Failed to install MCP server:`, mcpError)
+            throw new Error(`Failed to install MCP server: ${mcpError instanceof Error ? mcpError.message : 'Unknown error'}`)
+          }
+        }
+      }
+
+      // Get style IDs if available
+      const styles: number[] = []
+      if (agent.comm_preferences?.tone?.id) {
+        styles.push(agent.comm_preferences.tone.id)
+      }
+      if (agent.comm_preferences?.style?.id) {
+        styles.push(agent.comm_preferences.style.id)
+      }
+
+      // Create the agent
+      await window.electronAPI.agent.create({
+        name: agent.name,
+        instruction: agent.system_prompt || '',
+        llmId: agent.model.id,
+        mcpTools: installedMcpServers,
+        styles: styles.length > 0 ? styles : undefined
+      })
+
+      setIsDialogOpen(false)
+      // You might want to show a success message or redirect here
+    } catch (error) {
+      setInstallError(error instanceof Error ? error.message : 'Unknown error occurred')
+    } finally {
+      setIsInstalling(false)
+    }
   }
 
   // Update localStorage and URL when search query changes
@@ -182,6 +239,26 @@ export function LibrarySearchPage() {
               </DialogHeader>
 
               <div className="space-y-6">
+                {/* Error Display */}
+                {installError && (
+                  <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-800">Installation Failed</h3>
+                        <p className="text-sm text-red-700 mt-1">{installError}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setInstallError(null)}
+                        className="h-auto p-1 text-red-600 hover:text-red-800"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Agent Details */}
                 <div className="space-y-4">
                   {/* Model and Tools Info */}
@@ -262,9 +339,22 @@ export function LibrarySearchPage() {
 
                 {/* Install Button */}
                 <div className="flex justify-end pt-4 border-t">
-                  <Button size="lg" onClick={() => handleInstall(selectedAgent)}>
-                    <Download className="h-5 w-5 mr-2" />
-                    Install Agent
+                  <Button
+                    size="lg"
+                    onClick={() => handleInstall(selectedAgent)}
+                    disabled={isInstalling}
+                  >
+                    {isInstalling ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Installing...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-5 w-5 mr-2" />
+                        Install Agent
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

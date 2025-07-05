@@ -164,6 +164,20 @@ class MCPService {
   @event('mcp.createNew', 'handle')
   public async createNewMCP(data: Omit<typeof mcp_server.$inferInsert, 'type' | 'user_id' | 'is_installed' | 'is_active' | 'name'>) {
     try {
+      const existingMCPs = await database()
+        .select()
+        .from(mcp_server)
+        .where(and(
+          eq(mcp_server.user_id, AuthHandler.profile!.sub),
+          eq(mcp_server.server_config, data.server_config!),
+        ));
+
+      if (existingMCPs.length > 0) {
+        await this.installMCP(existingMCPs[0].id);
+        await this.setActiveState(existingMCPs[0].id, true);
+        return existingMCPs[0];
+      }
+
       const [newMCP] = await database()
         .insert(mcp_server)
         .values({

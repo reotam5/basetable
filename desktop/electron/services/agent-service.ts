@@ -136,6 +136,7 @@ class AgentService {
 
   @event('agent.create', 'handle')
   public async createAgent(data: {
+    name?: string;
     instruction: string;
     llmId: number;
     mcpTools?: { [serverId: number]: string[] };
@@ -145,7 +146,7 @@ class AgentService {
       const [newAgent] = await database()
         .insert(agent)
         .values({
-          name: ``,
+          name: data.name ?? ``,
           instruction: data.instruction,
           llm_id: data.llmId,
           user_id: AuthHandler.profile!.sub,
@@ -183,7 +184,9 @@ class AgentService {
           ])
       }
 
-      this.updateAgentName(newAgent.id);
+      if (!data.name) {
+        this.updateAgentName(newAgent.id);
+      }
 
       return newAgent;
     } catch (error) {
