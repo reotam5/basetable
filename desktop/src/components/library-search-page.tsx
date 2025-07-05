@@ -1,73 +1,15 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Bot, Search, Download } from "lucide-react"
+import { use } from "@/hooks/use"
+import { Bot, Download, Search } from "lucide-react"
 import { useEffect, useState } from "react"
 
-interface LibraryAgent {
-  id: number
-  name: string
-  description: string
-  capabilities: string[]
-  author: string
-  createdAt: string
-}
-
-// Mock data for demonstration
-const mockLibraryAgents: LibraryAgent[] = [
-  {
-    id: 1,
-    name: "Development Team Assistant",
-    description: "A comprehensive agent collection for software development teams. Includes code review, documentation generation, and project management capabilities.",
-    capabilities: ["code review", "documentation", "project management", "git operations"],
-    author: "DevTeam Pro",
-    createdAt: "2024-01-15"
-  },
-  {
-    id: 2,
-    name: "Data Analysis Toolkit",
-    description: "Powerful data analysis and visualization agents for data scientists and analysts. Includes statistical analysis, chart generation, and data cleaning tools.",
-    capabilities: ["data analysis", "visualization", "statistics", "data cleaning"],
-    author: "DataViz Studio",
-    createdAt: "2024-02-03"
-  },
-  {
-    id: 3,
-    name: "Content Creator Suite",
-    description: "AI-powered content creation agents for marketers and creators. Generate social media posts, blog articles, and marketing copy with ease.",
-    capabilities: ["content generation", "social media", "copywriting", "seo optimization"],
-    author: "Creative AI Labs",
-    createdAt: "2024-01-28"
-  },
-  {
-    id: 4,
-    name: "Financial Advisor Pro",
-    description: "Comprehensive financial analysis and advisory agents. Portfolio analysis, risk assessment, and investment recommendations.",
-    capabilities: ["portfolio analysis", "risk assessment", "financial planning", "market research"],
-    author: "FinTech Solutions",
-    createdAt: "2024-02-12"
-  },
-  {
-    id: 5,
-    name: "Research Assistant",
-    description: "Academic and business research agents with citation management, literature review, and report generation capabilities.",
-    capabilities: ["literature review", "citation management", "report generation", "web research"],
-    author: "Academic Tools Inc",
-    createdAt: "2024-01-20"
-  },
-  {
-    id: 6,
-    name: "Customer Service Hub",
-    description: "Complete customer service solution with ticket management, FAQ generation, and customer communication agents.",
-    capabilities: ["ticket management", "faq generation", "customer communication", "sentiment analysis"],
-    author: "ServicePro Team",
-    createdAt: "2024-02-01"
-  }
-]
 
 export function LibrarySearchPage() {
+  const { data: agents } = use({ fetcher: window.electronAPI.library.getAll })
   const [searchQuery, setSearchQuery] = useState(() => {
     // Initialize from localStorage or URL params
     if (typeof window !== 'undefined') {
@@ -77,15 +19,15 @@ export function LibrarySearchPage() {
     return ''
   })
 
-  const [selectedAgent, setSelectedAgent] = useState<LibraryAgent | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<NonNullable<typeof agents>[number] | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const handleAgentClick = (agent: LibraryAgent) => {
+  const handleAgentClick = (agent: NonNullable<typeof agents>[number]) => {
     setSelectedAgent(agent)
     setIsDialogOpen(true)
   }
 
-  const handleInstall = async (agent: LibraryAgent) => {
+  const handleInstall = async (agent: NonNullable<typeof agents>[number]) => {
     // Mock install functionality
     console.log(`Installing agent ${agent.id}`)
     // In real implementation, this would call the API
@@ -110,14 +52,16 @@ export function LibrarySearchPage() {
   }, [searchQuery])
 
   // Filter agents based on search query
-  const filteredAgents = mockLibraryAgents.filter(agent => {
-    const matchesSearch = agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.capabilities.some(cap => cap.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      agent.author.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredAgents = agents?.filter(agent => {
+    const searchLower = searchQuery.toLowerCase()
+    const matchesSearch =
+      agent.name.toLowerCase().includes(searchLower) ||
+      agent.system_prompt?.toLowerCase().includes(searchLower) ||
+      agent.comm_preferences?.tone?.name?.toLowerCase().includes(searchLower) ||
+      agent.comm_preferences?.style?.name?.toLowerCase().includes(searchLower)
 
     return matchesSearch
-  })
+  }) ?? []
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-64px)]">
@@ -135,13 +79,13 @@ export function LibrarySearchPage() {
 
         {/* Search */}
         <div className="space-y-4">
-          <div className="relative max-w-md">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search agents..."
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
 
@@ -154,9 +98,9 @@ export function LibrarySearchPage() {
         {/* Agent Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredAgents.map(agent => (
-            <Card 
+            <Card
               key={agent.id}
-              className="hover:shadow-md transition-shadow h-64 flex flex-col cursor-pointer"
+              className="hover:shadow-md transition-shadow flex flex-col cursor-pointer gap-0"
               onClick={() => handleAgentClick(agent)}
             >
               <CardHeader className="pb-3 flex-shrink-0">
@@ -164,28 +108,41 @@ export function LibrarySearchPage() {
                   <div className="p-2 bg-primary/10 rounded-lg">
                     <Bot className="h-5 w-5 text-primary" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <CardTitle className="text-lg">{agent.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">by {agent.author}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {agent.model?.display_name || 'Unknown Model'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col">
-                <CardDescription className="text-sm leading-relaxed line-clamp-3 flex-shrink-0">
-                  {agent.description}
-                </CardDescription>
+              <CardContent className="pt-0 flex-1">
+                <div className="space-y-3">
+                  {/* System Prompt Preview */}
+                  {agent.system_prompt && (
+                    <div className="h-[60px]">
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {agent.system_prompt}
+                      </p>
+                    </div>
+                  )}
 
-                {/* Capabilities */}
-                <div className="flex flex-wrap gap-1 flex-shrink-0 min-h-[24px]">
-                  {agent.capabilities.slice(0, 2).map(capability => (
-                    <Badge key={capability} variant="outline" className="text-xs">
-                      {capability}
-                    </Badge>
-                  ))}
-                  {agent.capabilities.length > 2 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{agent.capabilities.length - 2} more
-                    </Badge>
+                  {/* Communication Preferences */}
+                  {(agent.comm_preferences?.tone || agent.comm_preferences?.style) && (
+                    <div className="flex gap-2 flex-wrap">
+                      {agent.comm_preferences.tone && (
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {agent.comm_preferences.tone?.name}
+                        </Badge>
+                      )}
+                      {agent.comm_preferences.style && (
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {agent.comm_preferences.style?.name}
+                        </Badge>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -216,29 +173,91 @@ export function LibrarySearchPage() {
           {selectedAgent && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-xl">{selectedAgent.name}</DialogTitle>
-                <DialogDescription>
-                  Published by {selectedAgent.author} on {new Date(selectedAgent.createdAt).toLocaleDateString()}
-                </DialogDescription>
+                <DialogTitle className="text-xl flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Bot className="h-6 w-6 text-primary" />
+                  </div>
+                  {selectedAgent.name}
+                </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-6">
-                {/* Description */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Description</h3>
-                  <p className="text-sm leading-relaxed">{selectedAgent.description}</p>
-                </div>
-
-                {/* Capabilities */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Capabilities</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedAgent.capabilities.map(capability => (
-                      <Badge key={capability} variant="outline" className="text-sm py-1 px-3">
-                        {capability}
-                      </Badge>
-                    ))}
+                {/* Agent Details */}
+                <div className="space-y-4">
+                  {/* Model and Tools Info */}
+                  <div className="flex gap-2 flex-wrap">
+                    <Badge variant="secondary">
+                      {selectedAgent.model?.display_name || 'Unknown Model'}
+                    </Badge>
                   </div>
+
+                  {/* Communication Preferences */}
+                  {(selectedAgent.comm_preferences?.tone || selectedAgent.comm_preferences?.style) && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Communication Style</h4>
+                      <div className="flex gap-2 flex-wrap">
+                        {selectedAgent.comm_preferences.tone && (
+                          <Badge variant="outline" className="capitalize">
+                            Tone: {selectedAgent.comm_preferences.tone?.name}
+                          </Badge>
+                        )}
+                        {selectedAgent.comm_preferences.style && (
+                          <Badge variant="outline" className="capitalize">
+                            Style: {selectedAgent.comm_preferences.style?.name}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* System Prompt */}
+                  {selectedAgent.system_prompt && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">System Prompt</h4>
+                      <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                        {selectedAgent.system_prompt}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Available Tools */}
+                  {selectedAgent.mcp && selectedAgent.mcp.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Available Tools</h4>
+                      <div className="space-y-3">
+                        {selectedAgent.mcp.map((tool, index) => (
+                          <div key={index} className="border rounded-lg p-3 space-y-2">
+                            <div>
+                              <span className="text-xs text-muted-foreground">Command:</span>
+                              <div className="mt-1 p-2 bg-muted/50 rounded text-xs font-mono">
+                                {tool.command}
+                              </div>
+                            </div>
+                            {tool.arguments && tool.arguments.length > 0 && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Arguments:</span>
+                                <div className="mt-1 p-2 bg-muted/50 rounded text-xs font-mono">
+                                  {tool.arguments.join(' ')}
+                                </div>
+                              </div>
+                            )}
+                            {tool.env && Object.keys(tool.env).length > 0 && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Environment Variables:</span>
+                                <div className="mt-1 space-y-1">
+                                  {Object.entries(tool.env).map(([key, value]) => (
+                                    <div key={key} className="p-2 bg-muted/50 rounded text-xs font-mono">
+                                      <span className="text-blue-600">{key}</span>: {value}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Install Button */}

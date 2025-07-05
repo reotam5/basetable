@@ -144,6 +144,7 @@ const electronAPI = {
   },
   library: {
     create: (...args: Parameters<typeof LibraryService.createLibraryEntry>) => handler.invoke("library.create", ...args) as ReturnType<typeof LibraryService.createLibraryEntry>,
+    getAll: () => handler.invoke("library.getAll") as ReturnType<typeof LibraryService.getAllLibraryEntries>,
   },
   llm: {
     getAll: () => handler.invoke("llm.getAll") as ReturnType<typeof LLMService.getLLMs>,
