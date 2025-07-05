@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { use } from "@/hooks/use"
 import { Bot, Download, Loader2, Search } from "lucide-react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 
 export function LibrarySearchPage() {
@@ -82,10 +83,23 @@ export function LibrarySearchPage() {
         styles: styles.length > 0 ? styles : undefined
       })
 
+      // Show success toast
+      toast("Agent installed", {
+        icon: <Download className="h-4 w-4" />,
+        description: `Successfully installed "${agent.name}" agent.`,
+      })
+
       setIsDialogOpen(false)
       // You might want to show a success message or redirect here
     } catch (error) {
-      setInstallError(error instanceof Error ? error.message : 'Unknown error occurred')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      setInstallError(errorMessage)
+      
+      // Show error toast
+      toast("Installation failed", {
+        icon: <Bot className="h-4 w-4" />,
+        description: errorMessage,
+      })
     } finally {
       setIsInstalling(false)
     }
