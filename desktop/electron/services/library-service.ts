@@ -10,13 +10,16 @@ import { AgentService } from "./agent-service.js";
 
 @service
 class LibraryService {
-
-  @event('library.create', 'handle')
-  async createLibraryEntry(input: Awaited<ReturnType<typeof AgentService.getAllAgentsWithTools>>[number]) {
+  @event("library.create", "handle")
+  async createLibraryEntry(
+    input: Awaited<
+      ReturnType<typeof AgentService.getAllAgentsWithTools>
+    >[number],
+  ) {
     const [llm_model] = await database()
       .select()
       .from(llm)
-      .where(eq(llm.id, input.llm_id))
+      .where(eq(llm.id, input.llm_id));
 
     const data = {
       name: input.name,
@@ -26,59 +29,59 @@ class LibraryService {
         style: input.styles?.[0]?.style_key ?? null,
       },
       system_prompt: input.instruction,
-      mcp: input.mcps?.map(mcp => ({
+      mcp: input.mcps?.map((mcp) => ({
         command: mcp.serverConfig?.command,
         arguments: mcp.serverConfig?.args,
         env: mcp.serverConfig?.env,
-      }))
-    }
-    const result = await api.post('/v1/library/agents', data);
+        selected_tools: mcp.selectedTools?.map((tool) => tool.name),
+      })),
+    };
+    const result = await api.post("/v1/library/agents", data);
 
     // update agent uploaded_id
     await database()
       .update(agent)
-      .set({ uploaded_id: result.data.agent_id, uploaded_status: 'uploaded' })
+      .set({ uploaded_id: result.data.agent_id, uploaded_status: "uploaded" })
       .where(eq(agent.id, input.id));
   }
 
-  @event('library.getAll', 'handle')
+  @event("library.getAll", "handle")
   async getAllLibraryEntries() {
     try {
-      const response = await api.get('/v1/library/agents');
-      const llms = await database()
-        .select()
-        .from(llm)
+      const response = await api.get("/v1/library/agents");
+      const llms = await database().select().from(llm);
 
-      const styles = await database()
-        .select()
-        .from(agent_style)
+      const styles = await database().select().from(agent_style);
 
-
-      return response.data.agents?.map((
-        agent: {
-          "id": string,
-          "name": string,
-          "model": string,
-          "mcp":
-          {
-            "command": string,
-            "arguments": string[],
-            "env": Record<string, string>
-          }[],
-          "system_prompt": string,
-          "comm_preferences": {
-            "tone": string,
-            "style": string
-          }
-        }
-      ) => ({
-        ...agent,
-        model: llms.find(llm => llm.model === agent.model),
-        comm_preferences: {
-          tone: styles.find(style => style.style_key === agent.comm_preferences?.tone),
-          style: styles.find(style => style.style_key === agent.comm_preferences?.style),
-        }
-      })) as {
+      return response.data.agents?.map(
+        (agent: {
+          id: string;
+          name: string;
+          model: string;
+          mcp: {
+            command: string;
+            arguments: string[];
+            env: Record<string, string>;
+            selected_tools: string[];
+          }[];
+          system_prompt: string;
+          comm_preferences: {
+            tone: string;
+            style: string;
+          };
+        }) => ({
+          ...agent,
+          model: llms.find((llm) => llm.model === agent.model),
+          comm_preferences: {
+            tone: styles.find(
+              (style) => style.style_key === agent.comm_preferences?.tone,
+            ),
+            style: styles.find(
+              (style) => style.style_key === agent.comm_preferences?.style,
+            ),
+          },
+        }),
+      ) as {
         id: string;
         name: string;
         model: typeof llm.$inferSelect;
@@ -86,6 +89,7 @@ class LibraryService {
           command: string;
           arguments: string[];
           env: Record<string, string>;
+          selected_tools: string[];
         }[];
         system_prompt: string;
         comm_preferences: {
@@ -94,7 +98,7 @@ class LibraryService {
         };
       }[];
     } catch (error) {
-      Logger.error('Error fetching library entries:', error);
+      Logger.error("Error fetching library entries:", error);
       throw error;
     }
   }

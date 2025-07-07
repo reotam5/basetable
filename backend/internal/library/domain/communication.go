@@ -60,6 +60,7 @@ func NewCommunicationPreferencesFromStrings(tone, style string) (CommunicationPr
 		CommunicationToneTechnical,
 		CommunicationToneCreative,
 		CommunicationToneConcise,
+		"",
 	}
 
 	validStyles := []CommunicationStyle{
@@ -69,6 +70,7 @@ func NewCommunicationPreferencesFromStrings(tone, style string) (CommunicationPr
 		CommunicationStyleConversational,
 		CommunicationStyleAnalytical,
 		CommunicationStyleStoryTelling,
+		"",
 	}
 
 	if !slices.Contains(validTones, CommunicationTone(normalizedTone)) {

@@ -7,7 +7,12 @@ type MCPSettings struct {
 	selectedTools []string
 }
 
-func NewMCPSettings(command string, arguments []string, env map[string]string, selectedTools []string) MCPSettings {
+func NewMCPSettings(
+	command string,
+	arguments []string,
+	env map[string]string,
+	selectedTools []string,
+) MCPSettings {
 	return MCPSettings{
 		command:       command,
 		arguments:     arguments,
