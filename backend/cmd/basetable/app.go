@@ -279,6 +279,7 @@ func setupRoutes(httpServer *httpserver.Server, controllers *Controllers) {
 		router.Route("/library", func(router httpserver.Router) {
 			router.Post("/agents", controllers.Library.AddAgent)
 			router.Get("/agents", controllers.Library.ListAgents)
+			router.Delete("/agents/{agentID}", controllers.Library.RemoveAgent)
 		})
 
 	})

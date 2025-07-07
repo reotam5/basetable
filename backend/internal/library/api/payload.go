@@ -26,9 +26,10 @@ type Agent struct {
 }
 
 type MCPSettings struct {
-	Command   string            `json:"command"`
-	Arguments []string          `json:"arguments"`
-	Env       map[string]string `json:"env"`
+	Command       string            `json:"command"`
+	Arguments     []string          `json:"arguments"`
+	Env           map[string]string `json:"env"`
+	SelectedTools []string          `json:"selected_tools"`
 }
 
 type CommunicationPreferences struct {

@@ -1,16 +1,18 @@
 package domain
 
 type MCPSettings struct {
-	command   string
-	arguments []string
-	env       map[string]string
+	command       string
+	arguments     []string
+	env           map[string]string
+	selectedTools []string
 }
 
-func NewMCPSettings(command string, arguments []string, env map[string]string) MCPSettings {
+func NewMCPSettings(command string, arguments []string, env map[string]string, selectedTools []string) MCPSettings {
 	return MCPSettings{
-		command:   command,
-		arguments: arguments,
-		env:       env,
+		command:       command,
+		arguments:     arguments,
+		env:           env,
+		selectedTools: selectedTools,
 	}
 }
 
@@ -24,4 +26,8 @@ func (m MCPSettings) Arguments() []string {
 
 func (m MCPSettings) Env() map[string]string {
 	return m.env
+}
+
+func (m MCPSettings) SelectedTools() []string {
+	return m.selectedTools
 }

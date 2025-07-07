@@ -58,3 +58,9 @@ func (r *AgentRepository) GetAll(ctx context.Context) ([]*domain.Agent, error) {
 
 	return agents, nil
 }
+
+func (r *AgentRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).
+		Where("id = ?", id).
+		Delete(&AgentModel{}).Error
+}

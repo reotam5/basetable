@@ -7,11 +7,13 @@ import (
 	app "github.com/basetable/basetable/backend/internal/library/application"
 	hutil "github.com/basetable/basetable/backend/internal/shared/api/httputil"
 	"github.com/basetable/basetable/backend/internal/shared/log"
+	"github.com/go-chi/chi"
 )
 
 type LibraryController interface {
 	AddAgent(w http.ResponseWriter, r *http.Request)
 	ListAgents(w http.ResponseWriter, r *http.Request)
+	RemoveAgent(w http.ResponseWriter, r *http.Request)
 }
 
 type libraryController struct {
@@ -69,6 +71,22 @@ func (c *libraryController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (c *libraryController) RemoveAgent(w http.ResponseWriter, r *http.Request) {
+	agentId := chi.URLParam(r, "agentID")
+	err := c.libraryService.RemoveAgent(r.Context(), app.RemoveAgentRequest{
+		AgentID: agentId,
+	})
+
+	if err != nil {
+		c.logger.Errorf("Failed to remove agent %v", err)
+		hutil.WriteJSONErrorResponse(w, r, hutil.NewInternalError(err))
+		return
+	}
+
+	c.logger.Infof("Successfully removed agent: %v", agentId)
+	hutil.WriteJSONResponse(w, r, struct{}{})
+}
+
 func convertAgentDTOToPayload(agent app.Agent) Agent {
 	return Agent{
 		ID:           agent.ID,
@@ -100,9 +118,10 @@ func convertMCPSettingsDTOToPayload(mcpSettings []app.MCPSettings) []MCPSettings
 	payloadMCPSettings := make([]MCPSettings, len(mcpSettings))
 	for i, mcpSetting := range mcpSettings {
 		payloadMCPSettings[i] = MCPSettings{
-			Command:   mcpSetting.Command,
-			Arguments: mcpSetting.Arguments,
-			Env:       mcpSetting.Env,
+			Command:       mcpSetting.Command,
+			Arguments:     mcpSetting.Arguments,
+			Env:           mcpSetting.Env,
+			SelectedTools: mcpSetting.SelectedTools,
 		}
 	}
 	return payloadMCPSettings
@@ -112,9 +131,10 @@ func convertPayloadMCPSettingsToDTO(payloadMCPSettings []MCPSettings) []app.MCPS
 	dtoMCPSettings := make([]app.MCPSettings, len(payloadMCPSettings))
 	for i, mcpSetting := range payloadMCPSettings {
 		dtoMCPSettings[i] = app.MCPSettings{
-			Command:   mcpSetting.Command,
-			Arguments: mcpSetting.Arguments,
-			Env:       mcpSetting.Env,
+			Command:       mcpSetting.Command,
+			Arguments:     mcpSetting.Arguments,
+			Env:           mcpSetting.Env,
+			SelectedTools: mcpSetting.SelectedTools,
 		}
 	}
 	return dtoMCPSettings

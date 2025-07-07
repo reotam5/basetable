@@ -12,9 +12,10 @@ import (
 type MCPSettingsJSON []MCPSettingsData
 
 type MCPSettingsData struct {
-	Command   string            `json:"command"`
-	Arguments []string          `json:"arguments"`
-	Env       map[string]string `json:"env"`
+	Command       string            `json:"command"`
+	Arguments     []string          `json:"arguments"`
+	Env           map[string]string `json:"env"`
+	SelectedTools []string          `json:"selected_tools"`
 }
 
 func (m MCPSettingsJSON) Value() (driver.Value, error) {
@@ -29,7 +30,7 @@ func (m *MCPSettingsJSON) Scan(value any) error {
 		*m = make(MCPSettingsJSON, 0)
 		return nil
 	}
-	
+
 	switch v := value.(type) {
 	case []byte:
 		return json.Unmarshal(v, m)
@@ -42,15 +43,15 @@ func (m *MCPSettingsJSON) Scan(value any) error {
 
 // AgentModel represents the GORM model for agents
 type AgentModel struct {
-	ID           string              `gorm:"primaryKey;column:id"`
-	Name         string              `gorm:"column:name"`
-	Model        string              `gorm:"column:model"`
-	MCP          MCPSettingsJSON     `gorm:"column:mcp;type:json"`
-	SystemPrompt string              `gorm:"column:system_prompt;type:text"`
-	CommTone     string              `gorm:"column:comm_tone"`
-	CommStyle    string              `gorm:"column:comm_style"`
-	CreatedAt    time.Time           `gorm:"column:created_at"`
-	UpdatedAt    time.Time           `gorm:"column:updated_at"`
+	ID           string          `gorm:"primaryKey;column:id"`
+	Name         string          `gorm:"column:name"`
+	Model        string          `gorm:"column:model"`
+	MCP          MCPSettingsJSON `gorm:"column:mcp;type:json"`
+	SystemPrompt string          `gorm:"column:system_prompt;type:text"`
+	CommTone     string          `gorm:"column:comm_tone"`
+	CommStyle    string          `gorm:"column:comm_style"`
+	CreatedAt    time.Time       `gorm:"column:created_at"`
+	UpdatedAt    time.Time       `gorm:"column:updated_at"`
 }
 
 func (m *AgentModel) TableName() string {
@@ -66,6 +67,7 @@ func (m *AgentModel) MapToDomain() (*domain.Agent, error) {
 			mcpData.Command,
 			mcpData.Arguments,
 			mcpData.Env,
+			mcpData.SelectedTools,
 		)
 	}
 
@@ -97,9 +99,10 @@ func MapDomainToModel(a *domain.Agent) *AgentModel {
 	mcpData := make(MCPSettingsJSON, len(a.MCP()))
 	for i, mcp := range a.MCP() {
 		mcpData[i] = MCPSettingsData{
-			Command:   mcp.Command(),
-			Arguments: mcp.Arguments(),
-			Env:       mcp.Env(),
+			Command:       mcp.Command(),
+			Arguments:     mcp.Arguments(),
+			Env:           mcp.Env(),
+			SelectedTools: mcp.SelectedTools(),
 		}
 	}
 

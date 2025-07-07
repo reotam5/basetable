@@ -9,6 +9,7 @@ import (
 type LibraryService interface {
 	AddAgent(ctx context.Context, request ShareAgentRequest) (*ShareAgentResponse, error)
 	ListAgents(ctx context.Context, request ListAgentsRequest) (*ListAgentsResponse, error)
+	RemoveAgent(ctx context.Context, request RemoveAgentRequest) error
 }
 
 type libraryService struct {
@@ -65,6 +66,10 @@ func (s *libraryService) ListAgents(ctx context.Context, request ListAgentsReque
 	}, nil
 }
 
+func (s libraryService) RemoveAgent(ctx context.Context, request RemoveAgentRequest) error {
+	return s.agentRepostiroy.Delete(ctx, request.AgentID)
+}
+
 func (s libraryService) mapDomainToDTO(agent *domain.Agent) Agent {
 	return Agent{
 		ID:           agent.ID().String(),
@@ -83,9 +88,10 @@ func (s libraryService) mapDomainToDTOMCPSettings(mcps []domain.MCPSettings) []M
 	dtoMCPSettings := make([]MCPSettings, len(mcps))
 	for i, mcp := range mcps {
 		dtoMCPSettings[i] = MCPSettings{
-			Command:   mcp.Command(),
-			Arguments: mcp.Arguments(),
-			Env:       mcp.Env(),
+			Command:       mcp.Command(),
+			Arguments:     mcp.Arguments(),
+			Env:           mcp.Env(),
+			SelectedTools: mcp.SelectedTools(),
 		}
 	}
 	return dtoMCPSettings
@@ -94,7 +100,7 @@ func (s libraryService) mapDomainToDTOMCPSettings(mcps []domain.MCPSettings) []M
 func (s libraryService) mapMCPSettingsDTOtoDomain(dto []MCPSettings) []domain.MCPSettings {
 	mcps := make([]domain.MCPSettings, len(dto))
 	for i, mcp := range dto {
-		mcps[i] = domain.NewMCPSettings(mcp.Command, mcp.Arguments, mcp.Env)
+		mcps[i] = domain.NewMCPSettings(mcp.Command, mcp.Arguments, mcp.Env, mcp.SelectedTools)
 	}
 	return mcps
 }

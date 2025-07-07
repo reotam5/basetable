@@ -10,9 +10,10 @@ type Agent struct {
 }
 
 type MCPSettings struct {
-	Command   string
-	Arguments []string
-	Env       map[string]string
+	Command       string
+	Arguments     []string
+	Env           map[string]string
+	SelectedTools []string
 }
 
 type CommunicationPreferences struct {
@@ -42,4 +43,8 @@ type ListAgentsRequest struct {
 
 type ListAgentsResponse struct {
 	Agents []Agent
+}
+
+type RemoveAgentRequest struct {
+	AgentID string
 }
