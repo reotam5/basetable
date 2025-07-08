@@ -141,6 +141,7 @@ class AgentService {
     llmId: number;
     mcpTools?: { [serverId: number]: string[] };
     styles?: number[];
+    uploaded_status?: typeof agent.$inferInsert['uploaded_status'];
   }) {
     try {
       const [newAgent] = await database()
@@ -151,6 +152,7 @@ class AgentService {
           llm_id: data.llmId,
           user_id: AuthHandler.profile!.sub,
           is_main: false,
+          uploaded_status: data.uploaded_status ?? 'local'
         })
         .returning();
 
@@ -230,7 +232,7 @@ class AgentService {
 
     const [updatedAgent] = await database()
       .update(agent)
-      .set({ name, uploaded_status: existing_agent?.uploaded_status === 'local' ? 'local' : 'require_update' })
+      .set({ name, uploaded_status: existing_agent?.uploaded_status === 'local' || existing_agent?.uploaded_status === 'downloaded' ? existing_agent.uploaded_status : 'require_update' })
       .where(eq(agent.id, id))
       .returning();
 
@@ -254,7 +256,7 @@ class AgentService {
         await database()
           .update(agent)
           .set({
-            uploaded_status: existingAgent?.uploaded_status === 'local' ? 'local' : 'require_update',
+            uploaded_status: existingAgent?.uploaded_status === 'local' || existingAgent?.uploaded_status === 'downloaded' ? existingAgent.uploaded_status : 'require_update',
             ...(data.name != undefined ? {
               name: data.name
             } : {}),

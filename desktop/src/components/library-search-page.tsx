@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -32,23 +33,150 @@ export function LibrarySearchPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [showPlaceholderDialog, setShowPlaceholderDialog] = useState(false);
+  const [placeholderValues, setPlaceholderValues] = useState<{ [key: string]: string }>({});
+  const [agentWithPlaceholders, setAgentWithPlaceholders] = useState<NonNullable<typeof agents>[number] | null>(null);
+
+  const detectPlaceholders = (agent: NonNullable<typeof agents>[number]) => {
+    const placeholders: { key: string, description: string, type: 'arg' | 'env', mcpName: string }[] = []
+
+    if (agent.mcp && agent.mcp.length > 0) {
+      agent.mcp.forEach((mcpTool, mcpIndex) => {
+        // Check arguments for placeholders
+        if (mcpTool.arguments) {
+          mcpTool.arguments.forEach((arg, argIndex) => {
+            const match = arg.match(/\{\{PLACEHOLDER_ARG_(\d+)_(\d+):?(.*?)\}\}/)
+            if (match) {
+              const description = match[3] || `Argument ${argIndex + 1}`
+              placeholders.push({
+                key: `ARG_${mcpIndex}_${argIndex}`,
+                description: description,
+                type: 'arg',
+                mcpName: mcpTool.command
+              })
+            }
+          })
+        }
+
+        // Check environment variables for placeholders
+        if (mcpTool.env) {
+          Object.entries(mcpTool.env).forEach(([envKey, envValue]) => {
+            const match = String(envValue).match(/\{\{PLACEHOLDER_ENV_(\d+)_(.+?):?(.*?)\}\}/)
+            if (match) {
+              const description = match[3] || envKey
+              placeholders.push({
+                key: `ENV_${mcpIndex}_${envKey}`,
+                description: description,
+                type: 'env',
+                mcpName: mcpTool.command
+              })
+            }
+          })
+        }
+      })
+    }
+
+    return placeholders
+  }
+
+  const resolvePlaceholders = (agent: NonNullable<typeof agents>[number], values: { [key: string]: string }) => {
+    const resolvedAgent = JSON.parse(JSON.stringify(agent)) // Deep clone
+
+    if (resolvedAgent.mcp && resolvedAgent.mcp.length > 0) {
+      resolvedAgent.mcp.forEach((mcpTool: any, mcpIndex: number) => {
+        // Resolve argument placeholders
+        if (mcpTool.arguments) {
+          mcpTool.arguments = mcpTool.arguments.map((arg: string, argIndex: number) => {
+            const match = arg.match(/\{\{PLACEHOLDER_ARG_(\d+)_(\d+):?(.*?)\}\}/)
+            if (match) {
+              const key = `ARG_${mcpIndex}_${argIndex}`
+              return values[key] || "" // Use provided value or empty string
+            }
+            return arg
+          })
+        }
+
+        // Resolve environment variable placeholders
+        if (mcpTool.env) {
+          Object.keys(mcpTool.env).forEach(envKey => {
+            const envValue = mcpTool.env[envKey]
+            const match = String(envValue).match(/\{\{PLACEHOLDER_ENV_(\d+)_(.+?):?(.*?)\}\}/)
+            if (match) {
+              const key = `ENV_${mcpIndex}_${envKey}`
+              mcpTool.env[envKey] = values[key] || "" // Use provided value or empty string
+            }
+          })
+        }
+      })
+    }
+
+    return resolvedAgent
+  }
+
+  const formatDisplayValue = (value: string) => {
+    // Replace placeholder patterns with user-friendly text
+    const argMatch = value.match(/\{\{PLACEHOLDER_ARG_\d+_\d+:?(.*?)\}\}/)
+    if (argMatch) {
+      const description = argMatch[1] || "value"
+      return `[Placeholder - ${description}]`
+    }
+    const envMatch = value.match(/\{\{PLACEHOLDER_ENV_\d+_.+?:?(.*?)\}\}/)
+    if (envMatch) {
+      const description = envMatch[1] || "value"
+      return `[Placeholder - ${description}]`
+    }
+    return value
+  }
 
   const handleAgentClick = (agent: NonNullable<typeof agents>[number]) => {
     setSelectedAgent(agent);
     setIsDialogOpen(true);
     setInstallError(null); // Clear any previous errors
+
+    // Check if agent has placeholders
+    const placeholders = detectPlaceholders(agent)
+    if (placeholders.length > 0) {
+      setAgentWithPlaceholders(agent)
+      // Initialize placeholder values as empty
+      const initialValues: { [key: string]: string } = {}
+      placeholders.forEach(placeholder => {
+        initialValues[placeholder.key] = ""
+      })
+      setPlaceholderValues(initialValues)
+    } else {
+      setAgentWithPlaceholders(null)
+      setPlaceholderValues({})
+    }
   };
 
   const handleInstall = async (agent: NonNullable<typeof agents>[number]) => {
+    // Check if agent has placeholders and show configuration dialog first
+    const placeholders = detectPlaceholders(agent)
+    if (placeholders.length > 0) {
+      setAgentWithPlaceholders(agent)
+      setShowPlaceholderDialog(true)
+      return
+    }
+
+    // Proceed with installation
+    await performInstallation(agent)
+  }
+
+  const performInstallation = async (agent: NonNullable<typeof agents>[number]) => {
     setIsInstalling(true);
     setInstallError(null);
 
     try {
+      // Resolve placeholders if any
+      const resolvedAgent = agentWithPlaceholders && Object.keys(placeholderValues).length > 0
+        ? resolvePlaceholders(agent, placeholderValues)
+        : agent
+
       // Install MCP servers if any
       const installedMcpServers: { [serverId: number]: string[] } = {};
 
-      if (agent.mcp && agent.mcp.length > 0) {
-        for (const mcpTool of agent.mcp) {
+      if (resolvedAgent.mcp && resolvedAgent.mcp.length > 0) {
+        for (const mcpTool of resolvedAgent.mcp) {
           try {
             const mcpServer = await window.electronAPI.mcp.createNewMcp({
               server_config: {
@@ -72,29 +200,33 @@ export function LibrarySearchPage() {
 
       // Get style IDs if available
       const styles: number[] = [];
-      if (agent.comm_preferences?.tone?.id) {
-        styles.push(agent.comm_preferences.tone.id);
+      if (resolvedAgent.comm_preferences?.tone?.id) {
+        styles.push(resolvedAgent.comm_preferences.tone.id);
       }
-      if (agent.comm_preferences?.style?.id) {
-        styles.push(agent.comm_preferences.style.id);
+      if (resolvedAgent.comm_preferences?.style?.id) {
+        styles.push(resolvedAgent.comm_preferences.style.id);
       }
 
       // Create the agent
       await window.electronAPI.agent.create({
-        name: agent.name,
-        instruction: agent.system_prompt || "",
-        llmId: agent.model.id,
+        name: resolvedAgent.name,
+        instruction: resolvedAgent.system_prompt || "",
+        llmId: resolvedAgent.model.id,
         mcpTools: installedMcpServers,
         styles: styles.length > 0 ? styles : undefined,
+        uploaded_status: 'downloaded'
       });
 
       // Show success toast
       toast("Agent installed", {
         icon: <Download className="h-4 w-4" />,
-        description: `Successfully installed "${agent.name}" agent.`,
+        description: `Successfully installed "${resolvedAgent.name}" agent.`,
       });
 
       setIsDialogOpen(false);
+      setShowPlaceholderDialog(false);
+      setAgentWithPlaceholders(null);
+      setPlaceholderValues({});
       // You might want to show a success message or redirect here
     } catch (error) {
       const errorMessage =
@@ -110,6 +242,11 @@ export function LibrarySearchPage() {
       setIsInstalling(false);
     }
   };
+
+  const handlePlaceholderInstall = async () => {
+    if (!agentWithPlaceholders) return
+    await performInstallation(agentWithPlaceholders)
+  }
 
   // Update localStorage and URL when search query changes
   useEffect(() => {
@@ -359,8 +496,12 @@ export function LibrarySearchPage() {
                                 <span className="text-xs text-muted-foreground">
                                   Arguments:
                                 </span>
-                                <div className="mt-1 p-2 bg-muted/50 rounded text-xs font-mono">
-                                  {tool.arguments.join(" ")}
+                                <div className="mt-1 space-y-1">
+                                  {tool.arguments.map((arg, argIndex) => (
+                                    <div key={argIndex} className="p-2 bg-muted/50 rounded text-xs font-mono">
+                                      {formatDisplayValue(arg)}
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -379,7 +520,7 @@ export function LibrarySearchPage() {
                                         <span className="text-blue-600">
                                           {key}
                                         </span>
-                                        : {value}
+                                        : {formatDisplayValue(String(value))}
                                       </div>
                                     ),
                                   )}
@@ -416,6 +557,68 @@ export function LibrarySearchPage() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Placeholder Configuration Dialog */}
+      <Dialog open={showPlaceholderDialog} onOpenChange={setShowPlaceholderDialog}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Configure Installation</DialogTitle>
+            <DialogDescription>
+              This agent requires some configuration values. Please review and customize the values below.
+            </DialogDescription>
+          </DialogHeader>
+
+          {agentWithPlaceholders && (
+            <div className="space-y-6">
+              {detectPlaceholders(agentWithPlaceholders).map((placeholder) => (
+                <div key={placeholder.key} className="space-y-2">
+                  <label className="text-sm font-medium">
+                    <span className="text-muted-foreground">{placeholder.mcpName}</span> - {placeholder.description}
+                    {placeholder.type === 'env' && <span className="text-xs text-muted-foreground ml-1">(Environment Variable)</span>}
+                    {placeholder.type === 'arg' && <span className="text-xs text-muted-foreground ml-1">(Command Argument)</span>}
+                  </label>
+                  <Input
+                    value={placeholderValues[placeholder.key] || ""}
+                    onChange={(e) => setPlaceholderValues(prev => ({
+                      ...prev,
+                      [placeholder.key]: e.target.value
+                    }))}
+                    placeholder={placeholder.description ? `Enter ${placeholder.description.toLowerCase()}...` : `Enter value...`}
+                    className="font-mono text-sm"
+                  />
+                  {placeholder.description && placeholder.description !== `Argument ${placeholder.key.split('_')[2]}` && placeholder.description !== placeholder.key.split('_')[2] && (
+                    <p className="text-xs text-muted-foreground">
+                      {placeholder.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowPlaceholderDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePlaceholderInstall}
+              disabled={isInstalling}
+            >
+              {isInstalling ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Installing...
+                </>
+              ) : (
+                <>
+                  <Download className="h-5 w-5 mr-2" />
+                  Install Agent
+                </>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

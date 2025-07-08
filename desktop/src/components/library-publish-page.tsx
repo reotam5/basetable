@@ -10,7 +10,7 @@ import { toast } from "sonner"
 
 export function LibraryPublishPage() {
   const { data: agents, isLoading, refetch } = use({
-    fetcher: useCallback(() => window.electronAPI.agent.getAllAgentsWithTools(), [])
+    fetcher: useCallback(async () => (await window.electronAPI.agent.getAllAgentsWithTools())?.filter(a => a.uploaded_status !== 'downloaded'), [])
   })
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -19,12 +19,41 @@ export function LibraryPublishPage() {
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [isInstructionExpanded, setIsInstructionExpanded] = useState(false)
   const [expandedMcpIndex, setExpandedMcpIndex] = useState<number | null>(null)
+  const [placeholderConfigs, setPlaceholderConfigs] = useState<{
+    [mcpIndex: number]: {
+      args: Set<number>,
+      env: Set<string>,
+      argDescriptions: { [argIndex: number]: string },
+      envDescriptions: { [envKey: string]: string }
+    }
+  }>({})
 
   const handleAgentSelect = (agentId: number) => {
     setSelectedAgent(agentId)
     setShowShareDialog(true)
     setIsInstructionExpanded(false)
     setExpandedMcpIndex(null)
+    // Initialize placeholder configs for this agent's MCP servers
+    const selectedAgentData = availableAgents.find(a => a.id === agentId)
+    if (selectedAgentData?.mcps && selectedAgentData.mcps.length > 0) {
+      const initialConfigs: {
+        [mcpIndex: number]: {
+          args: Set<number>,
+          env: Set<string>,
+          argDescriptions: { [argIndex: number]: string },
+          envDescriptions: { [envKey: string]: string }
+        }
+      } = {}
+      selectedAgentData.mcps.forEach((_, index) => {
+        initialConfigs[index] = {
+          args: new Set(),
+          env: new Set(),
+          argDescriptions: {},
+          envDescriptions: {}
+        }
+      })
+      setPlaceholderConfigs(initialConfigs)
+    }
   }
 
   const handleCloseDialog = () => {
@@ -32,6 +61,144 @@ export function LibraryPublishPage() {
     setSelectedAgent(null)
     setIsInstructionExpanded(false)
     setExpandedMcpIndex(null)
+    setPlaceholderConfigs({})
+  }
+
+  const toggleArgPlaceholder = (mcpIndex: number, argIndex: number) => {
+    setPlaceholderConfigs(prev => {
+      const newConfigs = { ...prev }
+      if (!newConfigs[mcpIndex]) {
+        newConfigs[mcpIndex] = {
+          args: new Set(),
+          env: new Set(),
+          argDescriptions: {},
+          envDescriptions: {}
+        }
+      }
+
+      const newArgs = new Set(newConfigs[mcpIndex].args)
+      if (newArgs.has(argIndex)) {
+        newArgs.delete(argIndex)
+        // Remove description when unchecking
+        const newArgDescriptions = { ...newConfigs[mcpIndex].argDescriptions }
+        delete newArgDescriptions[argIndex]
+        newConfigs[mcpIndex] = {
+          ...newConfigs[mcpIndex],
+          args: newArgs,
+          argDescriptions: newArgDescriptions
+        }
+      } else {
+        newArgs.add(argIndex)
+        newConfigs[mcpIndex] = { ...newConfigs[mcpIndex], args: newArgs }
+      }
+
+      return newConfigs
+    })
+  }
+
+  const toggleEnvPlaceholder = (mcpIndex: number, envKey: string) => {
+    setPlaceholderConfigs(prev => {
+      const newConfigs = { ...prev }
+      if (!newConfigs[mcpIndex]) {
+        newConfigs[mcpIndex] = {
+          args: new Set(),
+          env: new Set(),
+          argDescriptions: {},
+          envDescriptions: {}
+        }
+      }
+
+      const newEnv = new Set(newConfigs[mcpIndex].env)
+      if (newEnv.has(envKey)) {
+        newEnv.delete(envKey)
+        // Remove description when unchecking
+        const newEnvDescriptions = { ...newConfigs[mcpIndex].envDescriptions }
+        delete newEnvDescriptions[envKey]
+        newConfigs[mcpIndex] = {
+          ...newConfigs[mcpIndex],
+          env: newEnv,
+          envDescriptions: newEnvDescriptions
+        }
+      } else {
+        newEnv.add(envKey)
+        newConfigs[mcpIndex] = { ...newConfigs[mcpIndex], env: newEnv }
+      }
+
+      return newConfigs
+    })
+  }
+
+  const updateArgDescription = (mcpIndex: number, argIndex: number, description: string) => {
+    setPlaceholderConfigs(prev => {
+      const newConfigs = { ...prev }
+      if (!newConfigs[mcpIndex]) return prev
+
+      newConfigs[mcpIndex] = {
+        ...newConfigs[mcpIndex],
+        argDescriptions: {
+          ...newConfigs[mcpIndex].argDescriptions,
+          [argIndex]: description
+        }
+      }
+      return newConfigs
+    })
+  }
+
+  const updateEnvDescription = (mcpIndex: number, envKey: string, description: string) => {
+    setPlaceholderConfigs(prev => {
+      const newConfigs = { ...prev }
+      if (!newConfigs[mcpIndex]) return prev
+
+      newConfigs[mcpIndex] = {
+        ...newConfigs[mcpIndex],
+        envDescriptions: {
+          ...newConfigs[mcpIndex].envDescriptions,
+          [envKey]: description
+        }
+      }
+      return newConfigs
+    })
+  }
+
+  const createPlaceholderConfig = (agentData: any) => {
+    if (!agentData.mcps || agentData.mcps.length === 0) return agentData
+
+    // Create a copy with placeholders applied
+    const agentWithPlaceholders = { ...agentData }
+    agentWithPlaceholders.mcps = agentData.mcps.map((mcp: any, mcpIndex: number) => {
+      const placeholderConfig = placeholderConfigs[mcpIndex]
+      if (!placeholderConfig) return mcp
+
+      const mcpCopy = { ...mcp }
+
+      // Apply placeholders to args
+      if (mcp.serverConfig?.args && placeholderConfig.args.size > 0) {
+        mcpCopy.serverConfig = { ...mcp.serverConfig }
+        mcpCopy.serverConfig.args = mcp.serverConfig.args.map((arg: string, argIndex: number) => {
+          if (placeholderConfig.args.has(argIndex)) {
+            const description = placeholderConfig.argDescriptions[argIndex] || ""
+            return `{{PLACEHOLDER_ARG_${mcpIndex}_${argIndex}:${description}}}`
+          }
+          return arg
+        })
+      }
+
+      // Apply placeholders to env
+      if (mcp.serverConfig?.env && placeholderConfig.env.size > 0) {
+        mcpCopy.serverConfig = { ...mcpCopy.serverConfig }
+        mcpCopy.serverConfig.env = { ...mcp.serverConfig.env }
+        for (const envKey of placeholderConfig.env) {
+          if (mcp.serverConfig.env[envKey] !== undefined) {
+            const description = placeholderConfig.envDescriptions[envKey] || ""
+            mcpCopy.serverConfig.env[envKey] = `{{PLACEHOLDER_ENV_${mcpIndex}_${envKey}:${description}}}`
+          }
+        }
+      }
+
+      return mcpCopy
+    })
+
+    return agentWithPlaceholders
   }
 
   const handleShare = async () => {
@@ -40,8 +207,11 @@ export function LibraryPublishPage() {
 
     setIsSharing(true)
     try {
+      // Create agent config with placeholders
+      const agentWithPlaceholders = createPlaceholderConfig(selectedAgentData)
+
       // Simulate API call to share to library
-      await window.electronAPI.library.create(selectedAgentData)
+      await window.electronAPI.library.create(agentWithPlaceholders)
 
       toast.success("Agent shared successfully!", {
         description: `${selectedAgentData?.name} is now available in the community library.`,
@@ -271,8 +441,36 @@ export function LibraryPublishPage() {
                                 {mcp.serverConfig.args && mcp.serverConfig.args.length > 0 && (
                                   <div className="text-xs">
                                     <span className="font-medium text-muted-foreground">Arguments:</span>
-                                    <div className="mt-1 p-2 bg-muted/50 rounded text-xs font-mono">
-                                      {mcp.serverConfig.args.join(' ')}
+                                    <div className="mt-1 space-y-1">
+                                      {mcp.serverConfig.args.map((arg: string, argIndex: number) => (
+                                        <div key={argIndex} className="space-y-2">
+                                          <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                            <code className="text-xs flex-1">{arg}</code>
+                                            <label className="flex items-center gap-1 cursor-pointer ml-2">
+                                              <input
+                                                type="checkbox"
+                                                checked={placeholderConfigs[index]?.args?.has(argIndex) || false}
+                                                onChange={() => toggleArgPlaceholder(index, argIndex)}
+                                                className="rounded text-xs"
+                                              />
+                                              <span className="text-xs text-muted-foreground">Placeholder</span>
+                                            </label>
+                                          </div>
+                                          {placeholderConfigs[index]?.args?.has(argIndex) && (
+                                            <div className="ml-4 p-2 bg-blue-50 border border-blue-200 rounded">
+                                              <label className="text-xs font-medium text-blue-800 block mb-1">
+                                                Description for users:
+                                              </label>
+                                              <Input
+                                                value={placeholderConfigs[index]?.argDescriptions?.[argIndex] || ""}
+                                                onChange={(e) => updateArgDescription(index, argIndex, e.target.value)}
+                                                placeholder="e.g., Path to your documents folder"
+                                                className="text-xs h-7"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
                                 )}
@@ -281,8 +479,34 @@ export function LibraryPublishPage() {
                                     <span className="font-medium text-muted-foreground">Environment Variables:</span>
                                     <div className="mt-1 space-y-1">
                                       {Object.entries(mcp.serverConfig.env).map(([key, value]) => (
-                                        <div key={key} className="p-2 bg-muted/50 rounded text-xs font-mono">
-                                          <span className="text-blue-600">{key}</span>: <span>{value}</span>
+                                        <div key={key} className="space-y-2">
+                                          <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                            <code className="text-xs flex-1">
+                                              <span className="text-blue-600">{key}</span>: <span>{value}</span>
+                                            </code>
+                                            <label className="flex items-center gap-1 cursor-pointer ml-2">
+                                              <input
+                                                type="checkbox"
+                                                checked={placeholderConfigs[index]?.env?.has(key) || false}
+                                                onChange={() => toggleEnvPlaceholder(index, key)}
+                                                className="rounded text-xs"
+                                              />
+                                              <span className="text-xs text-muted-foreground">Placeholder</span>
+                                            </label>
+                                          </div>
+                                          {placeholderConfigs[index]?.env?.has(key) && (
+                                            <div className="ml-4 p-2 bg-blue-50 border border-blue-200 rounded">
+                                              <label className="text-xs font-medium text-blue-800 block mb-1">
+                                                Description for users:
+                                              </label>
+                                              <Input
+                                                value={placeholderConfigs[index]?.envDescriptions?.[key] || ""}
+                                                onChange={(e) => updateEnvDescription(index, key, e.target.value)}
+                                                placeholder="e.g., Your API key from the service"
+                                                className="text-xs h-7"
+                                              />
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
