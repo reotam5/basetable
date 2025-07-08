@@ -9,13 +9,12 @@ import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
 export function LibraryPublishPage() {
-  const { data: agents, isLoading } = use({
+  const { data: agents, isLoading, refetch } = use({
     fetcher: useCallback(() => window.electronAPI.agent.getAllAgentsWithTools(), [])
   })
 
   const [searchTerm, setSearchTerm] = useState('')
   const [isSharing, setIsSharing] = useState(false)
-  const [sharedAgents, setSharedAgents] = useState<Set<number>>(new Set())
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [isInstructionExpanded, setIsInstructionExpanded] = useState(false)
@@ -49,7 +48,7 @@ export function LibraryPublishPage() {
       })
 
       // Mark agent as shared and close dialog
-      setSharedAgents(prev => new Set(prev).add(selectedAgent))
+      await refetch()
       setSelectedAgent(null)
       setShowShareDialog(false)
 
@@ -127,18 +126,13 @@ export function LibraryPublishPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredAgents.map((agent) => {
-                    const isShared = sharedAgents.has(agent.id)
+                    const isShared = agent.uploaded_status === 'uploaded'
 
                     return (
                       <TableRow
                         key={agent.id}
-                        className={`
-                          ${isShared
-                            ? 'bg-green-50 border-green-200'
-                            : 'cursor-pointer'
-                          }
-                        `}
-                        onClick={() => !isShared && handleAgentSelect(agent.id)}
+                        className={`cursor-pointer`}
+                        onClick={() => handleAgentSelect(agent.id)}
                       >
                         <TableCell className="font-medium">{agent.name}</TableCell>
                         <TableCell className="max-w-xs">
@@ -151,7 +145,7 @@ export function LibraryPublishPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {isShared ? (
-                            <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                            <div className="flex items-center justify-end gap-1 text-green-600 text-sm font-medium">
                               <Check className="h-4 w-4" />
                               Shared
                             </div>
@@ -309,21 +303,25 @@ export function LibraryPublishPage() {
               <Button variant="outline" onClick={handleCloseDialog}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleShare}
-                disabled={isSharing}
-              >
-                {isSharing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sharing...
-                  </>
-                ) : (
-                  <>
-                    Share
-                  </>
-                )}
-              </Button>
+              {
+                selectedAgentData?.uploaded_status !== 'uploaded' && (
+                  <Button
+                    onClick={handleShare}
+                    disabled={isSharing}
+                  >
+                    {isSharing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sharing...
+                      </>
+                    ) : (
+                      <>
+                        Share
+                      </>
+                    )}
+                  </Button>
+                )
+              }
             </DialogFooter>
           </DialogContent>
         </Dialog>
