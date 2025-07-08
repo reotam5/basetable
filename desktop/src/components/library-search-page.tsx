@@ -59,14 +59,7 @@ export function LibrarySearchPage() {
             });
 
             if (mcpServer) {
-              // Get available tools for this server and add them all
-              const allServers = await window.electronAPI.mcp.getAll();
-              const server = allServers.find((s) => s.id === mcpServer.id);
-              if (server?.available_tools) {
-                installedMcpServers[mcpServer.id] = server.available_tools.map(
-                  (tool) => tool.id,
-                );
-              }
+              installedMcpServers[mcpServer.id] = mcpTool.selected_tools
             }
           } catch (mcpError) {
             console.error(`Failed to install MCP server:`, mcpError);
@@ -223,19 +216,19 @@ export function LibrarySearchPage() {
                   {/* Communication Preferences */}
                   {(agent.comm_preferences?.tone ||
                     agent.comm_preferences?.style) && (
-                    <div className="flex gap-2 flex-wrap">
-                      {agent.comm_preferences.tone && (
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {agent.comm_preferences.tone?.name}
-                        </Badge>
-                      )}
-                      {agent.comm_preferences.style && (
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {agent.comm_preferences.style?.name}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
+                      <div className="flex gap-2 flex-wrap">
+                        {agent.comm_preferences.tone && (
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {agent.comm_preferences.tone?.name}
+                          </Badge>
+                        )}
+                        {agent.comm_preferences.style && (
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {agent.comm_preferences.style?.name}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                 </div>
               </CardContent>
             </Card>
@@ -310,24 +303,24 @@ export function LibrarySearchPage() {
                   {/* Communication Preferences */}
                   {(selectedAgent.comm_preferences?.tone ||
                     selectedAgent.comm_preferences?.style) && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">
-                        Communication Style
-                      </h4>
-                      <div className="flex gap-2 flex-wrap">
-                        {selectedAgent.comm_preferences.tone && (
-                          <Badge variant="outline" className="capitalize">
-                            Tone: {selectedAgent.comm_preferences.tone?.name}
-                          </Badge>
-                        )}
-                        {selectedAgent.comm_preferences.style && (
-                          <Badge variant="outline" className="capitalize">
-                            Style: {selectedAgent.comm_preferences.style?.name}
-                          </Badge>
-                        )}
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">
+                          Communication Style
+                        </h4>
+                        <div className="flex gap-2 flex-wrap">
+                          {selectedAgent.comm_preferences.tone && (
+                            <Badge variant="outline" className="capitalize">
+                              Tone: {selectedAgent.comm_preferences.tone?.name}
+                            </Badge>
+                          )}
+                          {selectedAgent.comm_preferences.style && (
+                            <Badge variant="outline" className="capitalize">
+                              Style: {selectedAgent.comm_preferences.style?.name}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* System Prompt */}
                   {selectedAgent.system_prompt && (
