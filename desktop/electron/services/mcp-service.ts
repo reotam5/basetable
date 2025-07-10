@@ -182,7 +182,7 @@ class MCPService {
         .insert(mcp_server)
         .values({
           ...data,
-          name: 'New MCP',
+          name: '',
           type: 'custom',
           user_id: AuthHandler.profile!.sub,
           is_installed: true,

@@ -85,8 +85,10 @@ class McpClientRegistry {
       return;
     }
 
-    const mcpName = client.getVersion()?.name;
-    await MCPService.updateMcpName(mcpServerId, mcpName!);
+    if (!db_mcp?.name) {
+      const mcpName = client.getVersion()?.name;
+      await MCPService.updateMcpName(mcpServerId, mcpName!);
+    }
 
     const tools = await client.listTools();
     await MCPService.updateAvailableTools(mcpServerId, tools?.map(t => ({
