@@ -2,13 +2,31 @@
 
 A comprehensive AI-powered workspace platform with integrated local and remote LLM capabilities, Model Context Protocol (MCP) support, and multi-platform deployment options.
 
-# Demo
+## Demo
+
+### Video Demo
+
+Watch how local LLM models use MCP server to interact with your terminal:
 
 https://github.com/user-attachments/assets/c7ca0636-b16c-4b56-9fcf-77e5d6aaa35c
-<img width="1280" height="1048" alt="settings1" src="https://github.com/user-attachments/assets/502b5a03-d91f-4662-926f-c657d6dd1b1a" />
-<img width="1280" height="1046" alt="settings2" src="https://github.com/user-attachments/assets/bc443951-5501-43c1-9297-4a9bb9995018" />
-<img width="1281" height="1052" alt="settings3" src="https://github.com/user-attachments/assets/0205050b-d711-4ace-8efb-76050548310a" />
-<img width="1281" height="1048" alt="agent" src="https://github.com/user-attachments/assets/ea27d8e7-083e-4a1a-8a52-5bf418ca3bbd" />
+
+### UI Design Showcase
+
+<div align="center">
+  
+  **Settings Interface**
+  
+  <img width="1280" alt="Settings View 1" src="https://github.com/user-attachments/assets/502b5a03-d91f-4662-926f-c657d6dd1b1a" />
+  
+  <img width="1280" alt="Settings View 2" src="https://github.com/user-attachments/assets/bc443951-5501-43c1-9297-4a9bb9995018" />
+  
+  <img width="1280" alt="Settings View 3" src="https://github.com/user-attachments/assets/0205050b-d711-4ace-8efb-76050548310a" />
+  
+  **AI Agent Interface**
+  
+  <img width="1280" alt="Agent View" src="https://github.com/user-attachments/assets/ea27d8e7-083e-4a1a-8a52-5bf418ca3bbd" />
+  
+</div>
 
 
 
